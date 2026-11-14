@@ -291,6 +291,15 @@ body.model #shelf,body.model #layerBtns{opacity:.45;pointer-events:none}
 .sec h4::before{content:'';width:0;height:0;border:calc(4px*var(--u)) solid transparent;border-top-color:var(--mu);margin-top:calc(4px*var(--u));transition:transform .12s}
 .sec.closed h4::before{transform:rotate(-90deg);margin-top:0}
 .sec.closed .body{display:none}
+
+.lrow.child{padding-left:calc(22px*var(--u))}
+.lrow.child::before{content:'';position:absolute;left:calc(14px*var(--u));top:0;bottom:0;width:calc(1px*var(--u));background:var(--line)}
+.lrow{position:relative}
+.lrow .th.fold{background:#3a3220;color:#f2c96a;border-color:#5a4a28}
+.lrow .th.filt{background:#1f2a36;color:#8cc4ff;border-color:#2c3e52}
+.lrow .tw{width:calc(16px*var(--u));height:calc(22px*var(--u));border:none;background:none;cursor:pointer;color:var(--mu);padding:0;display:flex;align-items:center;justify-content:center;margin:0 -4px}
+.lrow .tw svg{transition:transform .12s}
+.lrow .tw.open svg{transform:rotate(90deg)}
 </style>
 </head>
 <body>
@@ -335,7 +344,7 @@ body.model #shelf,body.model #layerBtns{opacity:.45;pointer-events:none}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -929,8 +938,8 @@ void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
   o=vec4(genMask(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz),texelFetch(uBake,ip,0))); }`;
 
 const FS_COMPOSITE = G_HEAD + `
-uniform sampler2D uAccC,uAccM,uSrcC,uSrcM,uSrcK,uMaskP,uMaskG;
-uniform bool uHasMP,uHasMG,uHasK; uniform float uOpacity; uniform int uBlend,uHBlend; uniform vec4 uCh;
+uniform sampler2D uAccC,uAccM,uSrcC,uSrcM,uSrcK,uMaskP,uMaskG,uFMP,uFMG;
+uniform bool uHasMP,uHasMG,uHasK,uHasFMP,uHasFMG; uniform float uOpacity; uniform int uBlend,uHBlend; uniform vec4 uCh;
 layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
 vec3 blendC(int m, vec3 a, vec3 b){
   if(m==1) return a*b;
@@ -948,12 +957,41 @@ void main(){ ivec2 ip=ivec2(gl_FragCoord.xy);
   vec3 kk = uHasK ? texelFetch(uSrcK,ip,0).rgb : vec3(sm.a);
   float a=sc.a; vec3 col=sc.rgb/max(a,1e-5); vec3 mat=sm.rgb/max(kk,vec3(1e-5));
   float mk=1.0; if(uHasMP) mk*=texelFetch(uMaskP,ip,0).r; if(uHasMG) mk*=texelFetch(uMaskG,ip,0).r;
+  if(uHasFMP) mk*=texelFetch(uFMP,ip,0).r; if(uHasFMG) mk*=texelFetch(uFMG,ip,0).r;
   a=clamp(a*mk*uOpacity,0.0,1.0); vec3 ak=clamp(kk*mk*uOpacity,0.0,1.0);
   vec3 bc=clamp(blendC(uBlend,ac.rgb,clamp(col,0.0,1.0)),0.0,1.0);
   oC=vec4(mix(ac.rgb,bc,a*uCh.x),1.0);
   float r=mix(am.r,mat.r,ak.x*uCh.y), me=mix(am.g,mat.g,ak.y*uCh.z);
   float h = uHBlend==1 ? am.b+mat.b*ak.z*uCh.w : mix(am.b,mat.b,ak.z*uCh.w);
   oM=vec4(r,me,h,1.0); }`;
+
+/* Filter-Ebene: verändert alles, was darunter liegt */
+const FS_FILTL = G_HEAD + `
+uniform sampler2D uAccC,uAccM,uMaskP,uMaskG,uFMP,uFMG; uniform bool uHasMP,uHasMG,uHasFMP,uHasFMG;
+uniform float uOpacity; uniform int uType; uniform vec4 uP; uniform vec4 uCh; uniform vec3 uTint;
+layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+ivec2 SZ;
+vec4 C(ivec2 p){ return texelFetch(uAccC,clamp(p,ivec2(0),SZ-1),0); }
+vec4 Mm(ivec2 p){ return texelFetch(uAccM,clamp(p,ivec2(0),SZ-1),0); }
+vec3 rgb2hsv(vec3 c){ vec4 K=vec4(0.0,-1.0/3.0,2.0/3.0,-1.0); vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g)); vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r)); float d=q.x-min(q.w,q.y); float e=1e-10; return vec3(abs(q.z+(q.w-q.y)/(6.0*d+e)),d/(q.x+e),q.x); }
+vec3 hsv2rgb(vec3 c){ vec3 p=abs(fract(c.xxx+vec3(1.0,2.0/3.0,1.0/3.0))*6.0-3.0); return c.z*mix(vec3(1.0),clamp(p-1.0,0.0,1.0),c.y); }
+void main(){ SZ=textureSize(uAccC,0); ivec2 ip=ivec2(gl_FragCoord.xy);
+  vec4 ac=C(ip), am=Mm(ip); vec3 c=ac.rgb; vec4 m=am;
+  if(uType==0){ vec3 h=rgb2hsv(c); h.x=fract(h.x+uP.x); h.y=clamp(h.y*(1.0+uP.y),0.0,1.0); c=hsv2rgb(h); c=uP.z>0.0? c+(1.0-c)*uP.z : c*(1.0+uP.z); }
+  else if(uType==1){ c=(c-0.5)*(1.0+uP.y)+0.5+uP.x; }
+  else if(uType==2||uType==3){ int r=max(1,int(uP.x)); vec4 sc=vec4(0.0), sm=vec4(0.0); float n=0.0;
+    for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){ ivec2 q=ip+ivec2(x,y)*r; float w=exp(-float(x*x+y*y)*0.35); sc+=C(q)*w; sm+=Mm(q)*w; n+=w; }
+    sc/=n; sm/=n;
+    if(uType==2){ c=sc.rgb; m=sm; } else { float k=uP.y; c=c+(c-sc.rgb)*k; m=vec4(m.rgb+(m.rgb-sm.rgb)*k,m.a); } }
+  else if(uType==4){ c=1.0-c; m.r=1.0-m.r; }
+  else if(uType==5){ float L=dot(c,vec3(0.299,0.587,0.114)); c=mix(c,uTint*(L*1.6+0.05),uP.x); }
+  else if(uType==6){ m.r=m.r+uP.x; m.g=m.g+uP.y; m.b=m.b*(1.0+uP.z); }
+  else if(uType==7){ vec3 lo=vec3(uP.x), hi=vec3(max(uP.y,uP.x+0.01)); c=pow(clamp((c-lo)/(hi-lo),0.0,1.0),vec3(1.0/max(uP.z,0.05))); }
+  c=clamp(c,0.0,1.0); m.rg=clamp(m.rg,0.0,1.0);
+  float k=uOpacity; if(uHasMP) k*=texelFetch(uMaskP,ip,0).r; if(uHasMG) k*=texelFetch(uMaskG,ip,0).r;
+  if(uHasFMP) k*=texelFetch(uFMP,ip,0).r; if(uHasFMG) k*=texelFetch(uFMG,ip,0).r;
+  oC=vec4(mix(ac.rgb,c,k*uCh.x),1.0);
+  oM=vec4(mix(am.r,m.r,k*uCh.y), mix(am.g,m.g,k*uCh.z), mix(am.b,m.b,k*uCh.w), 1.0); }`;
 
 const FS_FINAL = G_HEAD + `
 uniform sampler2D uAccC,uAccM,uIsl,uBake; uniform float uHS;
@@ -1430,10 +1468,12 @@ function parseOBJ(text) {
   const pos = [], nrm = [], uv = [], idx = [];
   const map = new Map();
   let hasT = true, hasN = true, faces = 0;
+  const mid = [], mats = []; let curMat = 0;
   const lines = text.split(/\r?\n/);
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const c0 = line.charCodeAt(0);
+    if (c0 === 117 && line.startsWith('usemtl')) { const n = line.slice(6).trim() || 'Material'; let i = mats.indexOf(n); if (i < 0) { i = mats.length; mats.push(n); } curMat = i; continue; }
     if (c0 !== 118 && c0 !== 102) continue; // v / f
     const parts = line.trim().split(/\s+/);
     const tag = parts[0];
@@ -1459,12 +1499,12 @@ function parseOBJ(text) {
         }
         ids.push(id);
       }
-      for (let k = 1; k + 1 < ids.length; k++) idx.push(ids[0], ids[k], ids[k + 1]);
+      for (let k = 1; k + 1 < ids.length; k++) { idx.push(ids[0], ids[k], ids[k + 1]); mid.push(curMat); }
       faces++;
     }
   }
   if (!faces) throw new Error('In der OBJ-Datei wurden keine Flächen gefunden.');
-  return { pos: new Float32Array(pos), nrm: hasN && vn.length ? new Float32Array(nrm) : null, uv: hasT && vt.length ? new Float32Array(uv) : null, idx: new Uint32Array(idx) };
+  return { pos: new Float32Array(pos), nrm: hasN && vn.length ? new Float32Array(nrm) : null, uv: hasT && vt.length ? new Float32Array(uv) : null, idx: new Uint32Array(idx), mid: mats.length > 1 ? new Int32Array(mid) : null, mats: mats.length > 1 ? mats : null };
 }
 
 function parseGLB(buf) {
@@ -1517,6 +1557,7 @@ function parseGLTF(json, bin) {
   let hasN = true, hasT = true;
   const nodes = json.nodes || [];
   const roots = json.scenes ? (json.scenes[json.scene || 0].nodes || []) : nodes.map((_, i) => i);
+  const mid = [], matIds = [];
   function visit(ni, parent) {
     const nd = nodes[ni];
     const local = nd.matrix ? new Float32Array(nd.matrix) : M4.trs(nd.translation, nd.rotation, nd.scale);
@@ -1535,23 +1576,27 @@ function parseGLTF(json, bin) {
           if (Nn) { const a = Nn[i * 3], b = Nn[i * 3 + 1], c = Nn[i * 3 + 2]; nrm.push(...V3.norm([nm[0] * a + nm[1] * b + nm[2] * c, nm[4] * a + nm[5] * b + nm[6] * c, nm[8] * a + nm[9] * b + nm[10] * c])); } else nrm.push(0, 1, 0);
           if (T) uv.push(T[i * 2], 1 - T[i * 2 + 1]); else uv.push(0, 0);
         }
+        const i0 = idx.length;
         if (pr.indices !== undefined) { const I = read(pr.indices); for (let k = 0; k < I.length; k++) idx.push(base + I[k]); }
         else for (let k = 0; k < cnt; k++) idx.push(base + k);
+        const mi = pr.material ?? -1; let mm = matIds.indexOf(mi); if (mm < 0) { mm = matIds.length; matIds.push(mi); }
+        for (let k = i0; k < idx.length; k += 3) mid.push(mm);
       }
     }
     (nd.children || []).forEach((c) => visit(c, W));
   }
   roots.forEach((r) => visit(r, M4.ident()));
   if (!idx.length) throw new Error('In der Datei wurde kein Modell gefunden.');
-  return { pos: new Float32Array(pos), nrm: hasN ? new Float32Array(nrm) : null, uv: hasT ? new Float32Array(uv) : null, idx: new Uint32Array(idx) };
+  const mats = matIds.map((i) => (i >= 0 && json.materials && json.materials[i] && json.materials[i].name) || ('Material ' + (i + 1)));
+  return { pos: new Float32Array(pos), nrm: hasN ? new Float32Array(nrm) : null, uv: hasT ? new Float32Array(uv) : null, idx: new Uint32Array(idx), mid: matIds.length > 1 ? new Int32Array(mid) : null, mats: matIds.length > 1 ? mats : null };
 }
 
 /* ---------- Aufbereitung: Normalen, UVs, Kanten, Krümmung, Gruppen ---------- */
 function finalizeMesh(src, name, opts = {}) {
   const P0 = src.pos; const nV = P0.length / 3;
   // Entartete Dreiecke entfernen
-  let I = src.idx; const keep = [];
-  for (let t = 0; t < I.length / 3; t++) { const a = I[t * 3], b = I[t * 3 + 1], c = I[t * 3 + 2]; if (a !== b && b !== c && a !== c && a < nV && b < nV && c < nV) keep.push(a, b, c); }
+  let I = src.idx; const keep = [], keepM = [];
+  for (let t = 0; t < I.length / 3; t++) { const a = I[t * 3], b = I[t * 3 + 1], c = I[t * 3 + 2]; if (a !== b && b !== c && a !== c && a < nV && b < nV && c < nV) { keep.push(a, b, c); keepM.push(src.mid ? src.mid[t] : 0); } }
   I = new Uint32Array(keep);
   const nT = I.length / 3;
   if (!nT) throw new Error('Das Modell hat keine Dreiecke.');
@@ -1664,7 +1709,7 @@ function finalizeMesh(src, name, opts = {}) {
     const key = Math.round(CU[t * 6 + k * 2] * 65536) + ',' + Math.round(CU[t * 6 + k * 2 + 1] * 65536) + ',' + pid[I[t * 3 + k]];
     const o = uvKey.get(key); if (o === undefined) uvKey.set(key, t); else islUF.union(t, o);
   }
-  const groups = { part: new Int32Array(nT), island: new Int32Array(nT), planar: new Int32Array(nT) };
+  const groups = { part: new Int32Array(nT), island: new Int32Array(nT), planar: new Int32Array(nT), mat: new Int32Array(keepM) };
   for (let t = 0; t < nT; t++) { groups.part[t] = partUF.find(pid[I[t * 3]]); groups.island[t] = islUF.find(t); groups.planar[t] = planarUF.find(t); }
 
   // Dreiecks-Suppe für die Grafikkarte
@@ -1685,7 +1730,7 @@ function finalizeMesh(src, name, opts = {}) {
     }
   }
   const pidC = new Int32Array(nT * 3); for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) pidC[t * 3 + k] = pid[I[t * 3 + k]];
-  return { name: name || 'Modell', nT, soup: S, groups, autoUV, ctr, rad, pidC };
+  return { name: name || 'Modell', nT, soup: S, groups, autoUV, ctr, rad, pidC, mats: src.mats || null };
 }
 
 /* Automatische UVs: Box-Projektion, Inseln nebeneinander packen */
@@ -1760,6 +1805,7 @@ function compilePrograms() {
   P.jfaInit = new Prog(VS_FULL, FS_JFAINIT, 'jfaInit');
   P.jfa = new Prog(VS_FULL, FS_JFA, 'jfa');
   P.comp = new Prog(VS_FULL, FS_COMPOSITE, 'comp');
+  P.filtl = new Prog(VS_FULL, FS_FILTL, 'filtl');
   P.final = new Prog(VS_FULL, FS_FINAL, 'final');
   P.copy = new Prog(VS_FULL, FS_COPY, 'copy');
   P.stamp = new Prog(VS_UV, FS_STAMP, 'stamp');
@@ -1937,16 +1983,32 @@ function compositeTarget(T, layers) {
   let cur = 0;
   bindTargets([T.acc[0].c, T.acc[0].m]);
   gl.clearBufferfv(gl.COLOR, 0, BASE_C); gl.clearBufferfv(gl.COLOR, 1, BASE_M);
+  const byId = new Map(layers.map((l) => [l.id, l]));
   for (const l of layers) {
-    if (!l.visible || l.opacity <= 0) continue;
+    if (l.kind === 'folder') continue;
+    const f = l.parent ? byId.get(l.parent) : null;
+    if (!l.visible || l.opacity <= 0 || (f && (!f.visible || f.opacity <= 0))) continue;
     const cache = getCache(T, l);
+    const fc = f && f.mask ? getCache(T, f) : null;
+    const fmp = f && f.mask ? f.mask.tex : null, fmg = f && f.mask && f.mask.gen && fc ? fc.g : null;
+    const opac = l.opacity * (f ? f.opacity : 1);
+    const A0 = T.acc[cur], B0 = T.acc[1 - cur];
+    const mp0 = l.mask ? l.mask.tex : null, mg0 = l.mask && l.mask.gen ? cache.g : null;
+    if (l.kind === 'filter') {
+      const ft = l.filt || {};
+      bindTargets([B0.c, B0.m]);
+      P.filtl.use().tex('uAccC', A0.c).tex('uAccM', A0.m).tex('uMaskP', mp0).tex('uMaskG', mg0).tex('uFMP', fmp).tex('uFMG', fmg)
+        .set('uHasMP', !!mp0).set('uHasMG', !!mg0).set('uHasFMP', !!fmp).set('uHasFMG', !!fmg).set('uOpacity', opac)
+        .set('uType', FILTERS.findIndex((x) => x.id === ft.type)).set('uP', [ft.a || 0, ft.b || 0, ft.c || 0, 0]).set('uTint', hex2rgb(ft.col || '#c08040'))
+        .set('uCh', [l.ch.c ? 1 : 0, l.ch.r ? 1 : 0, l.ch.m ? 1 : 0, l.ch.h ? 1 : 0]);
+      drawFull(); cur = 1 - cur; continue;
+    }
     const src = l.kind === 'paint' ? l.tex : cache;
     if (!src || !src.c) continue;
-    const A = T.acc[cur], B = T.acc[1 - cur];
-    const mp = l.mask ? l.mask.tex : null, mg = l.mask && l.mask.gen ? cache.g : null;
+    const A = A0, B = B0, mp = mp0, mg = mg0;
     bindTargets([B.c, B.m]);
-    P.comp.use().tex('uAccC', A.c).tex('uAccM', A.m).tex('uSrcC', src.c).tex('uSrcM', src.m).tex('uSrcK', src.k || null).set('uHasK', !!src.k).tex('uMaskP', mp).tex('uMaskG', mg)
-      .set('uHasMP', !!mp).set('uHasMG', !!mg).set('uOpacity', l.opacity).set('uBlend', Math.max(0, BLENDS.indexOf(l.blend)))
+    P.comp.use().tex('uFMP', fmp).tex('uFMG', fmg).set('uHasFMP', !!fmp).set('uHasFMG', !!fmg).tex('uAccC', A.c).tex('uAccM', A.m).tex('uSrcC', src.c).tex('uSrcM', src.m).tex('uSrcK', src.k || null).set('uHasK', !!src.k).tex('uMaskP', mp).tex('uMaskG', mg)
+      .set('uHasMP', !!mp).set('uHasMG', !!mg).set('uOpacity', opac).set('uBlend', Math.max(0, BLENDS.indexOf(l.blend)))
       .set('uHBlend', l.hblend === 'add' ? 1 : 0).set('uCh', [l.ch.c ? 1 : 0, l.ch.r ? 1 : 0, l.ch.m ? 1 : 0, l.ch.h ? 1 : 0]);
     drawFull();
     cur = 1 - cur;
@@ -2070,7 +2132,7 @@ function renderAll() {
 /* ---------- Rückgängig ---------- */
 const U = { stack: [], redo: [], budget: 700 * 1024 * 1024 };
 function cloneLayer(l) {
-  return { ...l, ch: { ...l.ch }, fill: l.fill ? { ...l.fill } : null, mask: l.mask ? { ...l.mask } : null, tex: l.tex ? { ...l.tex } : null };
+  return { ...l, ch: { ...l.ch }, filt: l.filt ? { ...l.filt } : null, fill: l.fill ? { ...l.fill } : null, mask: l.mask ? { ...l.mask } : null, tex: l.tex ? { ...l.tex } : null };
 }
 function snapshot() { return { layers: S.layers.map(cloneLayer), sel: S.sel, target: S.target, mesh: S.mesh }; }
 function snapTexs(sn, set) { for (const l of sn.layers) { if (l.tex) { set.add(l.tex.c); set.add(l.tex.m); set.add(l.tex.k); } if (l.mask && l.mask.tex) set.add(l.mask.tex); } }
@@ -2111,18 +2173,36 @@ function defaultFill() { return { pat: 0, colA: '#b8b8b8', colB: '#6e6e6e', roug
 function defaultMask(gen = 0) { return { tex: null, gen, level: 0.5, width: 0.04, rough: 0.5, soft: 0.06, scale: 2, seed: 0, inv: false }; }
 function newLayer(kind, opts = {}) {
   const n = S.layers.filter((l) => l.kind === kind).length + 1;
-  const l = { id: uid(), name: opts.name || (kind === 'paint' ? 'Mal-Ebene ' + n : 'Füll-Ebene ' + n), kind, visible: true, opacity: 1, blend: 'normal', hblend: kind === 'fill' ? 'normal' : 'add',
+  const l = { id: uid(), name: opts.name || ({ paint: 'Mal-Ebene ', fill: 'Füll-Ebene ', folder: 'Ordner ', filter: 'Filter ' }[kind] || 'Ebene ') + n, kind, visible: true, opacity: 1, blend: 'normal', hblend: kind === 'fill' ? 'normal' : 'add',
     ch: { c: true, r: true, m: true, h: true }, fill: kind === 'fill' ? Object.assign(defaultFill(), opts.fill || {}) : null, mask: null, tex: kind === 'paint' ? newPaintTex() : null };
   if (opts.mask) { l.mask = Object.assign(defaultMask(), opts.mask); l.mask.tex = newMaskTex(1); }
   if (opts.opacity != null) l.opacity = opts.opacity;
   if (opts.ch) Object.assign(l.ch, opts.ch);
   if (opts.blend) l.blend = opts.blend;
   if (opts.hblend) l.hblend = opts.hblend;
+  if (kind === 'folder') l.open = true;
+  if (kind === 'filter') l.filt = Object.assign({ type: 'hsl', a: 0, b: 0, c: 0, col: '#c08040' }, opts.filt || {});
+  if (opts.parent) l.parent = opts.parent;
   return l;
+}
+/* Ordner-Inhalt bleibt direkt unter seinem Ordner (nur eine Ebene tief) */
+function normalizeLayers() {
+  const ids = new Set(S.layers.filter((l) => l.kind === 'folder').map((l) => l.id));
+  for (const l of S.layers) if (l.parent && (!ids.has(l.parent) || l.kind === 'folder')) delete l.parent;
+  const out = [];
+  for (const l of S.layers) {
+    if (l.parent) continue;
+    if (l.kind === 'folder') out.push(...S.layers.filter((c) => c.parent === l.id));
+    out.push(l);
+  }
+  S.layers = out;
 }
 function insertLayers(list, select = true) {
   const cur = curLayer(); let at = cur ? S.layers.indexOf(cur) + 1 : S.layers.length;
+  if (cur && cur.kind !== 'folder' && cur.parent) for (const l of list) if (l.kind !== 'folder' && !l.parent) l.parent = cur.parent;
+  if (cur && cur.kind === 'folder' && cur.open) { at = S.layers.indexOf(cur); for (const l of list) if (l.kind !== 'folder') l.parent = cur.id; }
   for (const l of list) S.layers.splice(at++, 0, l);
+  normalizeLayers();
   if (select) { S.sel = list[list.length - 1].id; S.target = 'layer'; }
   E.needComp = true; S.dirty = true;
 }
@@ -2254,7 +2334,7 @@ function fillAt(r, x, y, erase) {
     if (!hit || hit.tri < 0) { if (r.type === '2d') toast('In 2D geht nur „Alles“.'); return; }
     const t0 = hit.tri;
     if (mode === 'tri') tris = [t0];
-    else { const arr = mode === 'planar' ? g.planar : mode === 'part' ? g.part : g.island; const id = arr[t0]; tris = []; for (let t = 0; t < nT; t++) if (arr[t] === id) tris.push(t); }
+    else { const arr = g[mode] || g.island; const id = arr[t0]; tris = []; for (let t = 0; t < nT; t++) if (arr[t] === id) tris.push(t); }
   }
   if (!strokeBegin(r, erase)) return;
   bindTargets([E.stroke]); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
@@ -2407,7 +2487,7 @@ function trisOfGroup(mode, t0) {
   const g = S.mesh.groups, nT = S.mesh.nT;
   if (mode === 'all') return null;
   if (mode === 'tri') return [t0];
-  const arr = mode === 'planar' ? g.planar : mode === 'part' ? g.part : g.island; const id = arr[t0];
+  const arr = g[mode] || g.island; const id = arr[t0];
   const out = []; for (let t = 0; t < nT; t++) if (arr[t] === id) out.push(t);
   return out;
 }
@@ -2904,7 +2984,8 @@ async function rebuildMesh(pos, nrm, uv, keepSel) {
   UI.busy('Modell wird aktualisiert …'); await sleep(30);
   try {
     const old = S.mesh, sel = keepSel || MOD.sel;
-    const m = finalizeMesh({ pos, nrm, uv, idx: seqIdx(pos.length / 3) }, old.name, { raw: true });
+    const m = finalizeMesh({ pos, nrm, uv, idx: seqIdx(pos.length / 3), mid: rebuildMesh.mid || old.groups.mat, mats: old.mats }, old.name, { raw: true });
+    rebuildMesh.mid = null;
     m.ctr = old.ctr; m.rad = old.rad; m.uvEdited = true;
     S.mesh = m; uploadMesh(m); bakeMesh(); warmUp();
     MOD.sel = sel && sel.length === m.nT ? sel : new Uint8Array(m.nT); MOD.idx = null;
@@ -2919,6 +3000,7 @@ function soupSubset(keepTri, extraTris) {
   const list = []; for (let t = 0; t < nT; t++) if (keepTri(t)) list.push(t);
   const all = list.concat(extraTris || []);
   const P = new Float32Array(all.length * 9), N = new Float32Array(all.length * 9), T = new Float32Array(all.length * 6);
+  const MI = new Int32Array(all.length); all.forEach((t, j) => { MI[j] = S.mesh.groups.mat[t]; }); rebuildMesh.mid = MI;
   all.forEach((t, j) => { P.set(s.pos.subarray(t * 9, t * 9 + 9), j * 9); N.set(s.nrm.subarray(t * 9, t * 9 + 9), j * 9); T.set(s.uv.subarray(t * 6, t * 6 + 6), j * 6); });
   return { P, N, T, n: list.length };
 }
@@ -3096,6 +3178,16 @@ const BRUSH_PRESETS = [
   { name: 'Kantenabrieb', shape: 7, hard: 0.7, spacing: 0.2, flow: 0.9, jitSize: 0.4, jitAng: 1, jitFlow: 0.3, jitPos: 0.15, follow: false },
   { name: 'Ring', shape: 5, hard: 0.8, spacing: 0.1, flow: 1, jitSize: 0, jitAng: 0, jitFlow: 0, jitPos: 0, follow: false },
   { name: 'Quadrat', shape: 1, hard: 0.95, spacing: 0.08, flow: 1, jitSize: 0, jitAng: 0, jitFlow: 0, jitPos: 0, follow: true },
+];
+const FILTERS = [
+  { id: 'hsl', name: 'Farbton / Sättigung / Helligkeit', p: [['a', 'Farbton', -0.5, 0.5, 0.01], ['b', 'Sättigung', -1, 1, 0.01], ['c', 'Helligkeit', -1, 1, 0.01]] },
+  { id: 'bc', name: 'Helligkeit / Kontrast', p: [['a', 'Helligkeit', -0.5, 0.5, 0.01], ['b', 'Kontrast', -1, 2, 0.01]] },
+  { id: 'blur', name: 'Weichzeichnen', p: [['a', 'Stärke', 1, 16, 1]] },
+  { id: 'sharp', name: 'Schärfen', p: [['a', 'Radius', 1, 6, 1], ['b', 'Stärke', 0, 3, 0.01]] },
+  { id: 'inv', name: 'Umkehren', p: [] },
+  { id: 'tint', name: 'Einfärben', p: [['a', 'Stärke', 0, 1, 0.01]], col: true },
+  { id: 'mat', name: 'Rauheit / Metall / Höhe ändern', p: [['a', 'Rauheit +/-', -1, 1, 0.01], ['b', 'Metall +/-', -1, 1, 0.01], ['c', 'Höhe ×', -1, 2, 0.01]] },
+  { id: 'lvl', name: 'Tonwerte', p: [['a', 'Schwarzpunkt', 0, 0.9, 0.01], ['b', 'Weißpunkt', 0.1, 1, 0.01], ['c', 'Mitte (Gamma)', 0.2, 3, 0.01]] },
 ];
 const BLEND_NAMES = { normal: 'Normal', multiply: 'Multiplizieren', screen: 'Aufhellen (Screen)', overlay: 'Überlagern', add: 'Addieren', subtract: 'Subtrahieren', darken: 'Abdunkeln', lighten: 'Aufhellen', softlight: 'Weiches Licht' };
 
@@ -3524,6 +3616,7 @@ async function buildProject() {
   meshBin.set(new Uint8Array(s.nrm.buffer, s.nrm.byteOffset, s.nrm.byteLength), s.pos.byteLength);
   meshBin.set(new Uint8Array(s.uv.buffer, s.uv.byteOffset, s.uv.byteLength), s.pos.byteLength + s.nrm.byteLength);
   files.push({ name: 'mesh.bin', data: meshBin });
+  const gm = S.mesh.groups.mat; files.push({ name: 'matid.bin', data: new Uint8Array(gm.buffer.slice(gm.byteOffset, gm.byteOffset + gm.byteLength)) });
   const layers = [];
   for (const l of S.layers) {
     const o = { ...l, tex: null, mask: l.mask ? { ...l.mask, tex: null } : null };
@@ -3531,7 +3624,7 @@ async function buildProject() {
     if (l.mask && l.mask.tex) { o.mask.tex = `L${l.id}_mask.bin`; files.push({ name: o.mask.tex, data: texToBytes(l.mask.tex) }); }
     layers.push(o);
   }
-  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, edited: !!S.mesh.uvEdited, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
+  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, mats: S.mesh.mats, edited: !!S.mesh.uvEdited, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
   files.unshift({ name: 'projekt.json', data: enc.encode(JSON.stringify(meta)) });
   return makeZip(files);
 }
@@ -3555,7 +3648,8 @@ async function loadProjectBuffer(buf) {
   const f = new Float32Array(mb.buffer.slice(mb.byteOffset, mb.byteOffset + mb.byteLength));
   const pos = f.subarray(0, n * 3), nrm = f.subarray(n * 3, n * 6), uv = f.subarray(n * 6, n * 8);
   const idx = new Uint32Array(n); for (let i = 0; i < n; i++) idx[i] = i;
-  const mesh = finalizeMesh({ pos, nrm, uv, idx }, meta.meshName, { raw: !!meta.ctr });
+  const mb2 = files.get('matid.bin'); const mid = mb2 ? new Int32Array(mb2.buffer.slice(mb2.byteOffset, mb2.byteOffset + mb2.byteLength)) : null;
+  const mesh = finalizeMesh({ pos, nrm, uv, idx, mid, mats: meta.mats }, meta.meshName, { raw: !!meta.ctr });
   if (meta.ctr) { mesh.ctr = meta.ctr; mesh.rad = meta.rad; }
   if (meta.edited) mesh.uvEdited = true;
   await startProject(mesh, meta.res, meta.name, () => {
@@ -3718,10 +3812,12 @@ const toolById = (id) => TOOLS.find((t) => t.id === id);
 const BRUSH_TOOLS = ['paint', 'erase', 'clone', 'blur', 'tone', 'pencil', 'recolor'];
 const FONTS = ['Arial', 'Arial Black', 'Impact', 'Segoe UI', 'Verdana', 'Georgia', 'Times New Roman', 'Courier New', 'Comic Sans MS', 'Trebuchet MS'];
 const SHAPE_KINDS = [['rect', 'Rechteck'], ['roundrect', 'Abgerundetes Rechteck'], ['ellipse', 'Ellipse'], ['triangle', 'Dreieck'], ['diamond', 'Raute'], ['pentagon', 'Fünfeck'], ['hexagon', 'Sechseck'], ['star', 'Stern'], ['arrow', 'Pfeil'], ['heart', 'Herz'], ['lasso', 'Freie Fläche']];
-const FILL_MODES = [['color', 'Ähnliche Farbe'], ['planar', 'Fläche'], ['island', 'UV-Insel'], ['part', 'Ganzes Teil'], ['all', 'Alles'], ['tri', 'Einzelnes Dreieck']];
+const FILL_MODES = [['color', 'Ähnliche Farbe'], ['mat', 'Material-Bereich (ID)'], ['planar', 'Fläche'], ['island', 'UV-Insel'], ['part', 'Ganzes Teil'], ['all', 'Alles'], ['tri', 'Einzelnes Dreieck']];
 
 /* schlichte Linien-Symbole */
 const ICONS = {
+  folder: 'M3 7.5A1.5 1.5 0 0 1 4.5 6h4.6l2 2h8.4A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z',
+  chev: 'M9 6l6 6-6 6',
   brush: 'M4 20c2.5 0 4.5-1.2 4.5-3.3A2.2 2.2 0 0 0 6.3 14.5C4 14.5 4 17.5 4 20z M9.6 14.4 19.2 4.8a1.6 1.6 0 0 1 2.2 2.2l-9.6 9.6',
   eraser: 'M8 20h12 M4.6 15.4l9-9a1.4 1.4 0 0 1 2 0l3.9 3.9a1.4 1.4 0 0 1 0 2L12 20H8.8z M9 11l5.5 5.5',
   bucket: 'M5 11.5 12 4.5l7 7-7 7z M5 11.5h14 M20.5 16.5c0 1.3-.7 2.2-1.5 2.2s-1.5-.9-1.5-2.2 1.5-3 1.5-3 1.5 1.7 1.5 3z',
@@ -3824,6 +3920,8 @@ const UI = {
     $('#layerBtns').append(
       el('button', { class: 'txt', title: 'Neue Ebene zum Malen', onclick: () => this.addLayer('paint') }, '+ Malen'),
       el('button', { class: 'txt', title: 'Neue Ebene mit einem Material', onclick: () => this.addLayer('fill') }, '+ Füllen'),
+      el('button', { 'data-tip': 'Neuer Ordner', 'data-desc': 'Fasst Ebenen zusammen. Ein Ordner kann eine eigene Maske und Deckkraft haben, die für alles darin gilt. Ebenen per Ziehen auf den Ordner hineinlegen.', onclick: () => this.addFolder() }, ico('folder', 15)),
+      el('button', { 'data-tip': 'Neuer Filter', 'data-desc': 'Verändert alles darunter, z. B. Farbton, Kontrast, Weichzeichnen oder Rauheit – jederzeit wieder änderbar.', onclick: () => this.addLayer('filter') }, ico('sun', 15)),
       el('button', { title: 'Ebene kopieren (Strg+Umschalt+D)', onclick: () => this.dupLayer() }, ico('copy', 15)),
       el('button', { title: 'Ebene löschen (Entf)', onclick: () => this.delLayer() }, ico('trash', 15)),
     );
@@ -3975,6 +4073,7 @@ const UI = {
     if (S.mode === 'model') {
       const chip = (t, fn, tip, on) => el('button', { class: 'chip' + (on ? ' on' : ''), title: tip || '', onclick: fn }, t);
       const modes = [['part', 'Ganzes Teil', '1'], ['planar', 'Fläche', '2'], ['island', 'UV-Insel', '3'], ['tri', 'Dreieck', '4']];
+      if (S.mesh.mats) modes.push(['mat', 'Material-Bereich', '5']);
       const n = modCount();
       c.append(el('b', { class: 'tname' }, 'Modell bearbeiten'), el('span', { class: 'sep' }), el('label', { class: 'hint' }, 'Klick wählt:'),
         ...modes.map(([m, t, k]) => chip(t, () => { MOD.selMode = m; this.renderCtx(); }, `Taste ${k}`, MOD.selMode === m)),
@@ -4120,11 +4219,16 @@ const UI = {
   renderLayers() {
     const list = $('#layerList'); list.innerHTML = '';
     if (!S.layers.length) list.append(el('div', { class: 'note', style: 'padding:12px' }, 'Keine Ebenen. Klick oben auf „+ Malen“ oder unten auf ein Material.'));
+    const byId = new Map(S.layers.map((x) => [x.id, x]));
     for (let i = S.layers.length - 1; i >= 0; i--) {
       const l = S.layers[i];
+      const par = l.parent ? byId.get(l.parent) : null;
+      if (par && !par.open) continue;
       const sel = l.id === S.sel;
       const th = el('div', { class: 'th' + (sel && S.target === 'layer' && l.mask ? ' act' : ''), title: 'Ebene' });
-      if (l.kind === 'fill') th.style.background = PAT_USES_B[l.fill.pat] ? `linear-gradient(135deg,${l.fill.colA} 50%,${l.fill.colB} 50%)` : l.fill.colA;
+      if (l.kind === 'folder') { th.classList.add('fold'); th.append(ico('folder', 16)); }
+      else if (l.kind === 'filter') { th.classList.add('filt'); th.append(ico('sun', 15)); }
+      else if (l.kind === 'fill') th.style.background = PAT_USES_B[l.fill.pat] ? `linear-gradient(135deg,${l.fill.colA} 50%,${l.fill.colB} 50%)` : l.fill.colA;
       else { th.classList.add('paint'); th.append(ico('brush', 15)); }
       let mk = null;
       if (l.mask) {
@@ -4133,9 +4237,11 @@ const UI = {
       }
       const eye = el('button', { class: 'eye' + (l.visible ? '' : ' off'), title: 'Ein- / ausblenden' }, ico(l.visible ? 'eye' : 'eyeOff', 16));
       eye.addEventListener('click', (e) => { e.stopPropagation(); pushUndo(); l.visible = !l.visible; E.needComp = true; this.renderLayers(); });
-      const extra = [l.opacity < 1 ? `${Math.round(l.opacity * 100)} %` : '', l.blend !== 'normal' ? BLEND_NAMES[l.blend] : ''].filter(Boolean).join(' · ');
+      const kidsN = l.kind === 'folder' ? S.layers.filter((x) => x.parent === l.id).length : 0;
+      const extra = [l.kind === 'folder' ? `${kidsN} ${kidsN === 1 ? 'Ebene' : 'Ebenen'}` : '', l.kind === 'filter' ? (FILTERS.find((x) => x.id === l.filt.type) || {}).name : '', l.opacity < 1 ? `${Math.round(l.opacity * 100)} %` : '', l.blend !== 'normal' ? BLEND_NAMES[l.blend] : ''].filter(Boolean).join(' · ');
       const nm = el('div', { class: 'nm' }, l.name, extra ? el('small', {}, extra) : null);
-      const row = el('div', { class: 'lrow' + (sel ? ' sel' : ''), draggable: 'true' }, eye, th, mk, nm);
+      const tw = l.kind === 'folder' ? el('button', { class: 'tw' + (l.open ? ' open' : ''), title: 'Auf-/zuklappen', onclick: (e) => { e.stopPropagation(); l.open = !l.open; this.renderLayers(); } }, ico('chev', 13)) : null;
+      const row = el('div', { class: 'lrow' + (sel ? ' sel' : '') + (par ? ' child' : '') + (l.kind === 'folder' ? ' folder' : ''), draggable: 'true' }, eye, tw, th, mk, nm);
       row.addEventListener('click', () => { S.sel = l.id; S.target = 'layer'; this.refreshAll(); });
       nm.addEventListener('dblclick', (e) => { e.stopPropagation(); this.rename(l, nm); });
       row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/layer', String(l.id)); });
@@ -4146,8 +4252,9 @@ const UI = {
         const id = +e.dataTransfer.getData('text/layer'); if (!id || id === l.id) return;
         pushUndo();
         const from = S.layers.findIndex((x) => x.id === id); const [m] = S.layers.splice(from, 1);
-        const to = S.layers.indexOf(l); S.layers.splice(to + 1, 0, m);
-        E.needComp = true; this.renderLayers();
+        if (l.kind === 'folder' && m.kind !== 'folder') { m.parent = l.id; l.open = true; const to = S.layers.indexOf(l); S.layers.splice(to, 0, m); }
+        else { if (m.kind !== 'folder') { if (l.parent) m.parent = l.parent; else delete m.parent; } const to = S.layers.indexOf(l); S.layers.splice(to + 1, 0, m); }
+        normalizeLayers(); E.needComp = true; this.renderLayers();
       });
       list.append(row);
     }
@@ -4180,11 +4287,20 @@ const UI = {
     if (l.mask) c.mask.tex = trackTex(copyTex(l.mask.tex));
     insertLayers([c]); this.refreshAll();
   },
+  addFolder() {
+    if (!S.mesh) return;
+    pushUndo();
+    const cur = curLayer(); const f = newLayer('folder');
+    if (cur && cur.kind !== 'folder' && !cur.parent) { const i = S.layers.indexOf(cur); S.layers.splice(i + 1, 0, f); cur.parent = f.id; }
+    else S.layers.push(f);
+    normalizeLayers(); S.sel = f.id; S.target = 'layer'; E.needComp = true; this.refreshAll();
+  },
   delLayer() {
     const l = curLayer(); if (!l) return;
     pushUndo();
-    const i = S.layers.indexOf(l); S.layers.splice(i, 1);
-    const n = S.layers[Math.min(i, S.layers.length - 1)] || S.layers[i - 1];
+    const i = S.layers.indexOf(l);
+    if (l.kind === 'folder') S.layers = S.layers.filter((x) => x !== l && x.parent !== l.id); else S.layers.splice(i, 1);
+    const n = S.layers[Math.min(i, S.layers.length - 1)] || S.layers[S.layers.length - 1];
     S.sel = n ? n.id : null; S.target = 'layer'; E.needComp = true; this.refreshAll();
   },
 
@@ -4247,6 +4363,15 @@ const UI = {
         el('div', { class: 'row two' }, el('label', {}, 'Wirkt auf'), chk)),
     ));
 
+    if (l.kind === 'filter') {
+      const ft = l.filt; const fd = FILTERS.find((x) => x.id === ft.type) || FILTERS[0]; const k = [];
+      k.push(ctlSelect('Art', ft, 'type', FILTERS.map((x) => [x.id, x.name]), { undo: true, onchange: () => { const d = FILTERS.find((x) => x.id === ft.type); ft.a = 0; ft.b = 0; ft.c = 0; if (d.id === 'lvl') { ft.b = 1; ft.c = 1; } if (d.id === 'blur') ft.a = 3; if (d.id === 'sharp') { ft.a = 2; ft.b = 1; } if (d.id === 'tint') ft.a = 0.6; recompL(); this.renderProps(); } }));
+      for (const [key, lab, mn, mx, st] of fd.p) k.push(ctlSlider(lab, ft, key, mn, mx, st, { undo: true, onchange: recomp }));
+      if (fd.col) k.push(ctlColor('Farbe', ft, 'col', { undo: true, onchange: recomp }));
+      k.push(el('div', { class: 'note' }, 'Wirkt auf alle Ebenen darunter' + (l.parent ? ' (auch außerhalb des Ordners)' : '') + '. Mit einer Maske nur an bestimmten Stellen.'));
+      P.append(sec('Filter', ...k));
+    }
+    if (l.kind === 'folder') P.append(sec('Ordner', el('div', { class: 'note' }, 'Deckkraft, Sichtbarkeit und Maske des Ordners gelten für alle Ebenen darin. Ebenen per Ziehen auf den Ordner hineinlegen, per Ziehen auf eine Ebene außerhalb wieder heraus.')));
     if (l.kind === 'fill') {
       const f = l.fill; const k = [];
       const matSel = el('select', {}, el('option', { value: '' }, 'Material wählen …'), Object.entries(MATERIALS).map(([id, m]) => el('option', { value: id }, m.name)));
@@ -5362,7 +5487,7 @@ function setupInput() {
       if (k === 'a') { if (e.altKey) { MOD.sel && MOD.sel.fill(0); modSelChanged(); } else modSelectAll(); return; }
       if (k === 'x' || e.key === 'Delete') { modDelete(); return; }
       if (k === 'm') { modMirror(0); return; }
-      const sm = { 1: 'part', 2: 'planar', 3: 'island', 4: 'tri' }[e.key]; if (sm) { MOD.selMode = sm; UI.renderCtx(); return; }
+      const sm = { 1: 'part', 2: 'planar', 3: 'island', 4: 'tri', 5: S.mesh.mats ? 'mat' : null }[e.key]; if (sm) { MOD.selMode = sm; UI.renderCtx(); return; }
       if (e.key === 'Home' || k === '0') { frameCamera(); return; }
       if (k === 'w') { S.view.wire = !S.view.wire; UI.renderVbar(); E.needDraw = true; }
       return;
