@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
-  "notes": "1.1.0\n- Neue Textur-Bibliothek: 462 Materialien und 93 fertige Looks (Metalle, Holzarten, Lacke, Stoffe, Leder, Stein, Fliesen, Natur, Industrie, Pixel, Effekte)\n- 10 neue Muster: Fischgrät, Nietenplatten, Filz, Pixel, Sackleinen, Steppung, Natursteinmauer, Punkte, Warnstreifen, Schachbrett\n- Vorschaubilder laden erst beim Hinscrollen, dadurch startet das Programm schneller\n- Neu: Modus „Modell bearbeiten“ (Tab) – Teile auswählen, bewegen, drehen, skalieren (G/R/S), duplizieren, spiegeln, löschen, glatt/kantig\n- Bearbeitete Modelle werden im Projekt gespeichert und beim Export mitgeliefert\n- Fehler behoben: Im Hinweisfenster stand manchmal „null“",
+  "version": "1.2.0",
+  "notes": "1.2.0\n- Pinsel malt Farbe, Rauheit, Metall und Höhe getrennt: jeden Kanal einzeln an-/ausschaltbar (auch beim Radieren)\n- Fluss und Strich-Deckkraft getrennt\n- Strg + Rechts ziehen = Größe/Härte, Strg + Links ziehen = Fluss/Winkel\n- Pinselgröße wahlweise „Am Modell“ (bleibt beim Zoomen gleich)\n- Pinsel-Kreis legt sich an die Oberfläche an\n- Neu: Schablone – Bild vor die Kamera legen und durchmalen (S halten zum Verschieben/Drehen/Skalieren)\n- Neu: Nachziehen (ruhige Linien), „Folgt dem Strich“, Zufall für Größe/Fluss/Winkel/Streuung\n- Neuer Reiter „Pinsel“ mit 11 Pinsel-Vorlagen\n- Neue Spitzen: Weich, Fleckig, Borsten, Eigenes Bild\n- Fehler behoben: In der Werkzeugleiste stand manchmal „null“\n- Fehler behoben: Hinweisfenster auf den Material-Kacheln zeigten interne Namen",
   "date": "2026-11-14"
 }
