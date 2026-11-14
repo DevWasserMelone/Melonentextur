@@ -1,5 +1,5 @@
 {
-  "version": "1.0.8",
-  "notes": "🍉 Melonentextur 1.0.8\n\n✨ Neu\n• 42 neue Materialien: Jeans, Strick, Karo, Tarnmuster, Riffelblech, Wellblech, Fliesen, Pflaster, Marmor, Asphalt, Gras, Erde, Eis, Lava und viele mehr\n• 8 neue fertige Looks: Alte Jeans, Uniform, Rostiges Wellblech, Industrieboden, Alter Pflasterweg, Abgenutztes Leder, Edler Marmor, Verbranntes Auto\n• Neue automatische Masken: Laufspuren, Grunge, Lichtseite\n\n🛠 Verbessert\n• Materialien mit Kategorien und Suchfeld",
+  "version": "1.0.9",
+  "notes": "🍉 Melonentextur 1.0.9\n\n🛠 Verbessert\n• Viel schnellerer Start\n• Modelle laden schneller\n\n🐞 Behoben\n• Lange Ladezeiten und Grafikfehler seit 1.0.8\n• Muster von unteren Ebenen scheinen nicht mehr durch neue Materialien durch",
   "date": "2026-11-14"
 }
