@@ -257,7 +257,7 @@ ipcMain.handle('net:get', async (_e, url) => {
 });
 ipcMain.handle('file:save', async (e, { name, data, kind }) => {
   const w = BrowserWindow.fromWebContents(e.sender);
-  const filters = kind === 'project' ? [{ name: 'Melonentextur-Projekt', extensions: ['mtex'] }] : kind === 'glb' ? [{ name: 'glTF-Binär (für Blender)', extensions: ['glb'] }] : [{ name: 'ZIP-Archiv', extensions: ['zip'] }];
+  const filters = kind === 'project' ? [{ name: 'Melonentextur-Projekt', extensions: ['mtex'] }] : kind === 'glb' ? [{ name: 'glTF-Binär (für Blender)', extensions: ['glb'] }] : kind === 'image' ? [{ name: 'PNG-Bild', extensions: ['png'] }] : [{ name: 'ZIP-Archiv', extensions: ['zip'] }];
   const dir = lastDir[kind] || app.getPath('documents');
   const r = await dialog.showSaveDialog(w, { defaultPath: path.join(dir, name), filters });
   if (r.canceled || !r.filePath) return { status: 'declined' };
