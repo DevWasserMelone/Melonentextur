@@ -175,6 +175,14 @@ details.adv summary:hover{color:var(--tx)}
 #btnExport{display:flex;align-items:center;gap:6px}
 #shelf .tabs button{font-size:12.5px}
 .tile span{font-size:11.5px;color:#c9cbd2}
+#tip{position:fixed;z-index:400;max-width:290px;background:#26282e;border:1px solid #3a3d45;border-radius:6px;padding:7px 10px;font-size:12px;line-height:1.45;pointer-events:none;opacity:0;transition:opacity .12s;box-shadow:0 6px 20px #0007}
+#tip.show{opacity:1}
+#tip b{font-weight:600}
+#tip kbd{margin-left:8px;background:#1a1b1f;border:1px solid #3a3d45;border-radius:4px;padding:0 5px;font:11px system-ui;color:#c9cbd2}
+#tip div{color:#a9acb6;margin-top:3px}
+#tools{overflow-y:auto;gap:2px}
+#tools button{width:34px;height:32px}
+#tools .sep{margin:3px 0}
 </style>
 </head>
 <body>
@@ -211,7 +219,7 @@ details.adv summary:hover{color:var(--tx)}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -775,7 +783,7 @@ float shape(vec2 l, float seed){
   if(uShape==5){ return 1.0-smoothstep(0.03,0.08+(1.0-h)*0.2,abs(r-0.78)); }
   return base; }
 float stampsAt(vec2 px){ float keep=1.0;
-  for(int i=0;i<64;i++){ if(i>=uN) break; vec4 s=uSt[i]; vec2 d=(px-s.xy)/s.z; if(dot(d,d)>2.05) continue;
+  for(int i=0;i<uN;i++){ vec4 s=uSt[i]; vec2 d=(px-s.xy)/s.z; if(dot(d,d)>2.05) continue;
     float c=cos(s.w), sn=sin(s.w); d=vec2(c*d.x+sn*d.y,-sn*d.x+c*d.y);
     keep*=1.0-clamp(shape(d,uSt2[i].y)*uSt2[i].x,0.0,1.0); }
   return 1.0-keep; }
@@ -795,18 +803,78 @@ void main(){ float a=0.0;
 const FS_ONE = G_HEAD + `out vec4 o; void main(){ o=vec4(1.0); }`;
 
 const FS_APPLY = G_HEAD + G_NOISE + G_PATTERN + `
-uniform sampler2D uBC,uBM,uStroke,uPos,uNrm; uniform float uOpac; uniform int uOp; uniform vec3 uCol; uniform vec3 uMat; uniform bool uUsePat;
+uniform sampler2D uBC,uBM,uStroke,uSC,uSel,uPos,uNrm; uniform float uOpac; uniform int uOp,uSrc; uniform vec3 uCol; uniform vec3 uMat; uniform bool uUsePat,uHasSel;
+uniform ivec2 uOff; uniform float uBlurR;
 layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
-void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=texelFetch(uBC,ip,0), bm=texelFetch(uBM,ip,0);
-  float a=clamp(texelFetch(uStroke,ip,0).r*uOpac,0.0,1.0);
+ivec2 SZ;
+vec4 fC(ivec2 p){ return texelFetch(uBC,clamp(p,ivec2(0),SZ-1),0); }
+vec4 fM(ivec2 p){ return texelFetch(uBM,clamp(p,ivec2(0),SZ-1),0); }
+void main(){ SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=fC(ip), bm=fM(ip);
+  vec4 sc=texelFetch(uSC,ip,0);
+  float a=(uSrc==1 ? sc.a : texelFetch(uStroke,ip,0).r)*uOpac;
+  if(uHasSel) a*=texelFetch(uSel,ip,0).r;
+  a=clamp(a,0.0,1.0);
+  if(a<=0.0){ oC=bc; oM=bm; return; }
   if(uOp==1){ oC=bc*(1.0-a); oM=bm*(1.0-a); return; }
+  if(uOp==2){ int r=max(1,int(uBlurR)); vec4 c=vec4(0.0), m=vec4(0.0); float n=0.0;
+    for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){ ivec2 q=ip+ivec2(x,y)*r; float w=1.0/(1.0+float(x*x+y*y)); c+=fC(q)*w; m+=fM(q)*w; n+=w; }
+    oC=mix(bc,c/n,a); oM=mix(bm,m/n,a); return; }
+  if(uOp==3){ oC=mix(bc,fC(ip+uOff),a); oM=mix(bm,fM(ip+uOff),a); return; }
+  if(uOp==5||uOp==6){ if(bc.a<=0.0){ oC=bc; oM=bm; return; } vec3 c=bc.rgb/bc.a; float k=(uOp==5?0.6:-0.6)*a;
+    c = k>0.0 ? c+(1.0-c)*k : c*(1.0+k); oC=vec4(clamp(c,0.0,1.0)*bc.a,bc.a); oM=bm; return; }
   vec3 col=uCol; vec3 mat=uMat;
-  if(uUsePat && a>0.0){ vec4 pp=texelFetch(uPos,ip,0); Mat m=pattern(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz)); col=m.col; mat=vec3(m.rough,m.metal,m.h); }
+  if(uOp==4) col=sc.rgb/max(sc.a,1e-4);
+  else if(uUsePat){ vec4 pp=texelFetch(uPos,ip,0); Mat m=pattern(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz)); col=m.col; mat=vec3(m.rough,m.metal,m.h); }
   oC=vec4(col*a,a)+bc*(1.0-a); oM=vec4(mat*a,a)+bm*(1.0-a); }`;
 
 const FS_APPLYMASK = G_HEAD + `
-uniform sampler2D uB,uStroke; uniform float uOpac,uVal; out vec4 o;
-void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); float b=texelFetch(uB,ip,0).r; float a=clamp(texelFetch(uStroke,ip,0).r*uOpac,0.0,1.0); o=vec4(mix(b,uVal,a)); }`;
+uniform sampler2D uB,uStroke,uSC,uSel; uniform float uOpac,uVal; uniform int uOp,uSrc; uniform bool uHasSel; uniform ivec2 uOff; uniform float uBlurR; out vec4 o;
+ivec2 SZ;
+float fB(ivec2 p){ return texelFetch(uB,clamp(p,ivec2(0),SZ-1),0).r; }
+void main(){ SZ=textureSize(uB,0); ivec2 ip=ivec2(gl_FragCoord.xy); float b=fB(ip);
+  vec4 sc=texelFetch(uSC,ip,0);
+  float a=(uSrc==1 ? sc.a : texelFetch(uStroke,ip,0).r)*uOpac;
+  if(uHasSel) a*=texelFetch(uSel,ip,0).r;
+  a=clamp(a,0.0,1.0);
+  float v=uVal;
+  if(uOp==1) v=0.0;
+  else if(uOp==2){ int r=max(1,int(uBlurR)); float s=0.0,n=0.0; for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){ float w=1.0/(1.0+float(x*x+y*y)); s+=fB(ip+ivec2(x,y)*r)*w; n+=w; } v=s/n; }
+  else if(uOp==3) v=fB(ip+uOff);
+  else if(uOp==4) v=uVal*dot(sc.rgb/max(sc.a,1e-4),vec3(0.3,0.59,0.11));
+  else if(uOp==5) v=min(1.0,b+0.6);
+  else if(uOp==6) v=max(0.0,b-0.6);
+  o=vec4(mix(b,v,a)); }`;
+
+/* Bildschirm-Bild (Formen, Text, Aufkleber, Verlauf, Auswahl) aufs Modell projizieren */
+const FS_PROJ = G_HEAD + `
+in vec3 vP; in vec3 vN; in vec2 vUV;
+uniform int uMode; uniform mat4 uVP; uniform vec2 uView; uniform vec3 uEye; uniform sampler2D uGPos, uScreen; uniform float uTol; uniform bool uThrough;
+uniform vec3 uMir; uniform bool uMirOn; uniform float uZoom; uniform vec2 uPan;
+out vec4 o;
+float vis3(vec3 p, vec3 n, out vec2 px){ px=vec2(-1e4);
+  vec4 c=uVP*vec4(p,1.0); if(c.w<=0.0) return 0.0; vec2 ndc=c.xy/c.w; if(abs(ndc.x)>1.0||abs(ndc.y)>1.0) return 0.0;
+  px=(ndc*0.5+0.5)*uView; if(uThrough) return 1.0;
+  float f=dot(normalize(n),normalize(uEye-p)); float facing=smoothstep(0.0,0.2,f); if(facing<=0.0) return 0.0;
+  vec4 g=texelFetch(uGPos,clamp(ivec2(px),ivec2(0),ivec2(uView)-1),0); if(g.a<0.5) return 0.0;
+  return distance(p,uEye)-distance(g.xyz,uEye) < uTol ? facing : 0.0; }
+vec4 S(vec2 px){ return texture(uScreen, px/uView); }
+void main(){ vec4 r=vec4(0.0);
+  if(uMode==1){ vec2 px=vUV*uZoom+uPan; if(px.x>=0.0&&px.y>=0.0&&px.x<uView.x&&px.y<uView.y) r=S(px); }
+  else { vec2 px; float v=vis3(vP,vN,px); if(v>0.0){ r=S(px); r.a*=v; }
+    if(uMirOn){ vec2 px2; float v2=vis3(vP*uMir,vN*uMir,px2); if(v2>0.0){ vec4 r2=S(px2); r2.a*=v2; if(r2.a>r.a) r=r2; } } }
+  if(r.a<=0.0) discard;
+  o=vec4(r.rgb*r.a,r.a); }`;
+
+const FS_SELCOMB = G_HEAD + `
+uniform sampler2D uOld,uSC,uStroke; uniform int uMode,uSrc; uniform bool uHasOld; out vec4 o;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); float n= uSrc==1 ? texelFetch(uSC,ip,0).a : texelFetch(uStroke,ip,0).r; float old=uHasOld?texelFetch(uOld,ip,0).r:0.0;
+  float v = uMode==1 ? max(old,n) : uMode==2 ? old*(1.0-n) : uMode==3 ? 1.0-old : n;
+  o=vec4(v); }`;
+
+const FS_UVSEL = G_HEAD + `
+in vec3 vBary; uniform vec4 uFill; out vec4 o;
+void main(){ vec3 d=fwidth(vBary); vec3 a3=smoothstep(vec3(0.0),d*1.2,vBary); float w=1.0-min(min(a3.x,a3.y),a3.z);
+  o=mix(uFill, vec4(1.0,0.62,0.2,1.0), w); }`;
 
 const FS_GBUF = G_HEAD + `
 in vec3 vP; in vec2 vUV; flat in float vTri;
@@ -814,7 +882,8 @@ layout(location=0) out vec4 o0; layout(location=1) out vec4 o1;
 void main(){ o0=vec4(vP,1.0); o1=vec4(vUV,vTri,1.0); }`;
 
 const G_CHAN = `
-uniform int uChan; uniform sampler2D uC,uM,uN,uBake,uMaskP,uMaskG; uniform bool uHasMP,uHasMG;
+uniform int uChan; uniform sampler2D uC,uM,uN,uBake,uMaskP,uMaskG,uSel; uniform bool uHasMP,uHasMG,uHasSel;
+vec3 selTint(vec3 c, vec2 uv){ if(!uHasSel) return c; float s=texture(uSel,uv).r; return mix(c*0.45+vec3(0.02,0.03,0.08),c,s); }
 vec3 heat(float t){ return clamp(vec3(1.5*t, 1.5*t-0.5, 3.0*t-2.0)+vec3(0.05,0.05,0.25)*(1.0-t),0.0,1.0); }
 vec3 chanColor(vec2 uv){
   if(uChan==1) return texture(uC,uv).rgb;
@@ -845,6 +914,7 @@ void main(){
   if(uChan==0){ vec4 c=texture(uC,vUV), m=texture(uM,vUV); col=shadePBR(c.rgb,m.r,m.g,mix(1.0,m.a,uAOStr),N,V); }
   else if(uChan==5 && false){ col=N*0.5+0.5; }
   else { col=chanColor(vUV); if(uChan==1||uChan==9){ col=col*(0.55+0.45*max(dot(N,normalize(V+vec3(0.3,0.5,0.2))),0.0)); } }
+  col=selTint(col,vUV);
   if(uWire){ vec3 d=fwidth(vBary); vec3 a3=smoothstep(vec3(0.0),d*1.3,vBary); float w=1.0-min(min(a3.x,a3.y),a3.z); col=mix(col,vec3(1.0,0.4,0.48),w*0.55); }
   o=vec4(col,1.0); }`;
 
@@ -862,7 +932,7 @@ void main(){ vec2 px=gl_FragCoord.xy-uOrig; vec2 uv=(px-uPan)/uZoom;
   vec2 ck=floor(px/14.0); vec3 bg=vec3(mod(ck.x+ck.y,2.0)<1.0?0.13:0.16);
   if(uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0){ o=vec4(vec3(0.1),1.0); return; }
   vec3 col= uChan==0 ? texture(uC,uv).rgb : chanColor(uv);
-  o=vec4(col,1.0); }`;
+  o=vec4(selTint(col,uv),1.0); }`;
 
 const FS_WIRE2D = G_HEAD + `
 in vec3 vBary; uniform float uAlpha; out vec4 o;
@@ -1308,7 +1378,7 @@ function finalizeMesh(src, name) {
       S.curv[t * 3 + k] = kap[pid[I[t * 3 + k]]];
     }
   }
-  return { name: name || 'Modell', nT, soup: S, groups, autoUV };
+  return { name: name || 'Modell', nT, soup: S, groups, autoUV, ctr, rad };
 }
 
 /* Automatische UVs: Box-Projektion, Inseln nebeneinander packen */
@@ -1363,7 +1433,9 @@ const S = {
   res: 2048, hdepth: 0.06, mesh: null, layers: [], sel: null, target: 'layer',
   tool: 'paint',
   brush: { size: 40, flow: 1, opacity: 1, hard: 0.6, spacing: 0.12, shape: 0, angle: 0, jitAng: 0, jitSize: 0,
-    color: '#ff4f64', rough: 0.45, metal: 0, height: 0, mat: '', maskVal: 1, mirror: 0, through: false, pSize: true, pOpac: false, fillMode: 'island' },
+    color: '#ff4f64', rough: 0.45, metal: 0, height: 0, mat: '', maskVal: 1, mirror: 0, through: false, pSize: true, pOpac: false, fillMode: 'island',
+    air: false, blur: 0.3, toneMode: 'light', gradKind: 'linear', shapeKind: 'rect', shapeFill: 1, lineW: 6, text: 'Melone', font: 'Arial Black', fontSize: 48, bold: false,
+    decalSize: 200, decalAngle: 0, selKind: 'rect' },
   view: { layout: '3d', chan: 0, wire: false, env: 0, envRot: 0.6, exposure: 1, bg: 0, ao: 1 },
   cam: { yaw: 0.6, pitch: 0.35, dist: 3.2, target: [0, 0, 0], fov: 35 },
   uv2d: { zoom: 0, pan: [0, 0] },
@@ -1396,6 +1468,9 @@ function compilePrograms() {
   P.export = new Prog(VS_FULL, FS_EXPORT, 'export');
   P.prevGeo = new Prog(VS_FULL, FS_PREVGEO, 'prevGeo');
   P.prevShade = new Prog(VS_FULL, FS_PREVSHADE, 'prevShade');
+  P.proj = new Prog(VS_UV, FS_PROJ, 'proj');
+  P.selComb = new Prog(VS_FULL, FS_SELCOMB, 'selComb');
+  P.uvSel = new Prog(VS_WIRE2D, FS_UVSEL, 'uvSel');
 }
 
 /* ---------- Modell hochladen ---------- */
@@ -1444,6 +1519,8 @@ function bakeMesh(progress) {
   if (E.fin) { E.fin.c.free(); E.fin.m.free(); E.fin.n.free(); }
   if (E.isl) E.isl.free();
   if (E.stroke) E.stroke.free();
+  if (E.strokeCol) E.strokeCol.free();
+  if (E.sel) { E.sel.free(); E.sel = null; }
   for (const c of E.caches.values()) freeCache(c);
   E.caches.clear();
   const T = { size: res, pos: new Tex(res, res, 'rgba32f'), nrm: new Tex(res, res, 'rgba16f'), bake: new Tex(res, res, 'rgba16f'), acc: makeAcc(res), caches: E.caches };
@@ -1483,6 +1560,7 @@ function bakeMesh(progress) {
   E.T = T;
   E.fin = { c: new Tex(res, res, 'rgba8'), m: new Tex(res, res, 'rgba16f'), n: new Tex(res, res, 'rgba8') };
   E.stroke = new Tex(res, res, 'r8');
+  E.strokeCol = new Tex(res, res, 'rgba8');
   cleanFBOs();
   E.needComp = true;
 }
@@ -1617,8 +1695,8 @@ function curMaskTexs() {
 }
 function bindChanTextures(p) {
   const [mp, mg] = curMaskTexs();
-  p.tex('uC', E.fin.c).tex('uM', E.fin.m).tex('uN', E.fin.n).tex('uBake', E.T.bake).tex('uMaskP', mp).tex('uMaskG', mg)
-    .set('uHasMP', !!mp).set('uHasMG', !!mg).set('uChan', S.view.chan);
+  p.tex('uC', E.fin.c).tex('uM', E.fin.m).tex('uN', E.fin.n).tex('uBake', E.T.bake).tex('uMaskP', mp).tex('uMaskG', mg).tex('uSel', E.sel)
+    .set('uHasMP', !!mp).set('uHasMG', !!mg).set('uHasSel', !!E.sel).set('uChan', S.view.chan);
 }
 function renderAll() {
   if (!E.T) return;
@@ -1647,6 +1725,7 @@ function renderAll() {
       gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       E.P.wire2d.use().set('uZoom', S.uv2d.zoom).set('uPan', S.uv2d.pan).set('uSize', [r.w, r.h]).set('uAlpha', S.view.wire ? 0.5 : 0.18);
       drawSoup(); gl.disable(gl.BLEND);
+      drawUVSelection(r);
     }
   }
   gl.disable(gl.SCISSOR_TEST);
@@ -1658,7 +1737,7 @@ const U = { stack: [], redo: [], budget: 700 * 1024 * 1024 };
 function cloneLayer(l) {
   return { ...l, ch: { ...l.ch }, fill: l.fill ? { ...l.fill } : null, mask: l.mask ? { ...l.mask } : null, tex: l.tex ? { ...l.tex } : null };
 }
-function snapshot() { return { layers: S.layers.map(cloneLayer), sel: S.sel, target: S.target }; }
+function snapshot() { return { layers: S.layers.map(cloneLayer), sel: S.sel, target: S.target, uv: S.mesh ? S.mesh.soup.uv : null }; }
 function snapTexs(sn, set) { for (const l of sn.layers) { if (l.tex) { set.add(l.tex.c); set.add(l.tex.m); } if (l.mask && l.mask.tex) set.add(l.mask.tex); } }
 function gcTextures() {
   const live = new Set(); snapTexs({ layers: S.layers }, live);
@@ -1682,6 +1761,7 @@ function pushUndo() {
 }
 function restoreSnap(sn) {
   S.layers = sn.layers.map(cloneLayer); S.sel = sn.sel; S.target = sn.target;
+  if (sn.uv && S.mesh && sn.uv !== S.mesh.soup.uv) { S.mesh.soup.uv = sn.uv; uploadUV(); bakeMesh(); warmUp(); }
   if (!S.layers.find((l) => l.id === S.sel)) S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null;
   E.needComp = true; S.dirty = true;
   if (typeof UI !== 'undefined') UI.refreshAll();
@@ -1714,7 +1794,9 @@ function insertLayers(list, select = true) {
 
 /* ---------- Malen ---------- */
 const ST = { on: false };
-function strokeBegin(r, erase) {
+function strokeBegin(r, op) {
+  if (op === true) op = 1; else if (op === false || op == null) op = 0;
+  const erase = op === 1;
   const l = curLayer();
   if (!l) { toast('Leg zuerst eine Ebene an (+ Malen).'); return false; }
   const onMask = S.target === 'mask' && l.mask;
@@ -1725,7 +1807,8 @@ function strokeBegin(r, erase) {
   else { const o = l.tex; l.tex = { c: trackTex(copyTex(o.c)), m: trackTex(copyTex(o.m)) }; Object.assign(ST, { before: { c: o.c, m: o.m } }); }
   clearTex(E.stroke, [0, 0, 0, 0]);
   if (r.type === '3d') ensureGbuf(r);
-  Object.assign(ST, { on: true, layer: l, mask: !!onMask, erase, r, pending: [], last: null, carry: 0, cm: r.type === '3d' ? camMatrices(r) : null });
+  clearTex(E.strokeCol, [0, 0, 0, 0]);
+  Object.assign(ST, { on: true, layer: l, mask: !!onMask, erase, op, src: 0, off: [0, 0], r, pending: [], last: null, carry: 0, cm: r.type === '3d' ? camMatrices(r) : null, t0: performance.now() });
   E.stroke_active = true;
   return true;
 }
@@ -1771,15 +1854,17 @@ function strokeFlush() {
 }
 function applyStroke() {
   const P = E.P, b = S.brush, l = ST.layer;
+  const common = (p) => p.tex('uStroke', E.stroke).tex('uSC', E.strokeCol).tex('uSel', E.sel).set('uHasSel', !!E.sel)
+    .set('uOpac', b.opacity).set('uOp', ST.op).set('uSrc', ST.src).set('uOff', ST.off).set('uBlurR', Math.max(1, Math.round(S.res / 1024 * (1 + b.blur * 4))));
   if (ST.mask) {
     bindTargets([l.mask.tex]);
-    P.applyMask.use().tex('uB', ST.before.mask).tex('uStroke', E.stroke).set('uOpac', b.opacity).set('uVal', ST.erase ? 0 : b.maskVal);
+    common(P.applyMask.use().tex('uB', ST.before.mask)).set('uVal', b.maskVal);
   } else {
     bindTargets([l.tex.c, l.tex.m]);
-    const p = P.apply.use().tex('uBC', ST.before.c).tex('uBM', ST.before.m).tex('uStroke', E.stroke).tex('uPos', E.T.pos).tex('uNrm', E.T.nrm)
-      .set('uOpac', b.opacity).set('uOp', ST.erase ? 1 : 0).set('uCol', hex2rgb(b.color)).set('uMat', [b.rough, b.metal, b.height]);
+    const p = common(P.apply.use().tex('uBC', ST.before.c).tex('uBM', ST.before.m).tex('uPos', E.T.pos).tex('uNrm', E.T.nrm))
+      .set('uCol', hex2rgb(b.color)).set('uMat', [b.rough, b.metal, b.height]);
     const mat = b.mat && MATERIALS[b.mat];
-    p.set('uUsePat', !!mat);
+    p.set('uUsePat', !!mat && ST.op === 0);
     if (mat) setPatternUniforms(p, Object.assign(defaultFill(), mat.fill));
   }
   drawFull();
@@ -1874,6 +1959,291 @@ function renderPreview(layers) {
   for (let y = 0; y < T.size; y++) img.data.set(px.subarray((T.size - 1 - y) * T.size * 4, (T.size - y) * T.size * 4), y * T.size * 4);
   ctx.putImageData(img, 0, 0);
   return _prevCanvas.toDataURL('image/png');
+}
+
+'use strict';
+/* ================= Werkzeug-Technik: Projektion, Auswahl, UV-Bearbeitung ================= */
+const FS_IMGM = G_HEAD + `
+in vec2 vUV; uniform sampler2D uSrc; uniform float uRough,uMetal; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+void main(){ vec4 c=texture(uSrc,vUV); oC=c; oM=vec4(uRough*c.a,uMetal*c.a,0.0,c.a); }`;
+function initTools() { E.P.imgm = new Prog(VS_FULL, FS_IMGM, 'imgm'); }
+
+/* Canvas (Bildschirm-Größe der Region) -> Textur */
+function canvasTex(cv) {
+  if (!E.screenTex || E.screenTex.w !== cv.width || E.screenTex.h !== cv.height) {
+    if (E.screenTex) E.screenTex.free();
+    E.screenTex = new Tex(cv.width, cv.height, 'rgba8');
+  }
+  gl.bindTexture(gl.TEXTURE_2D, E.screenTex.t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  return E.screenTex;
+}
+function setProjUniforms(p, r) {
+  const b = S.brush;
+  p.set('uMode', r.type === '2d' ? 1 : 0).set('uView', [r.w, r.h]).set('uThrough', !!b.through).set('uZoom', S.uv2d.zoom).set('uPan', S.uv2d.pan);
+  if (r.type === '3d') {
+    ensureGbuf(r); const cm = camMatrices(r);
+    p.set('uVP', cm.vp).set('uEye', cm.eye).tex('uGPos', E.gb.pos).set('uTol', 0.012 + S.cam.dist * 0.004)
+      .set('uMirOn', b.mirror > 0).set('uMir', [b.mirror === 1 ? -1 : 1, b.mirror === 2 ? -1 : 1, b.mirror === 3 ? -1 : 1]);
+  } else p.tex('uGPos', null).set('uMirOn', false);
+}
+/* Bild aus der Ansicht in E.strokeCol (UV-Raum) übertragen */
+function projectCanvas(cv, r) {
+  const t = canvasTex(cv);
+  clearTex(E.strokeCol, [0, 0, 0, 0]);
+  bindTargets([E.strokeCol]); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
+  const p = E.P.proj.use(); setProjUniforms(p, r); p.tex('uScreen', t);
+  drawSoup();
+}
+/* Formen, Text, Verlauf: op 0 = mit Pinsel-Material, 1 = radieren, 4 = Bildfarben (Aufkleber) */
+function applyCanvas(cv, r, op) {
+  if (!strokeBegin(r, op)) return false;
+  projectCanvas(cv, r);
+  ST.src = 1;
+  applyStroke();
+  ST.on = false; ST.layer = null; ST.before = null; E.stroke_active = false; S.dirty = true;
+  return true;
+}
+
+/* ---------- Auswahl ---------- */
+function drawTriList(tris) {
+  if (!tris) { drawSoup(); return; }
+  const idx = new Uint32Array(tris.length * 3);
+  tris.forEach((t, i) => { idx[i * 3] = t * 3; idx[i * 3 + 1] = t * 3 + 1; idx[i * 3 + 2] = t * 3 + 2; });
+  gl.bindVertexArray(E.vao);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, E.idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STREAM_DRAW);
+  gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_INT, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+  gl.bindVertexArray(null);
+}
+function selCombine(src, mode) {
+  const nw = new Tex(S.res, S.res, 'r8');
+  bindTargets([nw]); gl.disable(gl.BLEND);
+  E.P.selComb.use().tex('uOld', E.sel).tex('uSC', E.strokeCol).tex('uStroke', E.stroke).set('uHasOld', !!E.sel).set('uMode', mode).set('uSrc', src);
+  drawFull();
+  if (E.sel) E.sel.free();
+  E.sel = nw; cleanFBOs(); E.needDraw = true;
+}
+function selectCanvas(cv, r, mode) { projectCanvas(cv, r); selCombine(1, mode); }
+function selectTris(tris, mode) {
+  clearTex(E.stroke, [0, 0, 0, 0]); bindTargets([E.stroke]); gl.disable(gl.BLEND);
+  E.P.one.use(); drawTriList(tris); selCombine(0, mode);
+}
+function selectNone() { if (E.sel) { E.sel.free(); E.sel = null; cleanFBOs(); } E.needDraw = true; }
+function selectInvert() { if (!E.sel) return; selCombine(0, 3); }
+function trisOfGroup(mode, t0) {
+  const g = S.mesh.groups, nT = S.mesh.nT;
+  if (mode === 'all') return null;
+  if (mode === 'tri') return [t0];
+  const arr = mode === 'planar' ? g.planar : mode === 'part' ? g.part : g.island; const id = arr[t0];
+  const out = []; for (let t = 0; t < nT; t++) if (arr[t] === id) out.push(t);
+  return out;
+}
+
+/* ---------- UV-Bearbeitung (Inseln verschieben, drehen, skalieren) ---------- */
+const UVE = { sel: new Set(), op: null, idx: null };
+function triAtUV(u, v) {
+  const uv = S.mesh.soup.uv, nT = S.mesh.nT;
+  for (let t = 0; t < nT; t++) {
+    const o = t * 6;
+    const ax = uv[o], ay = uv[o + 1], bx = uv[o + 2], by = uv[o + 3], cx = uv[o + 4], cy = uv[o + 5];
+    const d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy); if (Math.abs(d) < 1e-14) continue;
+    const l1 = ((by - cy) * (u - cx) + (cx - bx) * (v - cy)) / d, l2 = ((cy - ay) * (u - cx) + (ax - cx) * (v - cy)) / d;
+    if (l1 >= 0 && l2 >= 0 && l1 + l2 <= 1) return t;
+  }
+  return -1;
+}
+function islandTris() {
+  const m = S.mesh;
+  if (!m.islandMap) { m.islandMap = new Map(); for (let t = 0; t < m.nT; t++) { const id = m.groups.island[t]; let a = m.islandMap.get(id); if (!a) m.islandMap.set(id, a = []); a.push(t); } }
+  return m.islandMap;
+}
+function uvSelTris() { const map = islandTris(); const out = []; for (const id of UVE.sel) out.push(...(map.get(id) || [])); return out; }
+function uvSelChanged() { UVE.idx = null; E.needDraw = true; }
+function uvPick(r, x, y, add) {
+  let t = -1;
+  if (r.type === '2d') t = triAtUV((x - S.uv2d.pan[0]) / S.uv2d.zoom, (y - S.uv2d.pan[1]) / S.uv2d.zoom);
+  else { const h = pickAt(r, x, y); t = h ? h.tri : -1; }
+  if (!add) UVE.sel.clear();
+  if (t >= 0) { const id = S.mesh.groups.island[t]; if (add && UVE.sel.has(id)) UVE.sel.delete(id); else UVE.sel.add(id); }
+  uvSelChanged();
+  return t >= 0;
+}
+function uvSelectAll() { UVE.sel = new Set(islandTris().keys()); uvSelChanged(); }
+function uploadUV() { gl.bindBuffer(gl.ARRAY_BUFFER, E.bufs[2]); gl.bufferData(gl.ARRAY_BUFFER, S.mesh.soup.uv, gl.STATIC_DRAW); E.needDraw = true; E.gbDirty = true; }
+function uvCenter(tris, uv) {
+  let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+  for (const t of tris) for (let k = 0; k < 3; k++) { const u = uv[t * 6 + k * 2], v = uv[t * 6 + k * 2 + 1]; mnx = Math.min(mnx, u); mny = Math.min(mny, v); mxx = Math.max(mxx, u); mxy = Math.max(mxy, v); }
+  return [(mnx + mxx) / 2, (mny + mxy) / 2];
+}
+function uvBegin(mode, startUV) {
+  if (!UVE.sel.size) return false;
+  pushUndo();
+  const orig = S.mesh.soup.uv;
+  const tris = uvSelTris();
+  UVE.op = { mode, start: startUV, orig, tris, center: uvCenter(tris, orig) };
+  S.mesh.soup.uv = new Float32Array(orig);
+  return true;
+}
+function uvUpdate(cur, opts = {}) {
+  const o = UVE.op; if (!o) return;
+  const uv = S.mesh.soup.uv, src = o.orig, c = o.center;
+  let dx = cur[0] - o.start[0], dy = cur[1] - o.start[1];
+  let ang = Math.atan2(cur[1] - c[1], cur[0] - c[0]) - Math.atan2(o.start[1] - c[1], o.start[0] - c[0]);
+  let sc = Math.hypot(cur[0] - c[0], cur[1] - c[1]) / Math.max(1e-6, Math.hypot(o.start[0] - c[0], o.start[1] - c[1]));
+  if (opts.snap) { ang = Math.round(ang / (Math.PI / 12)) * Math.PI / 12; sc = Math.round(sc * 10) / 10; dx = Math.round(dx * 64) / 64; dy = Math.round(dy * 64) / 64; }
+  if (opts.angle != null) ang = opts.angle;
+  if (opts.flip) { /* spiegeln */ }
+  const cs = Math.cos(ang), sn = Math.sin(ang);
+  for (const t of o.tris) for (let k = 0; k < 3; k++) {
+    const i = t * 6 + k * 2; const u = src[i], v = src[i + 1];
+    if (o.mode === 'g') { uv[i] = u + dx; uv[i + 1] = v + dy; }
+    else if (o.mode === 'r') { const x = u - c[0], y = v - c[1]; uv[i] = c[0] + x * cs - y * sn; uv[i + 1] = c[1] + x * sn + y * cs; }
+    else if (o.mode === 's') { uv[i] = c[0] + (u - c[0]) * sc; uv[i + 1] = c[1] + (v - c[1]) * sc; }
+    else if (o.mode === 'fu') { uv[i] = 2 * c[0] - u; uv[i + 1] = v; }
+    else if (o.mode === 'fv') { uv[i] = u; uv[i + 1] = 2 * c[1] - v; }
+  }
+  uploadUV();
+}
+async function uvConfirm() {
+  if (!UVE.op) return;
+  UVE.op = null;
+  UI.busy('UVs werden übernommen …'); await sleep(30);
+  try { bakeMesh(); warmUp(); } finally { UI.busy(null); }
+  S.mesh.uvEdited = true; S.dirty = true; E.needComp = true;
+}
+function uvCancel() {
+  if (!UVE.op) return;
+  S.mesh.soup.uv = UVE.op.orig; UVE.op = null; uploadUV(); U.stack.pop();
+}
+async function uvQuick(mode, angle) {
+  if (!uvBegin(mode, [0, 0])) { toast('Wähl zuerst ein Teil aus (anklicken).'); return; }
+  uvUpdate([0, 0], { angle }); await uvConfirm();
+}
+function drawUVSelection(r) {
+  if (!UVE.sel.size) return;
+  if (!UVE.idx) { const tris = uvSelTris(); UVE.idx = new Uint32Array(tris.length * 3); tris.forEach((t, i) => { UVE.idx[i * 3] = t * 3; UVE.idx[i * 3 + 1] = t * 3 + 1; UVE.idx[i * 3 + 2] = t * 3 + 2; }); }
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  E.P.uvSel.use().set('uZoom', S.uv2d.zoom).set('uPan', S.uv2d.pan).set('uSize', [r.w, r.h]).set('uFill', [1.0, 0.62, 0.2, 0.18]);
+  gl.bindVertexArray(E.vao);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, E.idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, UVE.idx, gl.STREAM_DRAW);
+  gl.drawElements(gl.TRIANGLES, UVE.idx.length, gl.UNSIGNED_INT, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null); gl.bindVertexArray(null);
+  gl.disable(gl.BLEND);
+}
+
+/* ---------- Vorwärmen: alle Shader einmal benutzen, damit der erste Strich nicht ruckelt ---------- */
+function warmUp() {
+  try {
+    const P = E.P;
+    const r = { type: '3d', x: 0, y: 0, w: 64, h: 64 };
+    const save = E.gb; E.gb = null; ensureGbuf(r);
+    const tc = new Tex(8, 8, 'rgba8'), tm = new Tex(8, 8, 'rgba16f'), tk = new Tex(8, 8, 'r8'), sm = new Tex(8, 8, 'rgba16f'), sk = new Tex(8, 8, 'r8');
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
+    // Pinsel-Tupfer
+    bindTargets([E.stroke]); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    const st = new Float32Array(256); st.set([-1e5, -1e5, 1, 0]);
+    const cm = camMatrices(r);
+    P.stamp.use().set('uMode', 0).set('uView', [64, 64]).set('uVP', cm.vp).set('uEye', cm.eye).tex('uGPos', E.gb.pos).set('uTol', 0.02)
+      .set('uN', 1).set('uSt', st).set('uSt2', new Float32Array(128)).set('uShape', 3).set('uHard', 0.5).set('uMirOn', true).set('uMir', [-1, 1, 1]);
+    drawSoup(); gl.disable(gl.BLEND);
+    // Projektion
+    bindTargets([E.strokeCol]); P.proj.use().set('uMode', 1).set('uView', [1, 1]).set('uZoom', 0).set('uPan', [-10, -10]).tex('uScreen', null).tex('uGPos', E.gb.pos); drawSoup();
+    // Auftragen
+    bindTargets([tc, tm]);
+    const pa = P.apply.use().tex('uBC', null).tex('uBM', sm).tex('uStroke', sk).tex('uSC', null).tex('uSel', sk).tex('uPos', E.T.pos).tex('uNrm', E.T.nrm).set('uOp', 0).set('uUsePat', true);
+    setPatternUniforms(pa, defaultFill()); drawFull();
+    bindTargets([tk]); P.applyMask.use().tex('uB', sk).tex('uStroke', sk).tex('uSC', null).tex('uSel', sk).set('uOp', 2); drawFull();
+    bindTargets([tk]); P.selComb.use().tex('uOld', sk).tex('uSC', null).tex('uStroke', sk); drawFull();
+    bindTargets([tk]); P.one.use(); drawSoup();
+    readF32(E.gb.pos, 0, 0, 1, 1); readRGBA8(E.fin.c, 0, 0, 1, 1);
+    [tc, tm, tk, sm, sk].forEach((t) => t.free());
+    E.gb.pos.free(); E.gb.uv.free(); E.gb = save; E.gbDirty = true;
+    clearTex(E.stroke, [0, 0, 0, 0]); clearTex(E.strokeCol, [0, 0, 0, 0]);
+    cleanFBOs();
+    gl.finish();
+  } catch (e) { console.error('Vorwärmen', e); }
+}
+
+/* ---------- Bild als Ebene ---------- */
+async function imageLayer(file) {
+  const bmp = await createImageBitmap(file, { imageOrientation: 'flipY', premultiplyAlpha: 'premultiply' });
+  const src = new Tex(bmp.width, bmp.height, 'rgba8');
+  gl.bindTexture(gl.TEXTURE_2D, src.t);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+  pushUndo();
+  const l = newLayer('paint', { name: file.name.replace(/\.[^.]+$/, '') });
+  bindTargets([l.tex.c, l.tex.m]); gl.disable(gl.BLEND);
+  E.P.imgm.use().tex('uSrc', src).set('uRough', 0.5).set('uMetal', 0); drawFull();
+  src.free(); bmp.close && bmp.close();
+  insertLayers([l]);
+}
+
+/* ---------- Modell als OBJ (mit aktuellen UVs) ---------- */
+function buildOBJ(name) {
+  const s = S.mesh.soup, n = S.mesh.nT * 3, ctr = S.mesh.ctr || [0, 0, 0], rad = S.mesh.rad || 1;
+  const vmap = new Map(), tmap = new Map(), nmap = new Map();
+  const V = [], T = [], N = [], F = [];
+  const id = (map, arr, key, line) => { let i = map.get(key); if (i === undefined) { i = arr.length + 1; map.set(key, i); arr.push(line); } return i; };
+  const f6 = (x) => +x.toFixed(6);
+  const face = [];
+  for (let i = 0; i < n; i++) {
+    const px = f6(s.pos[i * 3] * rad + ctr[0]), py = f6(s.pos[i * 3 + 1] * rad + ctr[1]), pz = f6(s.pos[i * 3 + 2] * rad + ctr[2]);
+    const u = f6(s.uv[i * 2]), v = f6(s.uv[i * 2 + 1]);
+    const nx = f6(s.nrm[i * 3]), ny = f6(s.nrm[i * 3 + 1]), nz = f6(s.nrm[i * 3 + 2]);
+    const a = id(vmap, V, px + ' ' + py + ' ' + pz, `v ${px} ${py} ${pz}`), b = id(tmap, T, u + ' ' + v, `vt ${u} ${v}`), c = id(nmap, N, nx + ' ' + ny + ' ' + nz, `vn ${nx} ${ny} ${nz}`);
+    face.push(`${a}/${b}/${c}`);
+    if (face.length === 3) { F.push('f ' + face.join(' ')); face.length = 0; }
+  }
+  const obj = [`mtllib ${name}.mtl`, `o ${name}`, ...V, ...T, ...N, `usemtl ${name}`, 's 1', ...F].join('\n') + '\n';
+  return obj;
+}
+function buildMTL(name, preset) {
+  const ex = EXPORTS[preset]; const map = Object.fromEntries(ex.maps.map(([s, k]) => [k, `${name}${ex.sep || '_'}${s}.png`]));
+  const L = [`newmtl ${name}`, 'Kd 1 1 1', 'Ks 0 0 0'];
+  if (map[0]) L.push('map_Kd ' + map[0]);
+  if (map[5] || map[6]) L.push('map_Bump -bm 1 ' + (map[5] || map[6]), 'norm ' + (map[5] || map[6]));
+  if (map[1]) L.push('map_Pr ' + map[1]);
+  if (map[2]) L.push('map_Pm ' + map[2]);
+  return L.join('\n') + '\n';
+}
+
+/* Inhalt der Auswahl auf der Ebene löschen (wie Entf in Paint.NET) */
+function eraseSelection() {
+  if (!E.sel) { toast('Es ist nichts ausgewählt.'); return; }
+  if (!strokeBegin({ type: '2d' }, 1)) return;
+  clearTex(E.stroke, [1, 1, 1, 1]);
+  const op = S.brush.opacity; S.brush.opacity = 1; applyStroke(); S.brush.opacity = op;
+  ST.on = false; ST.layer = null; ST.before = null; E.stroke_active = false; S.dirty = true;
+}
+
+/* ---------- Hilfe-Fenster beim Drüberhalten ---------- */
+const TIP = { el: null, timer: 0, target: null };
+function initTooltips() {
+  TIP.el = el('div', { id: 'tip' }); document.body.append(TIP.el);
+  const hide = () => { clearTimeout(TIP.timer); TIP.target = null; TIP.el.classList.remove('show'); };
+  document.addEventListener('mouseover', (e) => {
+    const t = e.target.closest('[title],[data-tip]');
+    if (!t || t === TIP.target) return;
+    if (t.hasAttribute('title')) { const v = t.getAttribute('title'); t.removeAttribute('title'); if (v && !t.dataset.tip) t.dataset.tip = v; }
+    if (!t.dataset.tip) return;
+    hide(); TIP.target = t;
+    TIP.timer = setTimeout(() => {
+      if (TIP.target !== t || !document.body.contains(t)) return;
+      TIP.el.innerHTML = '';
+      TIP.el.append(el('b', {}, t.dataset.tip), t.dataset.key ? el('kbd', {}, t.dataset.key) : null, t.dataset.desc ? el('div', {}, t.dataset.desc) : null);
+      const r = t.getBoundingClientRect(); TIP.el.classList.add('show');
+      const w = TIP.el.offsetWidth, h = TIP.el.offsetHeight;
+      let x = t.closest('#tools') ? r.right + 10 : r.left, y = t.closest('#tools') ? r.top : r.bottom + 8;
+      if (x + w > innerWidth - 6) x = innerWidth - w - 6; if (y + h > innerHeight - 6) y = r.top - h - 8;
+      TIP.el.style.left = Math.max(6, x) + 'px'; TIP.el.style.top = Math.max(6, y) + 'px';
+    }, 450);
+  });
+  document.addEventListener('mouseout', (e) => { if (TIP.target && !TIP.target.contains(e.relatedTarget)) hide(); });
+  document.addEventListener('pointerdown', hide, true);
 }
 
 'use strict';
@@ -2118,7 +2488,7 @@ async function buildProject() {
     if (l.mask && l.mask.tex) { o.mask.tex = `L${l.id}_mask.bin`; files.push({ name: o.mask.tex, data: texToBytes(l.mask.tex) }); }
     layers.push(o);
   }
-  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
+  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
   files.unshift({ name: 'projekt.json', data: enc.encode(JSON.stringify(meta)) });
   return makeZip(files);
 }
@@ -2143,6 +2513,7 @@ async function loadProjectBuffer(buf) {
   const pos = f.subarray(0, n * 3), nrm = f.subarray(n * 3, n * 6), uv = f.subarray(n * 6, n * 8);
   const idx = new Uint32Array(n); for (let i = 0; i < n; i++) idx[i] = i;
   const mesh = finalizeMesh({ pos, nrm, uv, idx }, meta.meshName);
+  if (meta.ctr) { mesh.ctr = meta.ctr; mesh.rad = meta.rad; }
   await startProject(mesh, meta.res, meta.name, () => {
     S.hdepth = meta.hdepth ?? S.hdepth;
     let maxId = 0;
@@ -2173,7 +2544,7 @@ const EXPORTS = {
     hint: 'ORM = AO, Rauheit, Metall. Normal-Map im DirectX-Format. ORM-Textur ohne sRGB importieren.' },
   all: { name: 'Alle Einzel-Maps', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['Roughness', 1], ['Metallic', 2], ['Height', 3], ['AO', 4], ['Normal_OpenGL', 5], ['Normal_DirectX', 6], ['Glossiness', 10]], hint: '' },
 };
-async function exportTextures({ preset, size, name, aoInBase, height16 }) {
+async function exportTextures({ preset, size, name, aoInBase, height16, withModel }) {
   const ex = EXPORTS[preset]; const sz = size || S.res;
   if (E.needComp) compositeMain();
   const files = [];
@@ -2206,6 +2577,7 @@ async function exportTextures({ preset, size, name, aoInBase, height16 }) {
       files.push({ name: `${name}${ex.sep || '_'}${suffix}.png`, data: png, store: true });
     }
   } finally { out8.free(); if (out16) out16.free(); cleanFBOs(); }
+  if (withModel) { files.push({ name: name + '.obj', data: enc.encode(buildOBJ(name)) }, { name: name + '.mtl', data: enc.encode(buildMTL(name, preset)) }); }
   const blob = await makeZip(files);
   return saveBlob(`${name}_${preset}.zip`, blob, 'export');
 }
@@ -2214,11 +2586,29 @@ async function exportTextures({ preset, size, name, aoInBase, height16 }) {
 /* ================= Oberfläche ================= */
 const CHANNELS = ['Fertiges Material', 'Nur Farbe', 'Rauheit', 'Metall', 'Höhe', 'Normal-Map', 'Schatten in Ecken (AO)', 'Kanten', 'Maske der Ebene', 'UV-Prüfmuster'];
 const TOOLS = [
-  { id: 'paint', icon: 'brush', name: 'Pinsel', key: 'B' },
-  { id: 'erase', icon: 'eraser', name: 'Radierer', key: 'E' },
-  { id: 'fill', icon: 'bucket', name: 'Füllen', key: 'G' },
-  { id: 'pick', icon: 'pipette', name: 'Farbe aufnehmen', key: 'I' },
+  { id: 'select', icon: 'select', name: 'Auswahl', key: 'S', desc: 'Bereich auswählen – danach malst du nur noch darin. Umschalt = dazu, Alt = abziehen, Strg+D = aufheben.' },
+  { id: 'move', icon: 'move', name: 'UV verschieben', key: 'M', desc: 'Teile im 2D-Fenster anklicken und ziehen, wie in Blender. G = bewegen, R = drehen, S = skalieren.' },
+  '-',
+  { id: 'paint', icon: 'brush', name: 'Pinsel', key: 'B', desc: 'Malt Farbe, Rauheit, Metall und Höhe direkt aufs Modell.' },
+  { id: 'erase', icon: 'eraser', name: 'Radierer', key: 'E', desc: 'Entfernt Gemaltes von der Ebene.' },
+  { id: 'fill', icon: 'bucket', name: 'Füllen', key: 'F', desc: 'Füllt mit einem Klick eine Fläche, UV-Insel, ein Teil oder alles.' },
+  { id: 'grad', icon: 'grad', name: 'Verlauf', key: 'G', desc: 'Ziehen: Die Farbe läuft vom Startpunkt weich aus.' },
+  '-',
+  { id: 'shape', icon: 'shape', name: 'Formen', key: 'O', desc: 'Linie, Rechteck, Ellipse oder freie Fläche zeichnen.' },
+  { id: 'text', icon: 'text', name: 'Text', key: 'T', desc: 'Schrift aufs Modell schreiben. Text oben eingeben, dann klicken.' },
+  { id: 'decal', icon: 'image', name: 'Aufkleber', key: 'P', desc: 'Ein Bild, z. B. ein Logo, aufs Modell kleben.' },
+  '-',
+  { id: 'clone', icon: 'stamp', name: 'Stempel', key: 'L', desc: 'Kopiert eine Stelle an eine andere. Erst Alt + Klick auf die Quelle, dann malen.' },
+  { id: 'blur', icon: 'drop', name: 'Weichzeichnen', key: 'U', desc: 'Macht harte Übergänge weicher.' },
+  { id: 'tone', icon: 'sun', name: 'Aufhellen / Abdunkeln', key: 'J', desc: 'Macht gemalte Stellen heller oder dunkler.' },
+  '-',
+  { id: 'pick', icon: 'pipette', name: 'Pipette', key: 'K', desc: 'Nimmt Farbe, Rauheit und Metall vom Modell auf.' },
+  { id: 'hand', icon: 'hand', name: 'Hand', key: 'H', desc: 'Ansicht mit gedrückter Maus verschieben.' },
+  { id: 'zoom', icon: 'zoom', name: 'Zoom', key: 'Z', desc: 'Klick = näher ran, Rechtsklick = weiter weg.' },
 ];
+const toolById = (id) => TOOLS.find((t) => t.id === id);
+const BRUSH_TOOLS = ['paint', 'erase', 'clone', 'blur', 'tone'];
+const FONTS = ['Arial', 'Arial Black', 'Impact', 'Segoe UI', 'Verdana', 'Georgia', 'Times New Roman', 'Courier New', 'Comic Sans MS', 'Trebuchet MS'];
 const FILL_MODES = [['planar', 'Fläche'], ['island', 'UV-Insel'], ['part', 'Ganzes Teil'], ['all', 'Alles'], ['tri', 'Einzelnes Dreieck']];
 
 /* schlichte Linien-Symbole */
@@ -2236,6 +2626,17 @@ const ICONS = {
   trash: 'M4.5 7h15 M9.5 7V4.5h5V7 M6.5 7l1 12.5h9l1-12.5',
   copy: 'M8.5 8.5h11v11h-11z M15.5 8.5V4.5h-11v11h4',
   down: 'M12 4v11 M7.5 10.5 12 15l4.5-4.5 M5 20h14',
+  select: 'M4 8V4h4 M10 4h4 M16 4h4v4 M20 10v4 M20 16v4h-4 M14 20h-4 M8 20H4v-4 M4 14v-4',
+  move: 'M12 3v18 M3 12h18 M9 6l3-3 3 3 M9 18l3 3 3-3 M6 9l-3 3 3 3 M18 9l3 3-3 3',
+  grad: 'M4 5h16v14H4z M8 5v14 M11.5 5v14 M14.5 5v14 M17 5v14',
+  shape: 'M4 4h9v9H4z M15.5 11a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z',
+  text: 'M5 7V4h14v3 M12 4v16 M9 20h6',
+  image: 'M4 5h16v14H4z M4 16l5-5 4 4 3-3 4 4 M15.5 8.5h.01',
+  stamp: 'M9.5 4h5l-1 7h-3z M5 13h14v4H5z M7 20h10',
+  drop: 'M12 3.5s6 6.8 6 10.5a6 6 0 0 1-12 0c0-3.7 6-10.5 6-10.5z',
+  sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 2.5v2 M12 19.5v2 M2.5 12h2 M19.5 12h2 M5.3 5.3l1.4 1.4 M17.3 17.3l1.4 1.4 M5.3 18.7l1.4-1.4 M17.3 6.7l1.4-1.4',
+  hand: 'M8 13V6.5a1.5 1.5 0 0 1 3 0V12 M11 11V5a1.5 1.5 0 0 1 3 0v6 M14 11V6.5a1.5 1.5 0 0 1 3 0V14c0 4-2.5 6.5-6 6.5-2.8 0-4.3-1.3-5.6-3.4L4 13.6a1.5 1.5 0 0 1 2.6-1.5L8 14',
+  zoom: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z M15.5 15.5 20 20 M8 10.5h5 M10.5 8v5',
 };
 function ico(name, size = 18) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -2301,7 +2702,7 @@ const UI = {
     $('#layerBtns').append(
       el('button', { class: 'txt', title: 'Neue Ebene zum Malen', onclick: () => this.addLayer('paint') }, '+ Malen'),
       el('button', { class: 'txt', title: 'Neue Ebene mit einem Material', onclick: () => this.addLayer('fill') }, '+ Füllen'),
-      el('button', { title: 'Ebene kopieren (Strg+D)', onclick: () => this.dupLayer() }, ico('copy', 15)),
+      el('button', { title: 'Ebene kopieren (Strg+Umschalt+D)', onclick: () => this.dupLayer() }, ico('copy', 15)),
       el('button', { title: 'Ebene löschen (Entf)', onclick: () => this.delLayer() }, ico('trash', 15)),
     );
     $('#stHint').textContent = 'Linksklick: malen   ·   Rechtsklick: drehen   ·   Mausrad: zoomen   ·   [ und ]: Pinselgröße';
@@ -2313,18 +2714,22 @@ const UI = {
         ['Öffnen …', 'Strg+O', () => this.openFile('.mtex,.obj,.glb,.gltf')],
         ['Speichern', 'Strg+S', () => saveProject()],
         '-',
+        ['Bild als Ebene laden …', '', () => this.pickImageLayer()],
         ['Texturen exportieren …', 'Strg+Umschalt+E', () => this.exportDialog()],
       ]],
       ['Bearbeiten', [
         ['Rückgängig', 'Strg+Z', () => undo()],
         ['Wiederholen', 'Strg+Y', () => redo()],
         '-',
+        ['Alles auswählen', 'Strg+A', () => selectNone()], ['Auswahl aufheben', 'Strg+D', () => selectNone()], ['Auswahl umkehren', 'Strg+I', () => selectInvert()],
+        ['Auswahl löschen', 'Entf', () => eraseSelection()],
+        '-',
         ['Einstellungen …', '', () => this.settingsDialog()],
       ]],
       ['Ansicht', [
         ['3D', 'F1', () => setLayout('3d')], ['3D und 2D', 'F3', () => setLayout('split')], ['2D (UV)', 'F2', () => setLayout('2d')],
         '-',
-        ['Kamera zurücksetzen', 'F', () => frameCamera()], ['Gitternetz', 'W', () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; }],
+        ['Kamera zurücksetzen', 'Pos1', () => frameCamera()], ['Gitternetz', 'W', () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; }],
       ]],
       ['Hilfe', [['Tastenkürzel', '', () => this.helpDialog()], ['Über', '', () => this.about()]]],
     ];
@@ -2348,45 +2753,105 @@ const UI = {
   /* ---------- Werkzeuge ---------- */
   renderTools() {
     const t = $('#tools'); t.innerHTML = '';
-    for (const tl of TOOLS) t.append(el('button', { class: S.tool === tl.id ? 'on' : '', title: `${tl.name} (${tl.key})`, onclick: () => setTool(tl.id) }, ico(tl.icon, 20)));
+    for (const tl of TOOLS) {
+      if (tl === '-') { t.append(el('div', { class: 'sep' })); continue; }
+      t.append(el('button', { class: S.tool === tl.id ? 'on' : '', 'data-tip': tl.name, 'data-key': tl.key, 'data-desc': tl.desc, onclick: () => setTool(tl.id) }, ico(tl.icon, 20)));
+    }
     t.append(el('div', { class: 'sep' }),
-      el('button', { class: S.brush.mirror ? 'on' : '', title: 'Spiegeln (X)', onclick: () => { S.brush.mirror = S.brush.mirror ? 0 : 1; this.renderTools(); this.renderCtx(); } }, ico('mirror', 20)),
-      el('button', { title: 'Kamera zurücksetzen (F)', onclick: () => frameCamera() }, ico('frame', 20)),
-      el('div', { class: 'sep' }),
-      el('button', { title: 'Rückgängig (Strg+Z)', onclick: () => undo() }, ico('undo', 20)),
-      el('button', { title: 'Wiederholen (Strg+Y)', onclick: () => redo() }, ico('redo', 20)));
+      el('button', { class: S.brush.mirror ? 'on' : '', 'data-tip': 'Spiegeln', 'data-key': 'X', 'data-desc': 'Malt auf beiden Seiten des Modells gleichzeitig.', onclick: () => { S.brush.mirror = S.brush.mirror ? 0 : 1; this.renderTools(); this.renderCtx(); } }, ico('mirror', 20)),
+      el('button', { 'data-tip': 'Kamera zurücksetzen', 'data-key': 'Num 0 / Pos1', 'data-desc': 'Zeigt das ganze Modell wieder mittig.', onclick: () => { frameCamera(); S.uv2d.zoom = 0; } }, ico('frame', 20)),
+      el('button', { 'data-tip': 'Rückgängig', 'data-key': 'Strg+Z', onclick: () => undo() }, ico('undo', 20)),
+      el('button', { 'data-tip': 'Wiederholen', 'data-key': 'Strg+Y', onclick: () => redo() }, ico('redo', 20)));
   },
   renderCtx() {
     const c = $('#ctx'); c.innerHTML = ''; const b = S.brush;
     const sep = () => el('span', { class: 'sep' });
-    const tool = TOOLS.find((t) => t.id === S.tool);
+    const hint = (t) => el('span', { class: 'hint' }, t);
+    const btn = (t, fn, tip, on) => el('button', { class: 'chip' + (on ? ' on' : ''), title: tip || '', onclick: fn }, t);
+    const tool = toolById(S.tool);
     c.append(el('b', { class: 'tname' }, tool.name), sep());
-    if (S.tool === 'paint' || S.tool === 'erase') {
-      c.append(
-        ctlSlider('Größe', b, 'size', 1, 400, 1, { compact: true, tip: 'Tasten [ und ]', onchange: () => drawOverlay() }),
-        ctlSlider('Deckkraft', b, 'opacity', 0.01, 1, 0.01, { compact: true }),
-        ctlSlider('Härte', b, 'hard', 0, 1, 0.01, { compact: true, tip: 'Weicher oder harter Rand' }),
-        ctlSelect('Spitze', b, 'shape', SHAPES.map((s, i) => [i, s]), { compact: true }),
-        el('button', { class: 'chip' + (b.mirror ? ' on' : ''), title: 'Auf beiden Seiten gleichzeitig malen (X)', onclick: () => { b.mirror = b.mirror ? 0 : 1; this.renderTools(); this.renderCtx(); } }, 'Spiegeln'),
-        el('button', { class: 'chip' + (this.more ? ' on' : ''), onclick: () => { this.more = !this.more; this.renderCtx(); } }, this.more ? 'Weniger' : 'Mehr'),
-      );
+    const size = () => ctlSlider('Größe', b, 'size', 1, 400, 1, { compact: true, tip: 'Tasten [ und ]', onchange: () => drawOverlay() });
+    const opac = (l = 'Deckkraft') => ctlSlider(l, b, 'opacity', 0.01, 1, 0.01, { compact: true });
+    const hard = () => ctlSlider('Härte', b, 'hard', 0, 1, 0.01, { compact: true, tip: 'Weicher oder harter Rand' });
+    const mirrorBtn = () => btn('Spiegeln', () => { b.mirror = b.mirror ? 0 : 1; this.renderTools(); this.renderCtx(); }, 'Auf beiden Seiten gleichzeitig (X)', b.mirror);
+    const T = S.tool;
+    if (T === 'paint' || T === 'erase') {
+      c.append(size(), opac(), hard(), ctlSelect('Spitze', b, 'shape', SHAPES.map((s, i) => [i, s]), { compact: true }), mirrorBtn(),
+        btn(this.more ? 'Weniger' : 'Mehr', () => { this.more = !this.more; this.renderCtx(); }, '', this.more));
       if (this.more) {
         c.append(sep(),
           ctlSlider('Fluss', b, 'flow', 0.01, 1, 0.01, { compact: true, tip: 'Wie stark ein einzelner Tupfer deckt' }),
-          ctlSlider('Abstand', b, 'spacing', 0.02, 1, 0.01, { compact: true }),
+          ctlSlider('Abstand', b, 'spacing', 0.02, 1, 0.01, { compact: true, tip: 'Abstand zwischen den Tupfern' }),
           ctlSlider('Winkel', b, 'angle', 0, 360, 1, { compact: true }),
           ctlSlider('Zufall', b, 'jitAng', 0, 1, 0.01, { compact: true, tip: 'Dreht jeden Tupfer zufällig' }),
+          el('span', { class: 'grp' }, ctlCheck('Airbrush', b, 'air', { tip: 'Farbe wird stärker, solange du die Maus gedrückt hältst' })),
           b.mirror ? ctlSelect('Achse', b, 'mirror', [[1, 'X'], [2, 'Y'], [3, 'Z']], { compact: true }) : null,
           el('span', { class: 'grp' }, ctlCheck('Durchmalen', b, 'through', { tip: 'Auch Stellen bemalen, die man gerade nicht sieht' })),
           el('span', { class: 'grp', title: 'Nur mit Grafiktablett' }, el('label', {}, 'Stiftdruck:'), ctlCheck('Größe', b, 'pSize'), ctlCheck('Deckkraft', b, 'pOpac')));
       }
-    } else if (S.tool === 'fill') {
-      c.append(ctlSelect('Füllt', b, 'fillMode', FILL_MODES, { compact: true }),
-        ctlSlider('Deckkraft', b, 'opacity', 0.01, 1, 0.01, { compact: true }),
-        el('span', { class: 'hint' }, 'Klick aufs Modell'));
-    } else {
-      c.append(el('span', { class: 'hint' }, 'Klick aufs Modell nimmt Farbe, Rauheit und Metall auf.'));
+    } else if (T === 'clone') {
+      c.append(size(), opac(), hard(), hint(E.cloneSrc ? 'Quelle gesetzt – jetzt malen. Alt + Klick setzt eine neue.' : 'Erst Alt + Klick auf die Stelle, die du kopieren willst.'));
+    } else if (T === 'blur') {
+      c.append(size(), opac('Stärke'), ctlSlider('Weichheit', b, 'blur', 0, 1, 0.01, { compact: true }), hard());
+    } else if (T === 'tone') {
+      c.append(ctlSelect('', b, 'toneMode', [['light', 'Aufhellen'], ['dark', 'Abdunkeln']], { compact: true }), size(), opac('Stärke'), hard(), hint('Alt halten = umgekehrt'));
+    } else if (T === 'fill') {
+      c.append(ctlSelect('Füllt', b, 'fillMode', FILL_MODES, { compact: true }), opac(), hint('Klick aufs Modell'));
+    } else if (T === 'grad') {
+      c.append(ctlSelect('Art', b, 'gradKind', [['linear', 'Gerade'], ['radial', 'Kreis']], { compact: true }), opac(), mirrorBtn(), hint('Mit gedrückter Maus ziehen'));
+    } else if (T === 'shape') {
+      c.append(ctlSelect('Form', b, 'shapeKind', [['line', 'Linie'], ['rect', 'Rechteck'], ['ellipse', 'Ellipse'], ['lasso', 'Freie Fläche']], { compact: true, onchange: () => this.renderCtx() }),
+        b.shapeKind === 'rect' || b.shapeKind === 'ellipse' ? ctlSelect('', b, 'shapeFill', [[1, 'Gefüllt'], [0, 'Nur Rand']], { compact: true, onchange: () => this.renderCtx() }) : null,
+        b.shapeKind === 'line' || !b.shapeFill ? ctlSlider('Linie', b, 'lineW', 1, 80, 1, { compact: true, tip: 'Linienstärke' }) : null,
+        opac(), mirrorBtn(), hint(b.shapeKind === 'lasso' ? 'Fläche mit gedrückter Maus umfahren' : 'Mit gedrückter Maus ziehen, Umschalt = gerade / rund'));
+    } else if (T === 'text') {
+      const ti = el('input', { type: 'text', value: b.text, style: 'width:180px', placeholder: 'Dein Text' });
+      ti.addEventListener('input', () => { b.text = ti.value; drawOverlay(); });
+      ti.addEventListener('keydown', (e) => e.stopPropagation());
+      c.append(ti, ctlSelect('', b, 'font', FONTS.map((f) => [f, f]), { compact: true, onchange: () => drawOverlay() }),
+        ctlSlider('Größe', b, 'fontSize', 6, 300, 1, { compact: true, onchange: () => drawOverlay() }),
+        el('span', { class: 'grp' }, ctlCheck('Fett', b, 'bold', { onchange: () => drawOverlay() })),
+        ctlSlider('Winkel', b, 'decalAngle', -180, 180, 1, { compact: true, onchange: () => drawOverlay() }), opac(), hint('Klick setzt den Text'));
+    } else if (T === 'decal') {
+      c.append(btn(E.decalImg ? 'Anderes Bild …' : 'Bild wählen …', () => this.pickDecal(), 'PNG mit durchsichtigem Hintergrund klappt am besten'),
+        E.decalImg ? hint(E.decalName) : null,
+        ctlSlider('Größe', b, 'decalSize', 10, 1500, 1, { compact: true, onchange: () => drawOverlay() }),
+        ctlSlider('Winkel', b, 'decalAngle', -180, 180, 1, { compact: true, onchange: () => drawOverlay() }), opac(), mirrorBtn(),
+        hint(E.decalImg ? 'Klick klebt das Bild auf' : ''));
+    } else if (T === 'select') {
+      c.append(ctlSelect('Art', b, 'selKind', [['rect', 'Rechteck'], ['ellipse', 'Ellipse'], ['lasso', 'Lasso'], ['planar', 'Fläche (Klick)'], ['island', 'UV-Insel (Klick)'], ['part', 'Ganzes Teil (Klick)']], { compact: true }),
+        btn('Alles', () => { selectNone(); toast('Alles ausgewählt'); }, 'Strg+A'), btn('Nichts', () => selectNone(), 'Strg+D'), btn('Umkehren', () => selectInvert(), 'Strg+I'),
+        hint('Umschalt = dazu · Alt = abziehen'));
+    } else if (T === 'move') {
+      c.append(btn('Alle Teile', () => uvSelectAll(), 'A'), btn('Nichts', () => { UVE.sel.clear(); uvSelChanged(); }),
+        btn('90° drehen', () => uvQuick('r', Math.PI / 2)), btn('Spiegeln ↔', () => uvQuick('fu')), btn('Spiegeln ↕', () => uvQuick('fv')),
+        hint('Klick wählt ein Teil · Ziehen verschiebt · G / R / S wie in Blender · Strg = einrasten'));
+    } else if (T === 'pick') {
+      c.append(hint('Klick aufs Modell nimmt Farbe, Rauheit und Metall auf.'));
+    } else if (T === 'hand') {
+      c.append(hint('Mit gedrückter Maus verschieben. Drehen geht immer mit Rechtsklick.'));
+    } else if (T === 'zoom') {
+      c.append(hint('Klick = näher ran, Rechtsklick = weiter weg.'));
     }
+  },
+  pickDecal() {
+    const f = $('#fileIn'); f.value = ''; f.accept = 'image/*';
+    f.onchange = async () => {
+      const file = f.files[0]; if (!file) return;
+      try { const img = await createImageBitmap(file); E.decalImg = img; E.decalName = file.name; this.renderCtx(); toast('Bild geladen – jetzt aufs Modell klicken'); }
+      catch (e) { toast('Das Bild konnte nicht geladen werden.', 'err'); }
+    };
+    f.click();
+  },
+  pickImageLayer() {
+    if (!S.mesh) return;
+    const f = $('#fileIn'); f.value = ''; f.accept = 'image/*';
+    f.onchange = async () => {
+      const file = f.files[0]; if (!file) return;
+      UI.busy('Bild wird geladen …'); await sleep(30);
+      try { await imageLayer(file); this.refreshAll(); } catch (e) { console.error(e); toast('Das Bild konnte nicht geladen werden.', 'err'); } finally { UI.busy(null); }
+    };
+    f.click();
   },
   renderBadge() {
     const l = curLayer(); const b = $('#targetBadge');
@@ -2426,7 +2891,7 @@ const UI = {
       else { th.classList.add('paint'); th.append(ico('brush', 15)); }
       let mk = null;
       if (l.mask) {
-        mk = el('div', { class: 'mk' + (l.mask.gen ? ' gen' : '') + (sel && S.target === 'mask' ? ' act' : ''), title: 'Maske bemalen (M)' });
+        mk = el('div', { class: 'mk' + (l.mask.gen ? ' gen' : '') + (sel && S.target === 'mask' ? ' act' : ''), title: 'Maske bemalen (Q)' });
         mk.addEventListener('click', (e) => { e.stopPropagation(); S.sel = l.id; S.target = 'mask'; this.refreshAll(); });
       }
       const eye = el('button', { class: 'eye' + (l.visible ? '' : ' off'), title: 'Ein- / ausblenden' }, ico(l.visible ? 'eye' : 'eyeOff', 16));
@@ -2500,7 +2965,7 @@ const UI = {
     };
 
     // Pinsel
-    if (S.tool === 'paint' || S.tool === 'fill') {
+    if (['paint', 'fill', 'grad', 'shape', 'text', 'decal'].includes(S.tool)) {
       const b = S.brush; const kids = [];
       if (l && S.target === 'mask' && l.mask) {
         kids.push(el('div', { class: 'note' }, 'Weiß zeigt die Ebene, Schwarz versteckt sie.'));
@@ -2509,8 +2974,9 @@ const UI = {
           el('button', { class: b.maskVal < 0.5 ? 'on' : '', onclick: () => { b.maskVal = 0; this.renderProps(); } }, 'Schwarz')));
       } else {
         const opts = [['', 'Nur Farbe'], ...Object.entries(MATERIALS).map(([k, m]) => [k, m.name])];
-        kids.push(ctlSelect('Malt mit', b, 'mat', opts, { onchange: () => this.renderProps() }));
-        if (!b.mat) {
+        if (S.tool !== 'decal') kids.push(ctlSelect('Malt mit', b, 'mat', opts, { onchange: () => this.renderProps() }));
+        if (S.tool === 'decal') kids.push(el('div', { class: 'note' }, 'Der Aufkleber nimmt die Farben aus dem Bild.'), ctlSlider('Rauheit', b, 'rough', 0, 1, 0.01), ctlSlider('Metall', b, 'metal', 0, 1, 0.01));
+        else if (!b.mat) {
           kids.push(ctlColor('Farbe', b, 'color'));
           const sw = el('div', { class: 'swatches' });
           ['#ff4f64', '#ffffff', '#1a1a1a', '#8c8f93', '#ffcf5c', '#2f7de1', '#3fae5a', '#7a4a2a', '#e86b1f'].forEach((c) => sw.append(el('button', { style: `background:${c}`, title: c, onclick: () => { b.color = c; this.renderProps(); } })));
@@ -2677,7 +3143,7 @@ const UI = {
   },
   exportDialog() {
     if (!S.mesh) return;
-    const st = { preset: this._lastPreset || 'blender', size: 0, name: (S.projectName || 'Textur').replace(/[\\/:*?"<>|\s]+/g, '_'), aoInBase: 0, height16: false };
+    const st = { preset: this._lastPreset || 'blender', size: 0, name: (S.projectName || 'Textur').replace(/[\\/:*?"<>|\s]+/g, '_'), aoInBase: 0, height16: false, withModel: !!S.mesh.uvEdited };
     const body = el('div');
     const render = () => {
       const ex = EXPORTS[st.preset];
@@ -2687,6 +3153,7 @@ const UI = {
         ctlSelect('Für', st, 'preset', Object.entries(EXPORTS).map(([k, e]) => [k, e.name]), { onchange: () => { const e = EXPORTS[st.preset]; st.size = e.size; st.aoInBase = e.aoInBase; render(); } }),
         ctlSelect('Größe', st, 'size', [[0, `Wie im Projekt (${S.res})`], [512, '512'], [1024, '1024'], [2048, '2048'], [4096, '4096']]),
         el('div', { class: 'row two' }, el('label', {}, 'Dateiname'), nameIn),
+        el('div', { class: 'row two', title: 'Nötig, wenn du UVs verschoben hast' }, el('label', {}, 'Modell'), ctlCheck('Modell (.obj) mit neuen UVs dazupacken', st, 'withModel')),
         ex.hint ? el('div', { class: 'note' }, ex.hint) : null,
         el('details', { class: 'adv' }, el('summary', {}, 'Mehr Einstellungen'),
           ctlSlider('Schatten in Farbe', st, 'aoInBase', 0, 1, 0.05, { tip: 'Macht Ecken in der Farbtextur etwas dunkler' }),
@@ -2725,11 +3192,11 @@ const UI = {
     this.modal(box);
   },
   helpDialog() {
-    const k = [['B', 'Pinsel'], ['E', 'Radierer'], ['G', 'Füllen'], ['I', 'Farbe aufnehmen'], ['[  ]', 'Pinsel kleiner / größer'],
+    const k = [...TOOLS.filter((t) => t !== '-').map((t) => [t.key, t.name]), ['[  ]', 'Pinsel kleiner / größer'], ['Strg+A / D / I', 'Alles / nichts auswählen / umkehren'], ['G / R / S (UV verschieben)', 'Bewegen / drehen / skalieren'],
       ['Umschalt + Klick', 'Gerade Linie'], ['X', 'Spiegeln an / aus'], ['M', 'Maske bemalen an / aus'],
       ['Rechte Maustaste', 'Drehen'], ['Mittlere Maustaste', 'Verschieben'], ['Mausrad', 'Zoomen'], ['Umschalt + Rechte Maustaste', 'Licht drehen'],
-      ['F', 'Kamera zurücksetzen'], ['W', 'Gitternetz'], ['F1 / F2 / F3', '3D / 2D / beides'],
-      ['Strg + Z / Y', 'Rückgängig / Wiederholen'], ['Strg + S', 'Speichern'], ['Strg + D', 'Ebene kopieren'], ['Entf', 'Ebene löschen']];
+      ['Pos1', 'Kamera zurücksetzen'], ['W', 'Gitternetz'], ['F1 / F2 / F3', '3D / 2D / beides'],
+      ['Strg + Z / Y', 'Rückgängig / Wiederholen'], ['Strg + S', 'Speichern'], ['Strg + Umschalt + D', 'Ebene kopieren'], ['Entf', 'Auswahl löschen']];
     this.modal(el('div', { class: 'mbox', style: 'width:480px' }, el('h2', {}, 'Tastenkürzel'),
       el('div', { class: 'keys' }, k.flatMap(([a, b]) => [el('kbd', {}, a), el('span', {}, b)])),
       el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Schließen'))));
@@ -2766,7 +3233,9 @@ function primIcon(k) {
 }
 
 function setTool(t) {
+  if (UVE.op) uvCancel();
   S.tool = t;
+  if (t === 'move' && S.view.layout === '3d') setLayout('split');
   if (t === 'pick' && S.target === 'mask') S.target = 'layer';
   UI.renderTools(); UI.renderCtx(); UI.renderProps(); drawOverlay();
 }
@@ -2799,33 +3268,112 @@ function hitRegion(cx, cy) {
   return null;
 }
 
-/* ---------- Pinsel-Kreis ---------- */
+/* ---------- Vorschau-Ebene (Pinselkreis, Formen, Text) ---------- */
 let mouse = null;
+const ovXY = (r, x, y) => [r.x + x, cv().height - (r.y + y)];   // Region (GL) -> Overlay-Pixel
+const cvXY = (r, x, y) => [x, r.h - y];                            // Region (GL) -> Region-Canvas
+let _rc = null;
+function regionCanvas(r) {
+  if (!_rc) _rc = document.createElement('canvas');
+  _rc.width = r.w; _rc.height = r.h;
+  const g = _rc.getContext('2d'); g.clearRect(0, 0, r.w, r.h);
+  return _rc;
+}
+/* zeichnet die aktuelle Form/den Text/Aufkleber in einen 2D-Kontext */
+function drawToolShape(g, r, map, col, final) {
+  const b = S.brush, d = drag;
+  g.save();
+  g.fillStyle = col; g.strokeStyle = col; g.lineCap = 'round'; g.lineJoin = 'round';
+  if (S.tool === 'grad' && d && d.mode === 'tool') {
+    const [x0, y0] = map(r, d.x0, d.y0), [x1, y1] = map(r, d.x1, d.y1);
+    if (final) {
+      const gr = b.gradKind === 'radial' ? g.createRadialGradient(x0, y0, 0, x0, y0, Math.hypot(x1 - x0, y1 - y0) || 1) : g.createLinearGradient(x0, y0, x1, y1);
+      gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, g.canvas.width, g.canvas.height);
+    } else {
+      g.lineWidth = 2 * dpr; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      g.beginPath(); g.arc(x0, y0, 5 * dpr, 0, 7); g.fill();
+      if (b.gradKind === 'radial') { g.setLineDash([5 * dpr, 5 * dpr]); g.beginPath(); g.arc(x0, y0, Math.hypot(x1 - x0, y1 - y0), 0, 7); g.stroke(); }
+    }
+  } else if ((S.tool === 'shape' || S.tool === 'select') && d && d.mode === 'tool') {
+    const kind = S.tool === 'select' ? b.selKind : b.shapeKind;
+    const filled = S.tool === 'select' || kind === 'lasso' || (kind !== 'line' && b.shapeFill);
+    g.lineWidth = (S.tool === 'select' ? 1.5 : b.lineW) * dpr;
+    if (!final && S.tool === 'select') { g.setLineDash([6 * dpr, 4 * dpr]); g.strokeStyle = '#fff'; }
+    g.beginPath();
+    if (kind === 'lasso') { d.pts.forEach((p, i) => { const [x, y] = map(r, p[0], p[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); }
+    else {
+      let [x0, y0] = map(r, d.x0, d.y0), [x1, y1] = map(r, d.x1, d.y1);
+      if (d.shift && kind !== 'line') { const s = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); x1 = x0 + Math.sign(x1 - x0 || 1) * s; y1 = y0 + Math.sign(y1 - y0 || 1) * s; }
+      if (d.shift && kind === 'line') { const a = Math.round(Math.atan2(y1 - y0, x1 - x0) / (Math.PI / 4)) * Math.PI / 4, l = Math.hypot(x1 - x0, y1 - y0); x1 = x0 + Math.cos(a) * l; y1 = y0 + Math.sin(a) * l; }
+      if (kind === 'line') { g.moveTo(x0, y0); g.lineTo(x1, y1); }
+      else if (kind === 'rect') g.rect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+      else g.ellipse((x0 + x1) / 2, (y0 + y1) / 2, Math.abs(x1 - x0) / 2 || 0.1, Math.abs(y1 - y0) / 2 || 0.1, 0, 0, 7);
+    }
+    if (filled && (final || S.tool !== 'select')) g.fill(); else g.stroke();
+    if (!final && S.tool === 'select') g.stroke();
+  } else if ((S.tool === 'text' || (S.tool === 'decal' && E.decalImg)) && mouse && mouse.r) {
+    const [x, y] = map(mouse.r, mouse.lx, mouse.ly);
+    g.translate(x, y); g.rotate(b.decalAngle * Math.PI / 180);
+    if (S.tool === 'text') {
+      g.font = `${b.bold ? 700 : 400} ${b.fontSize * dpr}px "${b.font}"`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      const lines = String(b.text || '').split(/\n|\|/); const lh = b.fontSize * dpr * 1.15;
+      lines.forEach((t, i) => g.fillText(t, 0, (i - (lines.length - 1) / 2) * lh));
+    } else {
+      const w = b.decalSize * dpr, h = w * E.decalImg.height / E.decalImg.width;
+      g.drawImage(E.decalImg, -w / 2, -h / 2, w, h);
+    }
+  }
+  g.restore();
+}
 function drawOverlay() {
   const ov = $('#ov'); if (!ov) return; const g = ov.getContext('2d');
   g.clearRect(0, 0, ov.width, ov.height);
   if (S.view.layout === 'split' && E.regions[1]) { g.fillStyle = '#2f3138'; g.fillRect(E.regions[1].x - 2, 0, 3, ov.height); }
-  if (!mouse || !mouse.inside || !(S.tool === 'paint' || S.tool === 'erase') || mouse.nav) return;
+  if (!mouse || !mouse.inside || mouse.nav) return;
+  const T = S.tool;
+  if (drag && drag.mode === 'tool') {
+    const col = S.tool === 'select' ? 'rgba(120,170,255,.25)' : hexA(S.brush.color, 0.45);
+    drawToolShape(g, drag.r, ovXY, col, false); return;
+  }
+  if (T === 'text' || T === 'decal') { if (!drag) { g.globalAlpha = 0.6; drawToolShape(g, mouse.r, ovXY, S.brush.color, false); g.globalAlpha = 1; } return; }
+  if (!BRUSH_TOOLS.includes(T)) return;
   const r = S.brush.size * dpr;
   g.lineWidth = 1.5 * dpr;
   g.strokeStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.arc(mouse.x * dpr, mouse.y * dpr, r + dpr, 0, 7); g.stroke();
-  g.strokeStyle = S.tool === 'erase' ? 'rgba(160,200,255,.95)' : 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(mouse.x * dpr, mouse.y * dpr, r, 0, 7); g.stroke();
+  g.strokeStyle = T === 'erase' ? 'rgba(160,200,255,.95)' : 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(mouse.x * dpr, mouse.y * dpr, r, 0, 7); g.stroke();
   if (S.brush.hard < 0.95) { g.setLineDash([3 * dpr, 4 * dpr]); g.strokeStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.arc(mouse.x * dpr, mouse.y * dpr, r * Math.max(0.05, S.brush.hard), 0, 7); g.stroke(); g.setLineDash([]); }
+  if (T === 'clone' && E.cloneSrcScreen) { g.strokeStyle = '#ffb648'; g.beginPath(); g.arc(E.cloneSrcScreen[0], E.cloneSrcScreen[1], 6 * dpr, 0, 7); g.stroke(); }
 }
+function hexA(h, a) { const c = hex2rgb(h); return `rgba(${c.map((v) => Math.round(v * 255)).join(',')},${a})`; }
 
 /* ---------- Maus & Stift ---------- */
 let drag = null, lastStrokeEnd = null;
+const regionUV = (r, x, y) => [(x - S.uv2d.pan[0]) / S.uv2d.zoom, (y - S.uv2d.pan[1]) / S.uv2d.zoom];
+function zoomAt(h, f) {
+  if (h.r.type === '3d') { S.cam.dist = clamp(S.cam.dist * f, 0.2, 50); E.gbDirty = true; }
+  else {
+    const z0 = S.uv2d.zoom, z1 = clamp(z0 / f, 50, 40000);
+    S.uv2d.pan = [h.x - (h.x - S.uv2d.pan[0]) * z1 / z0, h.y - (h.y - S.uv2d.pan[1]) * z1 / z0]; S.uv2d.zoom = z1;
+  }
+  E.needDraw = true;
+}
 function setupInput() {
   const c = cv();
   c.addEventListener('contextmenu', (e) => e.preventDefault());
   c.addEventListener('pointerdown', (e) => {
     if (!S.mesh) return;
     const h = hitRegion(e.offsetX, e.offsetY); if (!h) return;
+    const T = S.tool;
+    // laufende UV-Transformation (G/R/S) bestätigen oder abbrechen
+    if (UVE.op && drag && drag.mode === 'uvkey') { if (e.button === 0) uvConfirm(); else uvCancel(); drag = null; return; }
     c.setPointerCapture(e.pointerId);
-    const nav = e.button === 2 || e.button === 1 || (e.button === 0 && e.altKey);
+    if (T === 'zoom' && (e.button === 0 || e.button === 2)) { zoomAt(h, e.button === 0 ? 1 / 1.4 : 1.4); return; }
+    const altTool = ['select', 'clone', 'tone'].includes(T);
+    const nav = e.button === 2 || e.button === 1 || (e.button === 0 && e.altKey && !altTool) || (e.button === 0 && T === 'hand');
     if (nav) {
       let mode = 'rot';
-      if (e.button === 1) mode = 'pan';
+      if (e.button === 1 || T === 'hand' && e.button === 0) mode = 'pan';
       if (e.button === 2 && e.shiftKey) mode = 'env';
       if (e.button === 2 && e.altKey) mode = 'zoom';
       if (h.r.type === '2d' && mode !== 'zoom') mode = 'pan2d';
@@ -2834,31 +3382,83 @@ function setupInput() {
       return;
     }
     if (e.button !== 0) return;
-    if (S.tool === 'pick') {
+    const selMode = e.shiftKey ? 1 : e.altKey ? 2 : 0;
+    if (T === 'pick') {
       const p = pipetteAt(h.r, h.x, h.y);
-      if (p) { Object.assign(S.brush, p, { mat: '' }); UI.renderProps(); toast('Farbe übernommen'); }
+      if (p) { Object.assign(S.brush, p, { mat: '' }); UI.renderProps(); toast('Farbe aufgenommen'); }
       return;
     }
-    if (S.tool === 'fill') { fillAt(h.r, h.x, h.y, e.ctrlKey); UI.renderInfo(); return; }
-    // Malen
-    if (!strokeBegin(h.r, S.tool === 'erase')) return;
+    if (T === 'fill') { fillAt(h.r, h.x, h.y, e.ctrlKey); UI.renderInfo(); return; }
+    if (T === 'move') {
+      const hit = uvPick(h.r, h.x, h.y, e.shiftKey);
+      if (hit && h.r.type === '2d' && !e.shiftKey) drag = { mode: 'uvdrag', r: h.r, start: regionUV(h.r, h.x, h.y), sx: h.x, sy: h.y };
+      return;
+    }
+    if (T === 'select' && ['planar', 'island', 'part'].includes(S.brush.selKind)) {
+      const hit = pickAt(h.r, h.x, h.y);
+      if (!hit || hit.tri < 0) { if (h.r.type === '2d') toast('Im 2D-Fenster gehen nur Rechteck, Ellipse und Lasso.'); return; }
+      selectTris(trisOfGroup(S.brush.selKind, hit.tri), selMode); return;
+    }
+    if (['select', 'shape', 'grad'].includes(T)) {
+      drag = { mode: 'tool', r: h.r, x0: h.x, y0: h.y, x1: h.x, y1: h.y, pts: [[h.x, h.y]], selMode, shift: e.shiftKey };
+      return;
+    }
+    if (T === 'text' || T === 'decal') {
+      if (T === 'decal' && !E.decalImg) { UI.pickDecal(); return; }
+      if (T === 'text' && !String(S.brush.text).trim()) { toast('Gib oben zuerst einen Text ein.'); return; }
+      const cvs = regionCanvas(h.r); mouse = Object.assign(mouse || {}, { r: h.r, lx: h.x, ly: h.y });
+      drawToolShape(cvs.getContext('2d'), h.r, cvXY, '#ffffff', true);
+      if (applyCanvas(cvs, h.r, T === 'decal' ? 4 : 0)) UI.renderInfo();
+      return;
+    }
+    // Pinsel-artige Werkzeuge
+    if (T === 'clone' && e.altKey) {
+      const hit = pickAt(h.r, h.x, h.y);
+      if (hit) { E.cloneSrc = hit.uv; E.cloneSrcScreen = [e.offsetX * dpr, e.offsetY * dpr]; UI.renderCtx(); toast('Quelle gesetzt'); drawOverlay(); }
+      return;
+    }
+    let op = { paint: 0, erase: 1, blur: 2, clone: 3 }[T];
+    if (T === 'tone') op = (S.brush.toneMode === 'light') !== e.altKey ? 5 : 6;
+    let off = [0, 0];
+    if (T === 'clone') {
+      if (!E.cloneSrc) { toast('Erst Alt + Klick auf die Stelle, die kopiert werden soll.'); return; }
+      const hit = pickAt(h.r, h.x, h.y); if (!hit) return;
+      off = [Math.round((E.cloneSrc[0] - hit.uv[0]) * S.res), Math.round((E.cloneSrc[1] - hit.uv[1]) * S.res)];
+    }
+    if (!strokeBegin(h.r, op)) return;
+    ST.off = off;
     drag = { mode: 'paint', r: h.r };
     const isPen = e.pointerType === 'pen';
-    if (e.shiftKey && lastStrokeEnd && lastStrokeEnd.r === h.r) { strokeTo(lastStrokeEnd.x, lastStrokeEnd.y, 1, false); }
+    if (e.shiftKey && lastStrokeEnd && lastStrokeEnd.r === h.r) strokeTo(lastStrokeEnd.x, lastStrokeEnd.y, 1, false);
     strokeTo(h.x, h.y, e.pressure, isPen);
   });
   c.addEventListener('pointermove', (e) => {
-    mouse = { x: e.offsetX, y: e.offsetY, inside: true, nav: !!(drag && drag.mode !== 'paint') };
+    const h = hitRegion(e.offsetX, e.offsetY);
+    mouse = { x: e.offsetX, y: e.offsetY, inside: true, nav: !!(drag && !['paint', 'tool', 'uvdrag', 'uvkey'].includes(drag.mode)), r: h ? h.r : null, lx: h ? h.x : 0, ly: h ? h.y : 0 };
+    if (drag && drag.mode === 'uvkey') {
+      if (h && h.r.type === '2d') uvUpdate(regionUV(h.r, h.x, h.y), { snap: e.ctrlKey });
+      drawOverlay(); return;
+    }
+    if (drag && drag.mode === 'tool') {
+      const r = drag.r, rect = c.getBoundingClientRect();
+      const x = e.clientX * 1 - rect.left, y = e.clientY - rect.top;
+      const lx = x * dpr - r.x, ly = c.height - y * dpr - r.y;
+      drag.x1 = lx; drag.y1 = ly; drag.shift = e.shiftKey; drag.pts.push([lx, ly]);
+      mouse.r = r;
+      drawOverlay(); return;
+    }
     drawOverlay();
     if (!drag) return;
+    if (drag.mode === 'uvdrag') {
+      const rect = c.getBoundingClientRect(); const r = drag.r;
+      const lx = (e.clientX - rect.left) * dpr - r.x, ly = c.height - (e.clientY - rect.top) * dpr - r.y;
+      if (!UVE.op) { if (Math.hypot(lx - drag.sx, ly - drag.sy) < 4 * dpr) return; if (!uvBegin('g', drag.start)) { drag = null; return; } }
+      uvUpdate(regionUV(r, lx, ly), { snap: e.ctrlKey }); return;
+    }
     if (drag.mode === 'paint') {
       const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-      for (const ev of (evs.length ? evs : [e])) {
-        const rect = c.getBoundingClientRect();
-        const ox = ev.clientX - rect.left, oy = ev.clientY - rect.top;
-        const H = c.height, r = drag.r;
-        strokeTo(ox * dpr - r.x, H - oy * dpr - r.y, ev.pressure, ev.pointerType === 'pen');
-      }
+      const rect = c.getBoundingClientRect(), H = c.height, r = drag.r;
+      for (const ev of (evs.length ? evs : [e])) strokeTo((ev.clientX - rect.left) * dpr - r.x, H - (ev.clientY - rect.top) * dpr - r.y, ev.pressure, ev.pointerType === 'pen');
       return;
     }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
@@ -2874,13 +3474,24 @@ function setupInput() {
     E.needDraw = true;
   });
   const up = (e) => {
-    if (!drag) return;
-    if (drag.mode === 'paint') {
+    if (!drag || drag.mode === 'uvkey') return;
+    const d = drag; drag = null;
+    if (d.mode === 'paint') {
       strokeEnd();
-      if (ST.last === null || true) { const h = hitRegion(e.offsetX, e.offsetY); if (h) lastStrokeEnd = { r: h.r, x: h.x, y: h.y }; }
-      UI.renderInfo(); $('#projName').textContent = S.projectName + ' •';
+      const h = hitRegion(e.offsetX, e.offsetY); if (h) lastStrokeEnd = { r: h.r, x: h.x, y: h.y };
+      UI.renderInfo();
+    } else if (d.mode === 'uvdrag') { if (UVE.op) uvConfirm(); }
+    else if (d.mode === 'tool') {
+      const moved = Math.hypot(d.x1 - d.x0, d.y1 - d.y0) > 2 * dpr || d.pts.length > 3;
+      if (S.tool === 'select') {
+        if (!moved) { if (!d.selMode) selectNone(); }
+        else { const cvs = regionCanvas(d.r); drag = d; drawToolShape(cvs.getContext('2d'), d.r, cvXY, '#ffffff', true); drag = null; selectCanvas(cvs, d.r, d.selMode); }
+      } else if (moved) {
+        const cvs = regionCanvas(d.r); drag = d; drawToolShape(cvs.getContext('2d'), d.r, cvXY, '#ffffff', true); drag = null;
+        applyCanvas(cvs, d.r, 0); UI.renderInfo();
+      }
     }
-    drag = null; if (mouse) mouse.nav = false; drawOverlay();
+    if (mouse) mouse.nav = false; drawOverlay();
   };
   c.addEventListener('pointerup', up);
   c.addEventListener('pointercancel', up);
@@ -2888,13 +3499,8 @@ function setupInput() {
   c.addEventListener('wheel', (e) => {
     e.preventDefault();
     const h = hitRegion(e.offsetX, e.offsetY); if (!h) return;
-    const f = Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0012);
-    if (h.r.type === '3d') { S.cam.dist = clamp(S.cam.dist * f, 0.2, 50); E.gbDirty = true; }
-    else {
-      const z0 = S.uv2d.zoom, z1 = clamp(z0 / f, 50, 40000);
-      S.uv2d.pan = [h.x - (h.x - S.uv2d.pan[0]) * z1 / z0, h.y - (h.y - S.uv2d.pan[1]) * z1 / z0]; S.uv2d.zoom = z1;
-    }
-    E.needDraw = true;
+    if (e.ctrlKey && BRUSH_TOOLS.includes(S.tool)) { S.brush.size = clamp(Math.round(S.brush.size * (e.deltaY < 0 ? 1.1 : 1 / 1.1)), 1, 400); UI.renderCtx(); drawOverlay(); return; }
+    zoomAt(h, Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0012));
   }, { passive: false });
   window.addEventListener('resize', resize);
   new ResizeObserver(resize).observe($('#view'));
@@ -2902,10 +3508,15 @@ function setupInput() {
   // Tastatur
   window.addEventListener('keydown', (e) => {
     const tag = (e.target.tagName || '').toLowerCase();
-    if (e.key === 'Escape') { if (!$('#modal').classList.contains('hidden') && UI._modalClosable !== false && S.mesh) UI.closeModal(); return; }
+    if (e.key === 'Escape') {
+      if (UVE.op) { uvCancel(); drag = null; return; }
+      if (!$('#modal').classList.contains('hidden') && UI._modalClosable !== false && S.mesh) UI.closeModal();
+      return;
+    }
     if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
     if (!$('#modal').classList.contains('hidden')) return;
     const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
+    if (UVE.op && drag && drag.mode === 'uvkey' && e.key === 'Enter') { uvConfirm(); drag = null; return; }
     if (ctrl) {
       if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
       else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
@@ -2913,34 +3524,46 @@ function setupInput() {
       else if (k === 'o') { e.preventDefault(); UI.openFile('.mtex,.obj,.glb,.gltf'); }
       else if (k === 'n') { e.preventDefault(); UI.welcome(); }
       else if (k === 'e' && e.shiftKey) { e.preventDefault(); UI.exportDialog(); }
-      else if (k === 'd') { e.preventDefault(); UI.dupLayer(); }
+      else if (k === 'd' && e.shiftKey) { e.preventDefault(); UI.dupLayer(); }
+      else if (k === 'd') { e.preventDefault(); selectNone(); }
+      else if (k === 'a') { e.preventDefault(); if (S.tool === 'move') uvSelectAll(); else selectNone(); }
+      else if (k === 'i') { e.preventDefault(); selectInvert(); }
       return;
     }
     if (!S.mesh) return;
     const b = S.brush;
+    // Blender-Tasten im UV-Werkzeug
+    if (S.tool === 'move' && ['g', 'r', 's'].includes(k) && UVE.sel.size && mouse && mouse.r && mouse.r.type === '2d') {
+      if (uvBegin(k, regionUV(mouse.r, mouse.lx, mouse.ly))) drag = { mode: 'uvkey', r: mouse.r };
+      return;
+    }
+    if (S.tool === 'move' && k === 'a') { uvSelectAll(); return; }
+    const tool = TOOLS.find((t) => t !== '-' && t.key.toLowerCase() === k);
+    if (tool && !e.altKey) { setTool(tool.id); return; }
     switch (e.key) {
-      case 'b': case 'B': setTool('paint'); break;
-      case 'e': case 'E': setTool('erase'); break;
-      case 'g': case 'G': setTool('fill'); break;
       case 'i': case 'I': setTool('pick'); break;
       case '[': case '{': if (e.shiftKey) b.hard = clamp(b.hard - 0.1, 0, 1); else b.size = clamp(Math.round(b.size / 1.15), 1, 400); UI.renderCtx(); drawOverlay(); break;
       case ']': case '}': if (e.shiftKey) b.hard = clamp(b.hard + 0.1, 0, 1); else b.size = clamp(Math.round(b.size * 1.15 + 0.5), 1, 400); UI.renderCtx(); drawOverlay(); break;
-      case 'f': case 'F': frameCamera(); S.uv2d.zoom = 0; break;
+      case 'Home': case '0': frameCamera(); S.uv2d.zoom = 0; break;
       case 'w': case 'W': S.view.wire = !S.view.wire; UI.renderVbar(); E.needDraw = true; break;
       case 'c': case 'C': S.view.chan = (S.view.chan + 1) % CHANNELS.length; UI.renderVbar(); E.needDraw = true; break;
       case 'x': case 'X': b.mirror = b.mirror ? 0 : 1; UI.renderTools(); UI.renderCtx(); toast(b.mirror ? 'Spiegeln an' : 'Spiegeln aus'); break;
-      case 'm': case 'M': { const l = curLayer(); if (l && l.mask) { S.target = S.target === 'mask' ? 'layer' : 'mask'; UI.refreshAll(); } break; }
+      case 'q': case 'Q': { const l = curLayer(); if (l && l.mask) { S.target = S.target === 'mask' ? 'layer' : 'mask'; UI.refreshAll(); } break; }
       case 'F1': e.preventDefault(); setLayout('3d'); break;
       case 'F2': e.preventDefault(); setLayout('2d'); break;
       case 'F3': e.preventDefault(); setLayout('split'); break;
-      case 'Delete': UI.delLayer(); break;
+      case 'Delete': if (E.sel) eraseSelection(); else UI.delLayer(); break;
       default: return;
     }
   });
 
   // Dateien aufs Fenster ziehen
   window.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); });
-  window.addEventListener('drop', (e) => { if (e.dataTransfer.files && e.dataTransfer.files[0]) { e.preventDefault(); handleFile(e.dataTransfer.files[0]); } });
+  window.addEventListener('drop', (e) => {
+    const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return; e.preventDefault();
+    if (/^image\//.test(f.type) && S.mesh) { if (S.tool === 'decal') { createImageBitmap(f).then((img) => { E.decalImg = img; E.decalName = f.name; UI.renderCtx(); }); } else { UI.busy('Bild wird geladen …'); imageLayer(f).then(() => UI.refreshAll()).finally(() => UI.busy(null)); } return; }
+    handleFile(f);
+  });
 }
 
 /* ---------- Dateien öffnen ---------- */
@@ -2972,6 +3595,8 @@ async function startProject(mesh, res, name, setup) {
   S.mesh = mesh; S.res = res; S.projectName = name || mesh.name;
   uploadMesh(mesh);
   bakeMesh((m) => UI.busy(m));
+  warmUp();
+  UVE.sel.clear(); UVE.idx = null; E.cloneSrc = null;
   if (setup) setup();
   else { const l = newLayer('paint'); S.layers.push(l); S.sel = l.id; }
   if (!setup) frameCamera();
@@ -2987,6 +3612,7 @@ async function startProject(mesh, res, name, setup) {
 function loop() {
   requestAnimationFrame(loop);
   try {
+    if (ST.on && S.brush.air && drag && drag.mode === 'paint' && ST.last && ST.op !== 3) ST.pending.push({ x: ST.last[0], y: ST.last[1], r: brushRadiusPx(), a: S.brush.angle * Math.PI / 180, s: S.brush.flow * 0.12, seed: Math.random() * 100 });
     if (ST.on && ST.pending.length) strokeFlush();
     if (E.needComp || E.needDraw) renderAll();
   } catch (e) { console.error('Zeichenfehler', e); E.needComp = false; E.needDraw = false; }
@@ -2997,6 +3623,7 @@ async function main() {
     document.title = APP_NAME + ' ' + APP_VERSION;
     initGL(cv());
     compilePrograms();
+    initTools();
   } catch (e) {
     console.error(e);
     document.body.innerHTML = '';
@@ -3004,6 +3631,7 @@ async function main() {
     return;
   }
   UI.init();
+  initTooltips();
   setupInput();
   resize();
   UI.refreshAll();
