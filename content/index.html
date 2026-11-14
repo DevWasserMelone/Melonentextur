@@ -373,7 +373,7 @@ html.pro #status{background:#1a1b1d}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.2.1';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1960,6 +1960,67 @@ function uploadMesh(mesh) {
   E.idxBuf = E.idxBuf || gl.createBuffer();
 }
 function drawSoup() { gl.bindVertexArray(E.vao); gl.drawArrays(gl.TRIANGLES, 0, E.nVerts); }
+/* Schnell-Malen: nur die Dreiecke zeichnen, die unter dem Pinsel liegen.
+   Beim Strich-Start werden alle Dreiecke einmal in ein Bildschirm-Raster einsortiert. */
+const SG = { cs: 24 };
+/* bemaltes Rechteck in der Textur (für schnelleres Neuberechnen); null = alles */
+function dirtyUV(rc) {
+  const grow = (a, b) => (!a || !b ? null : [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]);
+  ST.dFrame = ST.dFrame === undefined ? rc : grow(ST.dFrame, rc);
+  ST.dStroke = ST.dStroke === undefined ? rc : grow(ST.dStroke, rc);
+}
+function scissorUV(rc, pad) {
+  if (!rc) { gl.disable(gl.SCISSOR_TEST); return; }
+  const R = S.res, x0 = Math.max(0, Math.floor(rc[0] * R) - pad), y0 = Math.max(0, Math.floor(rc[1] * R) - pad);
+  const x1 = Math.min(R, Math.ceil(rc[2] * R) + pad), y1 = Math.min(R, Math.ceil(rc[3] * R) + pad);
+  gl.enable(gl.SCISSOR_TEST); gl.scissor(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
+}
+function buildStrokeGrid(r) {
+  const m = S.mesh, P = m.soup.pos, U = m.soup.uv, nT = m.nT;
+  const cs = SG.cs, gw = Math.ceil(r.w / cs) + 1, gh = Math.ceil(r.h / cs) + 1;
+  const cells = new Array(gw * gh); const big = [];
+  const is2d = r.type === '2d', vp = is2d ? null : ST.cm.vp, z = S.uv2d.zoom, pan = S.uv2d.pan;
+  const px = new Float32Array(3), py = new Float32Array(3);
+  for (let t = 0; t < nT; t++) {
+    let ok = true;
+    for (let k = 0; k < 3; k++) {
+      const i = t * 3 + k;
+      if (is2d) { px[k] = U[i * 2] * z + pan[0]; py[k] = U[i * 2 + 1] * z + pan[1]; continue; }
+      const x = P[i * 3], y = P[i * 3 + 1], zz = P[i * 3 + 2];
+      const w = vp[3] * x + vp[7] * y + vp[11] * zz + vp[15];
+      if (w <= 1e-6) { ok = false; break; }
+      px[k] = ((vp[0] * x + vp[4] * y + vp[8] * zz + vp[12]) / w * 0.5 + 0.5) * r.w;
+      py[k] = ((vp[1] * x + vp[5] * y + vp[9] * zz + vp[13]) / w * 0.5 + 0.5) * r.h;
+    }
+    if (!ok) { big.push(t); continue; }
+    const x0 = Math.min(px[0], px[1], px[2]), x1 = Math.max(px[0], px[1], px[2]), y0 = Math.min(py[0], py[1], py[2]), y1 = Math.max(py[0], py[1], py[2]);
+    if (x1 < 0 || y1 < 0 || x0 > r.w || y0 > r.h) continue; // außerhalb des Bildes: kann nicht bemalt werden
+    const cx0 = Math.max(0, Math.floor(x0 / cs)), cx1 = Math.min(gw - 1, Math.floor(x1 / cs)), cy0 = Math.max(0, Math.floor(y0 / cs)), cy1 = Math.min(gh - 1, Math.floor(y1 / cs));
+    if ((cx1 - cx0 + 1) * (cy1 - cy0 + 1) > 64) { big.push(t); continue; }
+    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) { const c = cy * gw + cx; (cells[c] || (cells[c] = [])).push(t); }
+  }
+  ST.grid = { gw, gh, cells, big, mark: new Uint32Array(nT), gen: 0, r };
+}
+/* gibt true zurück, wenn nur ein Teil gezeichnet wurde */
+function drawSoupUnder(stamps) {
+  const G = ST.grid; if (!G) return false;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const s of stamps) { const R = s.r * 1.45 + 2; x0 = Math.min(x0, s.x - R); x1 = Math.max(x1, s.x + R); y0 = Math.min(y0, s.y - R); y1 = Math.max(y1, s.y + R); }
+  const cs = SG.cs;
+  const cx0 = Math.max(0, Math.floor(x0 / cs)), cx1 = Math.min(G.gw - 1, Math.floor(x1 / cs)), cy0 = Math.max(0, Math.floor(y0 / cs)), cy1 = Math.min(G.gh - 1, Math.floor(y1 / cs));
+  if (cx1 < cx0 || cy1 < cy0) { if (!G.big.length) return true; }
+  const gen = ++G.gen; const out = [];
+  const add = (t) => { if (G.mark[t] !== gen) { G.mark[t] = gen; out.push(t * 3, t * 3 + 1, t * 3 + 2); } };
+  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) { const c = G.cells[cy * G.gw + cx]; if (c) for (const t of c) add(t); }
+  for (const t of G.big) add(t);
+  if (!out.length) return true;
+  if (out.length > E.nVerts * 0.6) { drawSoup(); dirtyUV(null); return true; }
+  { const U = S.mesh.soup.uv; let u0 = 1, v0 = 1, u1 = 0, v1 = 0; for (let j = 0; j < out.length; j++) { const i = out[j]; const u = U[i * 2], v = U[i * 2 + 1]; if (u < u0) u0 = u; if (u > u1) u1 = u; if (v < v0) v0 = v; if (v > v1) v1 = v; } dirtyUV([u0, v0, u1, v1]); }
+  gl.bindVertexArray(E.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, E.idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(out), gl.STREAM_DRAW);
+  gl.drawElements(gl.TRIANGLES, out.length, gl.UNSIGNED_INT, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null); gl.bindVertexArray(null);
+  return true;
+}
 
 function clearTex(t, rgba, i = 0) { bindTargets([t]); gl.clearBufferfv(gl.COLOR, i, rgba); }
 function copyTex(src, w = src.w, h = src.h, fmt = src.fmt) {
@@ -2073,13 +2134,31 @@ function getCache(T, l) {
   return c;
 }
 
+/* Beim Malen ändern sich nur die bemalte Ebene und alles darüber:
+   das Ergebnis der Ebenen darunter wird einmal gemerkt und wiederverwendet */
+function blitAcc(src, dst) {
+  gl.disable(gl.BLEND);
+  bindTargets([dst.c]); E.P.copy.use().tex('uSrc', src.c); drawFull();
+  bindTargets([dst.m]); E.P.copy.use().tex('uSrc', src.m); drawFull();
+}
 function compositeTarget(T, layers) {
   const P = E.P; gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
   let cur = 0;
-  bindTargets([T.acc[0].c, T.acc[0].m]);
-  gl.clearBufferfv(gl.COLOR, 0, BASE_C); gl.clearBufferfv(gl.COLOR, 1, BASE_M);
+  if (E.compClip) for (const l of layers) if (l.kind !== 'folder' && l.visible) { getCache(T, l); if (l.parent) { const f = layers.find((x) => x.id === l.parent); if (f && f.mask) getCache(T, f); } }
+  if (E.compClip) scissorUV(E.compClip, 24);
+  const useBelow = T === E.T && E.stroke_active && ST.layer && !ST.layer.parent;
+  const startAt = useBelow ? layers.indexOf(ST.layer) : -1;
+  let skipTo = 0;
+  if (useBelow && startAt > 0 && E.below && E.belowFor === ST.layer.id && E.belowSize === T.acc[0].c.w) { blitAcc(E.below, T.acc[0]); skipTo = startAt; }
+  else { bindTargets([T.acc[0].c, T.acc[0].m]); gl.clearBufferfv(gl.COLOR, 0, BASE_C); gl.clearBufferfv(gl.COLOR, 1, BASE_M); }
   const byId = new Map(layers.map((l) => [l.id, l]));
-  for (const l of layers) {
+  for (let li = skipTo; li < layers.length; li++) {
+    const l = layers[li];
+    if (useBelow && li === startAt && skipTo === 0 && startAt > 0) {
+      const sz = T.acc[0].c.w;
+      if (!E.below || E.belowSize !== sz) { if (E.below) { E.below.c.free(); E.below.m.free(); } E.below = { c: new Tex(sz, sz, 'rgba8'), m: new Tex(sz, sz, 'rgba16f') }; E.belowSize = sz; }
+      blitAcc(T.acc[cur], E.below); E.belowFor = ST.layer.id;
+    }
     if (l.kind === 'folder') continue;
     const f = l.parent ? byId.get(l.parent) : null;
     if (!l.visible || l.opacity <= 0 || (f && (!f.visible || f.opacity <= 0))) continue;
@@ -2109,14 +2188,21 @@ function compositeTarget(T, layers) {
     drawFull();
     cur = 1 - cur;
   }
+  gl.disable(gl.SCISSOR_TEST);
   return T.acc[cur];
 }
 function compositeMain() {
   if (!E.T) return;
-  const acc = compositeTarget(E.T, S.layers);
+  // während eines Strichs nur das bemalte Rechteck neu rechnen (der erste Durchlauf ist immer komplett)
+  let rc = null;
+  if (E.stroke_active && ST.on && ST.comps > 0 && ST.dFrame !== undefined && ST.dFrame !== null) rc = ST.dFrame;
+  if (E.stroke_active && ST.on) { ST.comps++; ST.dFrame = undefined; }
+  E.compClip = rc;
+  let acc;
+  try { acc = compositeTarget(E.T, S.layers); } finally { E.compClip = null; }
   bindTargets([E.fin.c, E.fin.m, E.fin.n]);
   E.P.final.use().tex('uAccC', acc.c).tex('uAccM', acc.m).tex('uIsl', E.isl).tex('uBake', E.T.bake).set('uHS', S.hdepth * S.res / 8);
-  drawFull();
+  scissorUV(rc, 24); drawFull(); gl.disable(gl.SCISSOR_TEST);
   E.fin.c.mipmap(); E.fin.m.mipmap(); E.fin.n.mipmap();
   // Caches gelöschter Ebenen freigeben
   const ids = new Set(S.layers.map((l) => l.id));
@@ -2322,6 +2408,7 @@ function strokeBegin(r, op) {
   clearTex(E.stroke, [0, 0, 0, 0]);
   if (r.type === '3d') ensureGbuf(r);
   clearTex(E.strokeCol, [0, 0, 0, 0]);
+  E.belowFor = null; ST.grid = null; ST.dStroke = undefined; ST.dFrame = undefined; ST.comps = 0;
   Object.assign(ST, { on: true, pencil: false, tgt: null, layer: l, mask: !!onMask, erase, op, src: 0, off: [0, 0], r, pending: [], last: null, carry: 0, lazy: null, dir: null, cm: r.type === '3d' ? camMatrices(r) : null, t0: performance.now() });
   E.stroke_active = true;
   return true;
@@ -2387,12 +2474,14 @@ function strokeFlush() {
     p.set('uVP', ST.cm.vp).set('uEye', ST.cm.eye).tex('uGPos', E.gb.pos).set('uTol', 0.012 + S.cam.dist * 0.004)
       .set('uMirOn', b.mirror > 0).set('uMir', [b.mirror === 1 ? -1 : 1, b.mirror === 2 ? -1 : 1, b.mirror === 3 ? -1 : 1]);
   } else { p.tex('uGPos', null).set('uMirOn', false); }
+  const fast = !(r.type === '3d' && b.mirror > 0) && S.mesh;
+  if (fast && (!ST.grid || ST.grid.r !== r)) buildStrokeGrid(r);
   for (let i = 0; i < ST.pending.length; i += 64) {
     const ch = ST.pending.slice(i, i + 64);
     st.fill(0); st2.fill(0);
     ch.forEach((s, k) => { st.set([s.x, s.y, s.r, s.a], k * 4); st2.set([s.s, s.seed], k * 2); });
     p.set('uN', ch.length).set('uSt', st).set('uSt2', st2);
-    drawSoup();
+    if (!(fast && drawSoupUnder(ch))) { drawSoup(); dirtyUV(null); }
   }
   gl.disable(gl.BLEND);
   if (ST.op === 8) smudgePrep();
@@ -2420,7 +2509,11 @@ function smudgePrep() {
   ST.off = off;
 }
 function applyStroke() {
+  try { applyStroke0(); } finally { gl.disable(gl.SCISSOR_TEST); }
+}
+function applyStroke0() {
   const P = E.P, b = S.brush, l = ST.layer;
+  const clipRect = ST.op === 3 || ST.op === 8 ? null : ST.dStroke; // Klonen/Verwischen lesen versetzt: lieber alles
   const common = (p) => p.tex('uStroke', E.stroke).tex('uSC', E.strokeCol).tex('uSel', E.sel).set('uHasSel', !!E.sel)
     .set('uOpac', ST.op === 0 && ST.pencil ? 1 : ST.op === 8 ? b.opacity * 0.7 : b.opacity).set('uOp', ST.op === 8 ? 3 : ST.op).set('uSrc', ST.src).set('uOff', ST.off).set('uTgt', ST.tgt || [0, 0, 0]).set('uTolR', b.tol).set('uBlurR', Math.max(1, Math.round(S.res / 1024 * (1 + b.blur * 4))));
   if (ST.mask) {
@@ -2433,7 +2526,7 @@ function applyStroke() {
       .set('uCol', hex2rgb(b.color)).set('uMat', [b.rough, b.metal, b.height]).set('uEO', [b.emit || 0, b.bop ?? 1]).set('uOn2', [b.chE ? 1 : 0, b.chO ? 1 : 0]).set('uOn', ST.pencil && ST.op === 0 ? [1, b.chR ? 1 : 0, b.chM ? 1 : 0, b.chH ? 1 : 0] : [b.chC ? 1 : 0, b.chR ? 1 : 0, b.chM ? 1 : 0, b.chH ? 1 : 0]);
     p.set('uUsePat', !!bm);
   }
-  drawFull();
+  scissorUV(clipRect === undefined ? null : clipRect, 4); drawFull();
   E.needComp = true;
 }
 function strokeEnd() {
