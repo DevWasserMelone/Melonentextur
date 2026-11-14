@@ -224,7 +224,7 @@ details.adv summary:hover{color:var(--tx)}
 .tiny #vbar select:last-of-type{display:none}
 #ctx{flex-wrap:wrap;row-gap:calc(4px*var(--u));padding-top:calc(5px*var(--u));padding-bottom:calc(5px*var(--u));min-height:calc(42px*var(--u))}
 #vbar{flex-wrap:wrap;max-width:calc(100% - calc(140px*var(--u)));justify-content:flex-end}
-#top{overflow:hidden}
+#top{position:relative;z-index:60}
 .tbtn{white-space:nowrap}
 
 #uvHint{position:absolute;bottom:calc(8px*var(--u));right:calc(8px*var(--u));background:#16171bdd;border:calc(1px*var(--u)) solid var(--line);border-radius:calc(7px*var(--u));padding:calc(5px*var(--u)) calc(10px*var(--u));color:#b9bcc5;font-size:calc(11.5px*var(--u));line-height:1.5;pointer-events:none;z-index:5}
@@ -241,6 +241,8 @@ details.adv summary:hover{color:var(--tx)}
 
 #tools{display:grid;grid-template-columns:calc(34px*var(--u)) calc(34px*var(--u));grid-auto-rows:calc(32px*var(--u));gap:calc(3px*var(--u));justify-content:center;align-content:start;padding:calc(8px*var(--u)) 0}
 #tools .sep{grid-column:span 1;width:auto;height:calc(1px*var(--u));margin:calc(4px*var(--u)) 0;align-self:center}
+
+.menu .dd{max-height:calc(100vh - calc(60px*var(--u)));overflow-y:auto;min-width:calc(290px*var(--u))}
 </style>
 </head>
 <body>
@@ -280,7 +282,7 @@ details.adv summary:hover{color:var(--tx)}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '1.0.6';
+const APP_VERSION = '1.0.7';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1111,6 +1113,44 @@ void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=texelFetch(uBC,ip,0); if(b
   float s=uHasSel?texelFetch(uSel,ip,0).r:1.0;
   o=vec4(clamp(mix(c,clamp(n,0.0,1.0),s),0.0,1.0)*bc.a,bc.a); }`;
 
+/* Ebene spiegeln / drehen */
+const FS_XF = G_HEAD + `
+uniform sampler2D uBC,uBM; uniform int uMode; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+void main(){ ivec2 SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); ivec2 q=ip;
+  if(uMode==0||uMode==2) q.x=SZ.x-1-ip.x; if(uMode==1||uMode==2) q.y=SZ.y-1-ip.y;
+  oC=texelFetch(uBC,q,0); oM=texelFetch(uBM,q,0); }`;
+const FS_XF1 = G_HEAD + `
+uniform sampler2D uB; uniform int uMode; out vec4 o;
+void main(){ ivec2 SZ=textureSize(uB,0); ivec2 ip=ivec2(gl_FragCoord.xy); ivec2 q=ip;
+  if(uMode==0||uMode==2) q.x=SZ.x-1-ip.x; if(uMode==1||uMode==2) q.y=SZ.y-1-ip.y; o=texelFetch(uB,q,0); }`;
+/* Effekte auf der Farbe einer Mal-Ebene */
+const FS_FX = G_HEAD + `
+uniform sampler2D uBC,uSel; uniform bool uHasSel; uniform int uKind; uniform float uA; out vec4 o;
+ivec2 SZ;
+vec4 F(ivec2 p){ return texelFetch(uBC,clamp(p,ivec2(0),SZ-1),0); }
+void main(){ SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=F(ip), r=bc;
+  if(uKind==0){ int R=max(1,int(uA)); vec4 s=vec4(0.0); float n=0.0; for(int y=-3;y<=3;y++)for(int x=-3;x<=3;x++){ float w=exp(-float(x*x+y*y)/8.0); s+=F(ip+ivec2(x,y)*R)*w; n+=w; } r=s/n; }
+  else if(uKind==1){ vec4 s=F(ip+ivec2(1,0))+F(ip-ivec2(1,0))+F(ip+ivec2(0,1))+F(ip-ivec2(0,1)); r=bc+(bc*4.0-s)*uA; r=clamp(r,0.0,1.0); r.a=bc.a; }
+  else if(uKind==2){ int B=max(2,int(uA)); r=F((ip/B)*B+B/2); }
+  else if(uKind==3||uKind==4){ vec3 a=F(ip+ivec2(-1,1)).rgb, b=F(ip+ivec2(1,-1)).rgb; vec3 gx=F(ip+ivec2(1,0)).rgb-F(ip-ivec2(1,0)).rgb, gy=F(ip+ivec2(0,1)).rgb-F(ip-ivec2(0,1)).rgb;
+    float L = uKind==3 ? 0.5+dot(a-b,vec3(0.3,0.59,0.11))*2.0 : 1.0-clamp(length(vec2(dot(gx,vec3(0.33)),dot(gy,vec3(0.33))))*3.0,0.0,1.0);
+    r=vec4(vec3(L)*bc.a,bc.a); }
+  else if(uKind==5){ if(bc.a>0.0){ float N=max(2.0,uA); vec3 c=floor(bc.rgb/bc.a*N+0.5)/N; r=vec4(c*bc.a,bc.a);} }
+  float s=uHasSel?texelFetch(uSel,ip,0).r:1.0; o=mix(bc,r,s); }`;
+/* Ebenen zusammenführen */
+const FS_MERGE = G_HEAD + `
+uniform sampler2D uTC,uTM,uBC,uBM,uMP,uMG; uniform bool uHasMP,uHasMG; uniform float uOp; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); float k=uOp; if(uHasMP) k*=texelFetch(uMP,ip,0).r; if(uHasMG) k*=texelFetch(uMG,ip,0).r;
+  vec4 tc=texelFetch(uTC,ip,0)*k, tm=texelFetch(uTM,ip,0)*k, bc=texelFetch(uBC,ip,0), bm=texelFetch(uBM,ip,0);
+  oC=tc+bc*(1.0-tc.a); oM=tm+bm*(1.0-tm.a); }`;
+/* Auswahl ausschneiden/kopieren, Endergebnis zur Ebene machen */
+const FS_MCOPY = G_HEAD + `
+uniform sampler2D uC,uM,uSel; uniform bool uHasSel; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); float s=uHasSel?texelFetch(uSel,ip,0).r:1.0; oC=texelFetch(uC,ip,0)*s; oM=texelFetch(uM,ip,0)*s; }`;
+const FS_FLAT = G_HEAD + `
+uniform sampler2D uC,uM; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 c=texelFetch(uC,ip,0), m=texelFetch(uM,ip,0); oC=vec4(c.rgb,1.0); oM=vec4(m.r,m.g,m.b*2.0-1.0,1.0); }`;
+
 'use strict';
 /* ================= Modelle ================= */
 
@@ -1603,6 +1643,12 @@ function compilePrograms() {
   P.shift1 = new Prog(VS_FULL, FS_SHIFT1, 'shift1');
   P.colmask = new Prog(VS_FULL, FS_COLMASK, 'colmask');
   P.adj = new Prog(VS_FULL, FS_ADJ, 'adj');
+  P.xf = new Prog(VS_FULL, FS_XF, 'xf');
+  P.xf1 = new Prog(VS_FULL, FS_XF1, 'xf1');
+  P.fx = new Prog(VS_FULL, FS_FX, 'fx');
+  P.merge = new Prog(VS_FULL, FS_MERGE, 'merge');
+  P.mcopy = new Prog(VS_FULL, FS_MCOPY, 'mcopy');
+  P.flat = new Prog(VS_FULL, FS_FLAT, 'flat');
 }
 
 /* ---------- Modell hochladen ---------- */
@@ -2466,6 +2512,96 @@ function blurLayer() {
   ST.on = false; ST.layer = null; ST.before = null; E.stroke_active = false; S.dirty = true;
 }
 
+/* ---------- Bild-, Ebenen- und Bearbeiten-Befehle ---------- */
+function needPaintLayer() {
+  const l = curLayer();
+  if (!l || l.kind !== 'paint') { toast('Das geht nur auf Mal-Ebenen. Tipp: Ebenen → „Alles auf eine Ebene“.'); return null; }
+  return l;
+}
+function xformLayer(l, mode) {
+  const P = E.P; gl.disable(gl.BLEND);
+  if (l.tex) { const o = l.tex; l.tex = { c: trackTex(new Tex(S.res, S.res, 'rgba8')), m: trackTex(new Tex(S.res, S.res, 'rgba16f')) }; bindTargets([l.tex.c, l.tex.m]); P.xf.use().tex('uBC', o.c).tex('uBM', o.m).set('uMode', mode); drawFull(); }
+  if (l.mask && l.mask.tex) { const o = l.mask.tex; l.mask.tex = trackTex(new Tex(S.res, S.res, 'r8')); bindTargets([l.mask.tex]); P.xf1.use().tex('uB', o).set('uMode', mode); drawFull(); }
+}
+function layerXform(mode, all) {
+  const ls = all ? S.layers : [curLayer()].filter(Boolean);
+  if (!ls.length) return;
+  pushUndo(); ls.forEach((l) => xformLayer(l, mode)); E.needComp = true; S.dirty = true;
+  if (all && S.layers.some((l) => l.kind === 'fill')) toast('Füll-Ebenen haben kein festes Bild und bleiben, wie sie sind.');
+}
+function layerFx(kind, a) {
+  const l = needPaintLayer(); if (!l) return;
+  pushUndo();
+  const o = l.tex.c; l.tex = { c: trackTex(new Tex(S.res, S.res, 'rgba8')), m: l.tex.m };
+  bindTargets([l.tex.c]); gl.disable(gl.BLEND);
+  E.P.fx.use().tex('uBC', o).tex('uSel', E.sel).set('uHasSel', !!E.sel).set('uKind', kind).set('uA', a); drawFull();
+  E.needComp = true; S.dirty = true;
+}
+function mergeDown() {
+  const l = curLayer(); if (!l) return; const i = S.layers.indexOf(l); const below = S.layers[i - 1];
+  if (!below) { toast('Darunter ist keine Ebene.'); return; }
+  if (l.kind !== 'paint' || below.kind !== 'paint') { toast('Zusammenführen geht mit zwei Mal-Ebenen. Für alles: Ebenen → „Alles auf eine Ebene“.'); return; }
+  pushUndo();
+  const cache = E.caches.get(l.id) || {};
+  const nc = trackTex(new Tex(S.res, S.res, 'rgba8')), nm = trackTex(new Tex(S.res, S.res, 'rgba16f'));
+  bindTargets([nc, nm]); gl.disable(gl.BLEND);
+  const mp = l.mask ? l.mask.tex : null, mg = l.mask && l.mask.gen ? cache.g : null;
+  E.P.merge.use().tex('uTC', l.tex.c).tex('uTM', l.tex.m).tex('uBC', below.tex.c).tex('uBM', below.tex.m).tex('uMP', mp).tex('uMG', mg).set('uHasMP', !!mp).set('uHasMG', !!mg).set('uOp', l.visible ? l.opacity : 0);
+  drawFull();
+  below.tex = { c: nc, m: nm }; S.layers.splice(i, 1); S.sel = below.id; S.target = 'layer';
+  E.needComp = true; S.dirty = true;
+}
+function flattenAll() {
+  if (!S.layers.length) return;
+  if (E.needComp) compositeMain();
+  pushUndo();
+  const l = newLayer('paint', { name: 'Alles zusammen' });
+  bindTargets([l.tex.c, l.tex.m]); gl.disable(gl.BLEND);
+  E.P.flat.use().tex('uC', E.fin.c).tex('uM', E.fin.m); drawFull();
+  S.layers = [l]; S.sel = l.id; S.target = 'layer'; E.needComp = true; S.dirty = true;
+}
+function moveLayer(d) {
+  const l = curLayer(); if (!l) return; const i = S.layers.indexOf(l), j = clamp(i + d, 0, S.layers.length - 1);
+  if (i === j) return; pushUndo(); S.layers.splice(i, 1); S.layers.splice(j, 0, l); E.needComp = true;
+}
+function copySel(cut) {
+  const l = needPaintLayer(); if (!l) return false;
+  if (E.clip) { E.clip.c.free(); E.clip.m.free(); }
+  E.clip = { c: new Tex(S.res, S.res, 'rgba8'), m: new Tex(S.res, S.res, 'rgba16f') };
+  bindTargets([E.clip.c, E.clip.m]); gl.disable(gl.BLEND);
+  E.P.mcopy.use().tex('uC', l.tex.c).tex('uM', l.tex.m).tex('uSel', E.sel).set('uHasSel', !!E.sel); drawFull();
+  if (cut) { if (E.sel) eraseSelection(); else { pushUndo(); l.tex = newPaintTex(); E.needComp = true; } }
+  toast(cut ? 'Ausgeschnitten' : 'Kopiert');
+  return true;
+}
+function pasteClip() {
+  if (!E.clip || E.clip.c.w !== S.res) { toast('Nichts zum Einfügen. Erst etwas auswählen und mit Strg+C kopieren.'); return; }
+  pushUndo();
+  const l = newLayer('paint', { name: 'Eingefügt' });
+  l.tex.c.free(); l.tex.m.free(); E.layerTex.delete(l.tex.c); E.layerTex.delete(l.tex.m);
+  l.tex = { c: trackTex(copyTex(E.clip.c)), m: trackTex(copyTex(E.clip.m)) };
+  insertLayers([l]); setTool('movePix'); toast('Eingefügt als neue Ebene – mit Ziehen verschieben');
+}
+async function pasteImage() {
+  try {
+    const items = await navigator.clipboard.read();
+    for (const it of items) { const t = it.types.find((x) => x.startsWith('image/')); if (t) { const blob = await it.getType(t); await imageLayer(new File([blob], 'Eingefügtes Bild.png', { type: t })); UI.refreshAll(); return; } }
+    toast('In der Zwischenablage ist kein Bild.');
+  } catch (e) { toast('Kein Zugriff auf die Zwischenablage.'); }
+}
+function fillSelection() {
+  const l = curLayer(); if (!l) return;
+  if (!strokeBegin({ type: '2d' }, 0)) return;
+  clearTex(E.stroke, [1, 1, 1, 1]); applyStroke();
+  ST.on = false; ST.layer = null; ST.before = null; E.stroke_active = false; S.dirty = true;
+}
+function zoomView(f) {
+  const r = E.regions[0]; if (!r) return;
+  if (r.type === '3d') { S.cam.dist = clamp(S.cam.dist * f, 0.2, 50); E.gbDirty = true; }
+  else { const z0 = S.uv2d.zoom, z1 = clamp(z0 / f, 50, 40000), cx = r.w / 2, cy = r.h / 2; S.uv2d.pan = [cx - (cx - S.uv2d.pan[0]) * z1 / z0, cy - (cy - S.uv2d.pan[1]) * z1 / z0]; S.uv2d.zoom = z1; }
+  E.needDraw = true;
+}
+
 'use strict';
 /* ================= Materialien, Smart-Materialien, Masken, Pinsel ================= */
 const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack', 'Holzbretter (Fass)'];
@@ -3013,37 +3149,93 @@ const UI = {
     $('#stHint').textContent = 'Linksklick: malen   ·   Rechtsklick: drehen   ·   Mausrad: zoomen   ·   [ und ]: Pinselgröße';
   },
   buildMenus() {
+    const R = () => this.refreshAll();
+    const fxDlg = (title, kind, label, min, max, step, def) => () => this.fxDialog(title, kind, label, min, max, step, def);
     const menus = [
       ['Datei', [
-        ['Neues Projekt', 'Strg+N', () => this.welcome()],
+        ['Neu …', 'Strg+N', () => this.welcome()],
         ['Öffnen …', 'Strg+O', () => this.openFile('.mtex,.obj,.glb,.gltf')],
         ['Meine Projekte …', '', () => this.welcome()],
-        ['Speichern', 'Strg+S', () => saveToLibrary()],
-        ['Als Datei speichern …', 'Strg+Umschalt+S', () => saveProject()],
         '-',
-        ['Bild als Ebene laden …', '', () => this.pickImageLayer()],
+        ['Speichern', 'Strg+S', () => saveToLibrary()],
+        ['Speichern unter (Datei) …', 'Strg+Umschalt+S', () => saveProject()],
+        '-',
+        ['Bild als Ebene importieren …', '', () => this.pickImageLayer()],
         ['Texturen exportieren …', 'Strg+Umschalt+E', () => this.exportDialog()],
+        '-',
+        ['Launcher öffnen', '', () => NATIVE && NATIVE.openLauncher ? NATIVE.openLauncher() : toast('Nur im installierten Programm')],
+        ['Beenden', 'Strg+Q', () => window.close()],
       ]],
       ['Bearbeiten', [
         ['Rückgängig', 'Strg+Z', () => undo()],
         ['Wiederholen', 'Strg+Y', () => redo()],
         '-',
-        ['Alles auswählen', 'Strg+A', () => selectNone()], ['Auswahl aufheben', 'Strg+D', () => selectNone()], ['Auswahl umkehren', 'Strg+I', () => selectInvert()],
-        ['Auswahl löschen', 'Entf', () => eraseSelection()],
+        ['Ausschneiden', 'Strg+X', () => { copySel(true); R(); }],
+        ['Kopieren', 'Strg+C', () => copySel(false)],
+        ['Einfügen in neue Ebene', 'Strg+V', () => { pasteClip(); R(); }],
+        ['Bild aus Zwischenablage einfügen', 'Strg+Umschalt+V', () => pasteImage()],
+        '-',
+        ['Auswahl löschen', 'Entf', () => { eraseSelection(); R(); }],
+        ['Auswahl mit Pinselfarbe füllen', 'Rücktaste', () => { fillSelection(); R(); }],
+        ['Auswahl umkehren', 'Strg+I', () => selectInvert()],
+        ['Alles auswählen', 'Strg+A', () => selectNone()],
+        ['Auswahl aufheben', 'Strg+D', () => selectNone()],
         '-',
         ['Einstellungen …', '', () => this.settingsDialog()],
       ]],
-      ['Anpassungen', [
-        ['Invertieren', '', () => adjQuick(0)], ['Schwarzweiß', '', () => adjQuick(1)], ['Sepia', '', () => adjQuick(2)],
-        ['Farbton / Sättigung …', '', () => this.adjDialog(3)], ['Helligkeit / Kontrast …', '', () => this.adjDialog(4)], ['Rauschen hinzufügen …', '', () => this.adjDialog(5)],
-        '-', ['Ebene weichzeichnen', '', () => blurLayer()],
-      ]],
       ['Ansicht', [
-        ['3D', 'F1', () => setLayout('3d')], ['3D und 2D', 'F3', () => setLayout('split')], ['2D (UV)', 'F2', () => setLayout('2d')],
+        ['Vergrößern', 'Strg++', () => zoomView(1 / 1.25)], ['Verkleinern', 'Strg+-', () => zoomView(1.25)], ['Ganz anzeigen', 'Strg+B', () => { frameCamera(); S.uv2d.zoom = 0; }],
         '-',
-        ['Kamera zurücksetzen', 'Pos1', () => frameCamera()], ['Gitternetz', 'W', () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; }],
+        ['Nur 3D', 'F1', () => setLayout('3d')], ['3D und 2D', 'F3', () => setLayout('split')], ['Nur 2D (UV)', 'F2', () => setLayout('2d')],
+        '-',
+        ['Gitternetz', 'W', () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; }],
+        ['Nächster Kanal', 'C', () => { S.view.chan = (S.view.chan + 1) % CHANNELS.length; this.renderVbar(); E.needDraw = true; }],
+        ['Licht-Umgebung als Hintergrund', '', () => { S.view.bg = S.view.bg ? 0 : 1; E.needDraw = true; }],
+        ['Assistent', 'Strg+K', () => toggleAI()],
       ]],
-      ['Hilfe', [['Tastenkürzel', '', () => this.helpDialog()], ['Über', '', () => this.about()]]],
+      ['Bild', [
+        ['Texturgröße ändern …', '', () => this.settingsDialog()],
+        '-',
+        ['Horizontal spiegeln', '', () => { layerXform(0, true); R(); }],
+        ['Vertikal spiegeln', '', () => { layerXform(1, true); R(); }],
+        ['Um 180° drehen', '', () => { layerXform(2, true); R(); }],
+        '-',
+        ['Alles auf eine Ebene', 'Strg+Umschalt+F', () => { flattenAll(); R(); }],
+      ]],
+      ['Ebenen', [
+        ['Neue Mal-Ebene', 'Strg+Umschalt+N', () => this.addLayer('paint')],
+        ['Neue Füll-Ebene', '', () => this.addLayer('fill')],
+        ['Ebene löschen', 'Strg+Umschalt+Entf', () => this.delLayer()],
+        ['Ebene duplizieren', 'Strg+Umschalt+D', () => this.dupLayer()],
+        ['Nach unten zusammenführen', 'Strg+M', () => { mergeDown(); R(); }],
+        ['Bild als Ebene importieren …', '', () => this.pickImageLayer()],
+        '-',
+        ['Ebene horizontal spiegeln', '', () => { layerXform(0, false); R(); }],
+        ['Ebene vertikal spiegeln', '', () => { layerXform(1, false); R(); }],
+        ['Ebene um 180° drehen', '', () => { layerXform(2, false); R(); }],
+        '-',
+        ['Ebene nach oben', 'Bild auf', () => { moveLayer(1); R(); }],
+        ['Ebene nach unten', 'Bild ab', () => { moveLayer(-1); R(); }],
+        ['Maske hinzufügen', '', () => this.addMask(1)],
+        ['Ebeneneigenschaften …', 'F4', () => this.layerDialog()],
+      ]],
+      ['Anpassungen', [
+        ['Schwarzweiß', 'Strg+Umschalt+G', () => { adjQuick(1); R(); }],
+        ['Invertieren', 'Strg+Umschalt+I', () => { adjQuick(0); R(); }],
+        ['Sepia', '', () => { adjQuick(2); R(); }],
+        ['Farbton / Sättigung …', 'Strg+Umschalt+U', () => this.adjDialog(3)],
+        ['Helligkeit / Kontrast …', '', () => this.adjDialog(4)],
+        ['Tontrennung …', '', fxDlg('Tontrennung', 5, 'Stufen', 2, 16, 1, 4)],
+      ]],
+      ['Effekte', [
+        ['Weichzeichnen …', '', fxDlg('Weichzeichnen', 0, 'Radius', 1, 12, 1, 2)],
+        ['Schärfen …', '', fxDlg('Schärfen', 1, 'Stärke', 0, 2, 0.05, 0.6)],
+        ['Rauschen hinzufügen …', '', () => this.adjDialog(5)],
+        ['Verpixeln …', '', fxDlg('Verpixeln', 2, 'Pixelgröße', 2, 64, 1, 8)],
+        ['Relief', '', () => { layerFx(3, 0); R(); }],
+        ['Kanten finden', '', () => { layerFx(4, 0); R(); }],
+      ]],
+      ['Hilfe', [['Tastenkürzel', '', () => this.helpDialog()], ['Assistent fragen', 'Strg+K', () => toggleAI(true)], ['Über Melonentextur', '', () => this.about()]]],
     ];
     const nav = $('#menus');
     const closeMenus = () => $$('.menu.open').forEach((m) => m.classList.remove('open'));
@@ -3529,6 +3721,31 @@ const UI = {
         } }, 'OK')));
     this.modal(box);
   },
+  fxDialog(title, kind, label, min, max, step, def) {
+    const l = needPaintLayer(); if (!l) return;
+    const st = { v: def };
+    pushUndo(); const before = l.tex.c; l.tex = { c: trackTex(copyTex(before)), m: l.tex.m };
+    const upd = () => { bindTargets([l.tex.c]); gl.disable(gl.BLEND); E.P.fx.use().tex('uBC', before).tex('uSel', E.sel).set('uHasSel', !!E.sel).set('uKind', kind).set('uA', st.v); drawFull(); E.needComp = true; };
+    upd();
+    const close = (ok) => { if (!ok) restoreSnap(U.stack.pop()); S.dirty = true; this.closeModal(); this.refreshAll(); };
+    this.modal(el('div', { class: 'mbox', style: 'width:420px' }, el('h2', {}, title), el('div', { class: 'note' }, E.sel ? 'Wirkt nur auf die Auswahl.' : 'Wirkt auf die Ebene „' + l.name + '“.'),
+      ctlSlider(label, st, 'v', min, max, step, { onchange: upd }),
+      el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:14px' }, el('button', { class: 'btn', onclick: () => close(false) }, 'Abbrechen'), el('button', { class: 'btn pri', onclick: () => close(true) }, 'OK'))), false);
+  },
+  layerDialog() {
+    const l = curLayer(); if (!l) return;
+    pushUndo();
+    const nameIn = el('input', { type: 'text', value: l.name }); nameIn.oninput = () => { l.name = nameIn.value; };
+    const re = () => { E.needComp = true; };
+    this.modal(el('div', { class: 'mbox', style: 'width:440px' }, el('h2', {}, 'Ebeneneigenschaften'),
+      el('div', { class: 'row two' }, el('label', {}, 'Name'), nameIn),
+      el('div', { class: 'row two' }, el('label', {}, 'Sichtbar'), ctlCheck('', l, 'visible', { onchange: re })),
+      ctlSelect('Mischmodus', l, 'blend', BLENDS.map((k) => [k, BLEND_NAMES[k]]), { onchange: re }),
+      ctlSlider('Deckkraft', l, 'opacity', 0, 1, 0.01, { onchange: re }),
+      el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:14px' },
+        el('button', { class: 'btn', onclick: () => { restoreSnap(U.stack.pop()); this.closeModal(); } }, 'Abbrechen'),
+        el('button', { class: 'btn pri', onclick: () => { this.closeModal(); this.refreshAll(); } }, 'OK'))), false);
+  },
   adjDialog(kind) {
     if (!adjBegin()) return;
     const st = { a: 0, b: 0, c: Math.random() * 100 };
@@ -3826,32 +4043,70 @@ const AI_EXTRA = [
   [/abgenutzt|kanten.*(hell|abgenutzt|kaputt)|abgewetzt/, () => [{ aktion: 'mask', generator: 'Kanten', invert: true, strength: 0.4 }], 'abgenutzte Kanten'],
   [/kratzer/, () => [{ aktion: 'fill', name: 'Kratzer', material: 'alu' }, { aktion: 'mask', generator: 'Kratzer', strength: 0.5 }], 'Kratzer'],
 ];
+function aiExtractText(t) {
+  const q = /["„“'»«]([^"„“'»«]+)["„“'»«]/.exec(t); if (q) return q[1].trim();
+  let x = ' ' + t.replace(/[!?.]+$/, '') + ' ';
+  x = x.replace(/\s(drauf|darauf|draufsteht|drauf steht|darauf steht|steht|stehen|draufschreiben|draufmachen|hin|hinschreiben)(\s|$).*/i, ' ');
+  x = x.replace(/^\s*(bitte\s+)?(mach|mache|schreib|schreibe|setz|setze|pack|tu)(\s+(mal|bitte|das|dass|da|auf|noch))*\s+/i, ' ');
+  x = x.replace(/\s(an|auf|vorne|hinten|oben|unten|in|mitten)\s+(der|die|das|dem|den)?\s*(seite|mitte|front|vorderseite|fass|würfel|modell|objekt)?\s*/gi, ' ');
+  x = x.replace(/\s(dass|das|den text|text|schrift|der text)\s/gi, ' ').replace(/\s+/g, ' ').trim();
+  return x.split(' ').map((w) => w[0] ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+}
 function aiOffline(t) {
   const raw = t.toLowerCase();
-  const s = raw.replace(/["„“'][^"„“']*["„“']/g, ' ');
+  const s = raw.replace(/["„“'»«][^"„“'»«]*["„“'»«]/g, ' ');
   const acts = []; const said = [];
-  if (/^(hi|hallo|hey|moin|servus)\b/.test(s)) return { antwort: 'Hey! Sag mir einfach, wie dein Modell aussehen soll, z. B. „Holzfass mit Metallringen“, „mach alles rot“ oder „rostig und dreckig“.', aktionen: [] };
-  if (/rückgängig|zurück/.test(s)) return { antwort: 'Mach ich rückgängig.', aktionen: [{ aktion: 'undo' }] };
+  if (/^(hi|hallo|hey|moin|servus|na)\b/.test(s)) return { antwort: 'Hey! Sag mir, wie dein Modell aussehen soll, z. B. „Holzfass mit Metallringen“, „mach alles rot“, „rostig und dreckig“ oder „schreib Bier drauf“.', aktionen: [] };
+  if (/rückgängig|zurück|mach das weg|weg machen/.test(s)) return { antwort: 'Okay, rückgängig gemacht.', aktionen: [{ aktion: 'undo' }] };
   if (/export/.test(s)) return { antwort: 'Ich öffne den Export.', aktionen: [{ aktion: 'export', preset: /roblox/.test(s) ? 'roblox' : /fivem|gta/.test(s) ? 'fivem' : /unity/.test(s) ? 'unity' : /unreal/.test(s) ? 'unreal' : 'blender' }] };
+  // Text aufs Modell
+  const question = /^\s*(kannst|kann|könntest|wie|was|warum|wieso|hast|gibt)\b/.test(s) || /\?\s*$/.test(raw);
+  if (!question && (/drauf|darauf|aufs |beschrift|aufschrift|\btext\b|name drauf/.test(raw) || /^\s*(schreib|schreibe)\b/.test(raw) || /["„“'»«]/.test(raw) && /schreib/.test(raw))) {
+    const txt = aiExtractText(t);
+    if (!txt) return { antwort: 'Was soll draufstehen? Schreib es am besten in Anführungszeichen, z. B. schreib „Bier“.', aktionen: [] };
+    const color = Object.keys(COLOR_WORDS).find((w) => new RegExp('(^|[^a-zäöüß])' + w + '($|[^a-zäöüß])').test(s));
+    return { antwort: `Ich schreibe „${txt}“ in die Mitte der Ansicht. Dreh das Modell vorher so, dass die richtige Seite zu dir zeigt – oder nimm das Text-Werkzeug (T) und klick selbst die Stelle an.`, aktionen: [{ aktion: 'text', text: txt, color: color ? COLOR_WORDS[color] : (S.layers.some((l) => /holz|fass/i.test(l.name)) ? '#f2e6c8' : null), size: 56, font: 'Arial Black' }] };
+  }
+  // Größe
   if (/pinsel/.test(s) && /größer|groesser|dicker/.test(s)) return { antwort: 'Pinsel ist größer.', aktionen: [{ aktion: 'brush', size: Math.min(400, S.brush.size * 1.6) }] };
   if (/pinsel/.test(s) && /kleiner|dünner/.test(s)) return { antwort: 'Pinsel ist kleiner.', aktionen: [{ aktion: 'brush', size: Math.max(1, S.brush.size / 1.6) }] };
-  if (/wie|was|warum|hilfe|erklär/.test(s) && /\?|wie |erklär|hilfe/.test(s)) {
-    if (/uv/.test(s)) return { antwort: 'UV-Teile verschiebst du im 2D-Fenster rechts: Taste M (UV verschieben), Teil anklicken und ziehen. Oder Maus über das 2D-Fenster, A für alles und dann G (bewegen), R (drehen) oder S (skalieren) – wie in Blender. Ansicht verschieben: mittlere oder rechte Maustaste, zoomen: Mausrad.', aktionen: [] };
+  if (/kleiner|größer|groesser|breiter|schmaler|höher|dicker/.test(s)) {
+    if (/kleiner|schmaler/.test(s)) zoomView(1.25); else zoomView(1 / 1.25);
+    return { antwort: 'Die Form des Modells selbst kann Melonentextur nicht ändern – das ist ein Malprogramm für Texturen. Das machst du in Blender oder Roblox Studio und lädst das Modell dann neu. Ich hab dir die Ansicht etwas ' + (/kleiner|schmaler/.test(s) ? 'herausgezoomt.' : 'herangezoomt.'), aktionen: [] };
+  }
+  if (/wie|was|warum|hilfe|erklär|kann ich|geht das/.test(s) && /\?|wie |erklär|hilfe|kann ich|geht das/.test(s)) {
+    if (/uv/.test(s)) return { antwort: 'UV-Teile verschiebst du im 2D-Fenster rechts: Maus drüber, A für alles, dann G (bewegen), R (drehen) oder S (skalieren) – wie in Blender. Ansicht verschieben: mittlere oder rechte Maustaste, zoomen: Mausrad.', aktionen: [] };
     if (/export|roblox|fivem/.test(s)) return { antwort: 'Oben rechts auf „Exportieren“, Vorlage wählen (z. B. Roblox), fertig. Du bekommst eine ZIP mit allen Texturen.', aktionen: [] };
     if (/mask/.test(s)) return { antwort: 'Eine Maske legt fest, wo eine Ebene sichtbar ist. Rechts bei „Maske“ auf „Maske hinzufügen“, dann mit Weiß (zeigen) oder Schwarz (verstecken) malen – oder bei „Automatisch“ z. B. „Kanten“ wählen.', aktionen: [] };
-    return { antwort: 'Kurz gesagt: Links sind die Werkzeuge (Maus kurz drüberhalten zeigt, was sie machen), rechts die Ebenen. Unten fertige Looks und Materialien – einfach anklicken. Für ausführliche Antworten richte beim Zahnrad die kostenlose Google-KI ein.', aktionen: [] };
+    return { antwort: 'Links sind die Werkzeuge (Maus kurz drüberhalten zeigt, was sie machen), rechts die Ebenen, unten fertige Looks und Materialien. Für ausführliche Antworten richte beim Zahnrad die kostenlose Google-KI ein.', aktionen: [] };
   }
-  for (const [re, fn, label] of AI_WORDS) if (re.test(s)) { acts.push(fn()); said.push(label || 'den Look'); break; }
+  // Look anwenden – nur bei klarem Wunsch und nicht doppelt
+  const wantsLook = /mach|mache|erstell|bau|daraus|draus|soll|wie ein|zu einem|zu ner|in ein|verwandel|aussehen/.test(s);
+  if (wantsLook) for (const [re, fn, label] of AI_WORDS) if (re.test(s)) {
+    const a = fn(); const look = SMART[a.id];
+    if (look && S.layers.some((l) => l.name.startsWith(look.name))) return { antwort: `„${look.name}“ ist schon drauf. Willst du was daran ändern? Z. B. „mach das Holz dunkler“, „mehr Rost“, „schreib Bier drauf“ – oder „rückgängig“.`, aktionen: [] };
+    acts.push(a); said.push(label || (look ? look.name : 'den Look')); break;
+  }
+  // dunkler / heller auf passender Ebene
+  if (/dunkler|heller/.test(s)) {
+    const words = s.split(/[^a-zäöüß]+/).filter((w) => w.length > 3 && !/dunkler|heller|mach|bitte|etwas|noch|viel/.test(w));
+    const l = [...S.layers].reverse().find((x) => x.fill && words.some((w) => x.name.toLowerCase().includes(w.replace(/e?n$/, '')))) || (curLayer() && curLayer().fill ? curLayer() : null);
+    if (l) { const k = /dunkler/.test(s) ? 0.7 : 1.3; const sc = (h) => rgb2hex(hex2rgb(h).map((v) => v * k));
+      return { antwort: `„${l.name}“ ist jetzt ${/dunkler/.test(s) ? 'dunkler' : 'heller'}.`, aktionen: [{ aktion: 'layer', target: l.name, color: sc(l.fill.colA), color2: sc(l.fill.colB) }] }; }
+  }
+  if (!acts.length && /mehr|weniger/.test(s)) {
+    const l = [...S.layers].reverse().find((x) => x.mask && x.mask.gen && s.split(/\s+/).some((w) => w.length > 3 && x.name.toLowerCase().includes(w.replace(/e?n$/, ''))));
+    if (l) { const v = clamp(l.mask.level + (/mehr/.test(s) ? 0.15 : -0.15), 0, 1); return { antwort: `${/mehr/.test(s) ? 'Mehr' : 'Weniger'} „${l.name}“.`, aktionen: [{ aktion: 'mask', target: l.name, strength: v }] }; }
+  }
   if (!acts.length) {
     const mat = Object.entries(MATERIALS).find(([, v]) => v.name.toLowerCase().split(/\s+/).some((w) => w.length > 3 && s.includes(w)));
     const color = Object.keys(COLOR_WORDS).sort((a, b) => b.length - a.length).find((w) => new RegExp('(^|[^a-zäöüß])' + w).test(s));
-    if (/schreib|text/.test(s)) { const m = /["„“']([^"„“']+)["„“']/.exec(t); acts.push({ aktion: 'text', text: m ? m[1] : 'Text', color }); said.push('den Text'); }
-    else if (color && /alles|komplett|ganz|färb|farbe|mach|anmal/.test(s)) { acts.push({ aktion: 'fill', name: 'Farbe ' + color, color: COLOR_WORDS[color], rough: /glänz|glanz/.test(s) ? 0.18 : /matt/.test(s) ? 0.85 : 0.5, metal: /metall/.test(s) ? 1 : 0 }); said.push('die Farbe ' + color); }
-    else if (mat) { acts.push({ aktion: 'material', id: mat[0] }); said.push(mat[1].name); }
+    if (color && /alles|komplett|ganz|färb|farbe|mach|anmal/.test(s)) { acts.push({ aktion: 'fill', name: 'Farbe ' + color, color: COLOR_WORDS[color], rough: /glänz|glanz/.test(s) ? 0.18 : /matt/.test(s) ? 0.85 : 0.5, metal: /metall/.test(s) ? 1 : 0 }); said.push('die Farbe ' + color); }
+    else if (mat && wantsLook) { acts.push({ aktion: 'material', id: mat[0] }); said.push(mat[1].name); }
     else if (color) { acts.push({ aktion: 'brush', color: COLOR_WORDS[color] }); said.push('Pinselfarbe ' + color); }
   }
   for (const [re, fn, label] of AI_EXTRA) if (re.test(s) && !(label === 'Metallringe' && acts.some((a) => a.id === 'holzfass'))) { acts.push(...fn()); said.push(label); }
-  if (!acts.length) return { antwort: 'Das verstehe ich ohne KI noch nicht. Probier z. B. „Holzfass mit Metallringen“, „mach alles dunkelblau und glänzend“, „rostig und dreckig“ oder „schreib \'Melone\'“.\n\nFür echte Gespräche: Zahnrad oben → Google Gemini → kostenlosen Schlüssel eintragen (dauert 2 Minuten).', aktionen: [] };
+  if (!acts.length) return { antwort: 'Ehrlich gesagt: Ohne echte KI verstehe ich nur einfache Befehle, und das hier gehört nicht dazu. Probier z. B. „mach alles dunkelblau“, „rostig und dreckig“, „schreib Bier drauf“ oder „mehr Rost“.\n\nRichtig verstehen kann ich dich, wenn du oben beim Zahnrad die kostenlose Google-KI einrichtest – das dauert 2 Minuten.', aktionen: [] };
   return { antwort: 'Mach ich: ' + said.join(' + ') + '.', aktionen: acts };
 }
 
@@ -3891,7 +4146,8 @@ function aiPanel() {
   const list = el('div', { class: 'aim' });
   if (!AI.hist.length) list.append(el('div', { class: 'aiw' }, el('b', {}, 'Was soll ich machen?'),
     ...['Mach das Modell rostig', 'Färb alles dunkelblau und glänzend', 'Abgenutzte Kanten auf die Ebene', 'Schreib „Polizei“ in Weiß drauf', 'Wie exportiere ich für Roblox?'].map((t) => el('button', { class: 'chip', onclick: () => aiSend(t) }, t)),
-    AI.cfg.provider === 'offline' ? el('div', { class: 'note' }, 'Gerade ohne KI: nur einfache Befehle. Beim Zahnrad kannst du einen kostenlosen Google-Schlüssel eintragen.') : null));
+    AI.cfg.provider === 'offline' ? el('div', { class: 'note' }, 'Gerade ohne KI: Ich verstehe nur einfache Befehle.') : null));
+  if (AI.cfg.provider === 'offline') list.append(el('button', { class: 'btn pri', style: 'align-self:stretch', onclick: () => { AI.cfg.provider = 'gemini'; AI.settings = true; AI.save(); aiPanel(); } }, 'Echte KI einrichten (kostenlos, 2 Minuten)'));
   for (const m of AI.hist) list.append(el('div', { class: 'msg ' + (m.role === 'user' ? 'u' : 'a') }, m.text, m.done && m.done.length ? el('small', {}, m.done.join(' · ')) : null));
   if (AI.busy) list.append(el('div', { class: 'msg a typing' }, '…'));
   const inp = el('textarea', { rows: 2, placeholder: 'Schreib, was du willst …' });
@@ -4237,12 +4493,27 @@ function setupInput() {
       else if (k === 's') { e.preventDefault(); e.shiftKey ? saveProject() : saveToLibrary(); }
       else if (k === 'k') { e.preventDefault(); toggleAI(); }
       else if (k === 'o') { e.preventDefault(); UI.openFile('.mtex,.obj,.glb,.gltf'); }
-      else if (k === 'n') { e.preventDefault(); UI.welcome(); }
+      else if (k === 'n' && !e.shiftKey) { e.preventDefault(); UI.welcome(); }
       else if (k === 'e' && e.shiftKey) { e.preventDefault(); UI.exportDialog(); }
       else if (k === 'd' && e.shiftKey) { e.preventDefault(); UI.dupLayer(); }
+      else if (k === 'c') { e.preventDefault(); copySel(false); }
+      else if (k === 'x') { e.preventDefault(); copySel(true); UI.refreshAll(); }
+      else if (k === 'v' && e.shiftKey) { e.preventDefault(); pasteImage(); }
+      else if (k === 'v') { e.preventDefault(); pasteClip(); UI.refreshAll(); }
+      else if (k === 'm') { e.preventDefault(); mergeDown(); UI.refreshAll(); }
+      else if (k === 'f' && e.shiftKey) { e.preventDefault(); flattenAll(); UI.refreshAll(); }
+      else if (k === 'n' && e.shiftKey) { e.preventDefault(); UI.addLayer('paint'); }
+      else if (k === 'g' && e.shiftKey) { e.preventDefault(); adjQuick(1); }
+      else if (k === 'i' && e.shiftKey) { e.preventDefault(); adjQuick(0); }
+      else if (k === 'u' && e.shiftKey) { e.preventDefault(); UI.adjDialog(3); }
+      else if (k === 'b') { e.preventDefault(); frameCamera(); S.uv2d.zoom = 0; }
+      else if (k === '+' || k === '=') { e.preventDefault(); zoomView(1 / 1.25); }
+      else if (k === '-') { e.preventDefault(); zoomView(1.25); }
+      else if (k === 'q') { e.preventDefault(); window.close(); }
+      else if (e.key === 'Delete' && e.shiftKey) { e.preventDefault(); UI.delLayer(); }
       else if (k === 'd') { e.preventDefault(); selectNone(); }
       else if (k === 'a') { e.preventDefault(); if (S.tool === 'uvmove') uvSelectAll(); else selectNone(); }
-      else if (k === 'i') { e.preventDefault(); selectInvert(); }
+      else if (k === 'i' && !e.shiftKey) { e.preventDefault(); selectInvert(); }
       return;
     }
     if (!S.mesh) return;
@@ -4275,6 +4546,10 @@ function setupInput() {
       case 'F2': e.preventDefault(); setLayout('2d'); break;
       case 'F3': e.preventDefault(); setLayout('split'); break;
       case 'Delete': if (E.sel) eraseSelection(); else UI.delLayer(); break;
+      case 'Backspace': fillSelection(); break;
+      case 'F4': e.preventDefault(); UI.layerDialog(); break;
+      case 'PageUp': moveLayer(1); UI.refreshAll(); break;
+      case 'PageDown': moveLayer(-1); UI.refreshAll(); break;
       default: return;
     }
   });
