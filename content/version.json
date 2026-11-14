@@ -1,5 +1,5 @@
 {
-  "version": "2.6.0",
-  "notes": "2.6.0\n- Neue Formate: FBX (mit Position/Drehung/Größe, Materialien, eingebetteten Texturen), DAE, STL, PLY\n- Hinweise beim Öffnen von .spp und .blend, wie man sie stattdessen rüberholt\n- UV-Bearbeitung ohne Hänger: Übernahme sofort, Hilfskarten im Hintergrund\n- UV: X/Y sperrt die Achse beim Verschieben/Skalieren, Live-Anzeige der Werte\n- UV: neue Knöpfe „Einpassen“, „Anordnen“ und „Bild auf UV …“",
+  "version": "2.8.0",
+  "notes": "2.8.0\n- Neu: Quick-Maske (T) – vorübergehende Maske malen, alle Werkzeuge wirken nur in den freien Stellen\n- Neu: Pfad-Werkzeug (U) – Punkte setzen, der Pinsel malt eine glatte Kurve (Enter / Doppelklick)\n- Neu: 22 Smart-Masken (abgenutzte Kanten, Staub, Rost, Laufspuren, Kratzer …)\n- Neue Filter: Verzerren, Rauschen, Tontrennung\n- Neue Mesh-Karten: Weltnormale und Position (Ansicht und Export)\n- Eigene Umgebung: HDR oder Panorama laden bzw. reinziehen\n- Licht und Nachbearbeitung: Tonemapping, Sättigung, Kontrast, Vignette\n- Bild rendern als PNG bis 4K, geglättet, optional durchsichtig (Strg+Umschalt+R)\n- Eigene Export-Vorlage mit frei wählbaren Karten und Namen\n- Echte Größe in cm für Foto-Materialien, Einheit des Modells einstellbar",
   "date": "2026-11-14"
 }
