@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
-  "notes": "1.3.0\n- Neue Aufteilung: Ebenen oben rechts, Eigenschaften darunter, Ablage unten mit Kategorien-Liste links\n- Materialien nach Unterkategorien sortiert, mit Anzahl\n- Größe der Vorschaubilder einstellbar\n- Bereiche mit der Maus verstellbar (Seitenleiste, Ablage, Ebenen-Liste), Doppelklick = zurücksetzen\n- Abschnitte in den Eigenschaften zuklappbar\n- Achsen-Anzeige (X/Y/Z) unten links in der 3D-Ansicht",
+  "version": "1.4.0",
+  "notes": "1.4.0\n- Neu: Ordner für Ebenen – mit eigener Deckkraft, Sichtbarkeit und Maske für alles darin, zuklappbar, Ebenen per Ziehen hinein/heraus\n- Neu: Filter-Ebenen (Farbton/Sättigung, Kontrast, Weichzeichnen, Schärfen, Umkehren, Einfärben, Rauheit/Metall/Höhe, Tonwerte) – jederzeit änderbar, mit Maske\n- Neu: Material-Bereiche aus OBJ/GLB werden erkannt (z. B. Lack, Glas, Reifen)\n- Füll-Werkzeug: neuer Modus „Material-Bereich (ID)“\n- Modell-Modus: Material-Bereich auswählen mit Taste 5",
   "date": "2026-11-14"
 }
