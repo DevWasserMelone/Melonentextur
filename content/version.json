@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
-  "notes": "🍉 Melonentextur 1.0.3\n\n✨ Neu\n• KI-Assistent (Strg+K): Schreib, was du willst – er macht es direkt. Mit kostenlosem Google-Schlüssel wird er richtig schlau\n• Meine Projekte: Strg+S speichert im Programm, auf dem Startbildschirm siehst du alle Projekte mit Vorschaubild\n\n🛠 Verbessert\n• Die Oberfläche passt sich jetzt an jede Fenstergröße an\n• Oberflächen-Größe in den Einstellungen selbst wählbar",
+  "version": "1.0.4",
+  "notes": "🍉 Melonentextur 1.0.4\n\n✨ Neu\n• Fertiger Look „Holzfass“ mit Brettern, Metallringen, Rost und Dreck\n• Muster „Holzbretter“ und automatische Maske „Ringe (Bänder)“\n• UV-Karte wie in Blender: Maus drüber, A, dann G / R / S\n\n🛠 Verbessert\n• Oberfläche nicht mehr so groß\n• Der Assistent versteht viel mehr Wünsche (z. B. „realistisches Bierfass“)",
   "date": "2026-11-14"
 }
