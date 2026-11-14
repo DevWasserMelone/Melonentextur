@@ -227,9 +227,48 @@ ipcMain.handle('pub:publish', async (_e, { file, version, notes, rebuild }) => {
   return { version };
 });
 
+/* ---------- Zugang mit Passwort ---------- */
+const crypto = require('crypto');
+const ACCESS_FILE = path.join(USER, 'access.json');     // freigeschaltet auf diesem PC + zuletzt bekannte Sperre
+const pwHash = (salt, pw) => crypto.createHash('sha256').update(salt + '|' + String(pw).trim()).digest('hex');
+let ACCESS = null; // { hash, salt, text, link } aus dem Repository
+async function loadAccess() {
+  const local = readJSON(ACCESS_FILE, {});
+  const ri = repoInfo();
+  try { ACCESS = JSON.parse((await ghRaw(ri, 'content/access.json')).toString('utf8')); local.known = ACCESS; fs.writeFileSync(ACCESS_FILE, JSON.stringify(local)); }
+  catch (e) { ACCESS = /Noch keine/.test(e.message) ? null : (local.known || null); if (/Noch keine/.test(e.message)) { local.known = null; try { fs.writeFileSync(ACCESS_FILE, JSON.stringify(local)); } catch (e2) { /* */ } } }
+  return ACCESS;
+}
+function accessOk() {
+  if (!ACCESS || !ACCESS.hash) return true;      // keine Sperre eingerichtet
+  if (loadToken()) return true;                   // der Entwickler kommt immer rein
+  return readJSON(ACCESS_FILE, {}).unlocked === ACCESS.hash;
+}
+ipcMain.handle('access:state', async () => { await loadAccess(); return { locked: !accessOk(), text: ACCESS && ACCESS.text || '', link: ACCESS && ACCESS.link || '', active: !!(ACCESS && ACCESS.hash) }; });
+ipcMain.handle('access:try', (_e, pw) => {
+  if (!ACCESS || !ACCESS.hash) return true;
+  if (pwHash(ACCESS.salt, pw) !== ACCESS.hash) { log('Zugang', 'falsches Passwort'); return false; }
+  const local = readJSON(ACCESS_FILE, {}); local.unlocked = ACCESS.hash; fs.writeFileSync(ACCESS_FILE, JSON.stringify(local)); log('Zugang', 'freigeschaltet');
+  return true;
+});
+ipcMain.handle('access:set', async (_e, { password, text, link, off }) => {
+  const ri = repoInfo(); const token = loadToken();
+  if (!token) throw new Error('Nur mit eingetragenem GitHub-Token möglich.');
+  let data;
+  if (off) data = { hash: '', salt: '', text: '', link: '' };
+  else {
+    if (!String(password || '').trim()) throw new Error('Bitte ein Passwort eingeben.');
+    const salt = crypto.randomBytes(12).toString('hex');
+    data = { hash: pwHash(salt, password), salt, text: String(text || '').slice(0, 500), link: /^https:\/\//.test(link || '') ? link : '' };
+  }
+  await ghPut(ri, token, 'content/access.json', Buffer.from(JSON.stringify(data, null, 2)), off ? 'Zugang offen' : 'Zugang mit Passwort');
+  ACCESS = data;
+  return true;
+});
+
 /* ---------- Sonstiges ---------- */
 ipcMain.handle('app:info', () => ({ version: localVer(), appVersion: app.getVersion(), packaged: app.isPackaged }));
-ipcMain.handle('app:start', () => createEditor());
+ipcMain.handle('app:start', async () => { if (!ACCESS) await loadAccess(); if (!accessOk()) return false; createEditor(); return true; });
 ipcMain.handle('app:quit', () => app.quit());
 ipcMain.handle('app:open', (_e, url) => { if (/^https:\/\//.test(url)) shell.openExternal(url); });
 ipcMain.handle('win:min', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.minimize(); });

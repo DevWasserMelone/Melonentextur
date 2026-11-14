@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('melonenNative', {
   pubPick: () => ipcRenderer.invoke('pub:pick'),
   publish: (opts) => ipcRenderer.invoke('pub:publish', opts),
   onPub: (cb) => ipcRenderer.on('pub', (_e, m) => cb(m)),
+  // Zugang
+  accessState: () => ipcRenderer.invoke('access:state'),
+  accessTry: (pw) => ipcRenderer.invoke('access:try', pw),
+  accessSet: (o) => ipcRenderer.invoke('access:set', o),
   // Sonstiges
   start: () => ipcRenderer.invoke('app:start'),
   quit: () => ipcRenderer.invoke('app:quit'),

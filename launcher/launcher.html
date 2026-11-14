@@ -61,6 +61,18 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:13px/1.
 #pubLog{margin-top:12px;font-size:12.5px;min-height:18px}
 #pubLog.err{color:var(--dg)} #pubLog.ok{color:#5af29a}
 .ok{color:#5af29a}
+#lock{position:fixed;inset:36px 0 0 0;background:rgba(8,9,11,.9);z-index:9;display:none;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
+#lock.open{display:flex}
+#lock .box{width:460px;background:var(--p1);border:1px solid var(--line);border-radius:16px;padding:28px;text-align:center}
+#lock .ic{font-size:40px}
+#lock .msg{font-size:22px;font-weight:800;margin:10px 0 18px;white-space:pre-wrap;user-select:text}
+#lock input{width:100%;background:var(--p2);border:1px solid var(--line);color:var(--tx);border-radius:10px;padding:12px;font:inherit;font-size:15px;text-align:center}
+#lock input:focus{outline:none;border-color:var(--ac)}
+#lock .row2{display:flex;gap:10px;margin-top:12px}
+#lock .row2 button{flex:1}
+#lock .pp{background:#ffc439;color:#111;border:none;border-radius:10px;padding:11px;font:700 14px system-ui;cursor:pointer}
+#lock .un{background:linear-gradient(180deg,#5af29a,#2fbf6c);color:#052b17;border:none;border-radius:10px;padding:11px;font:700 14px system-ui;cursor:pointer}
+#lock .err{color:var(--dg);min-height:18px;margin-top:10px;font-size:12.5px}
 </style>
 </head>
 <body>
@@ -101,6 +113,12 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:13px/1.
       <div class="hint" style="margin-left:160px">Token erstellen: <a id="tokLink">github.com → Fine-grained token</a> · nur dein Repository auswählen · Recht „Contents: Read and write“. Der Token bleibt verschlüsselt auf deinem PC.</div>
       <div class="act" style="margin-top:10px"><button class="pbtn" id="saveCfg">Speichern</button></div>
     </div>
+    <div class="sec">Zugang mit Passwort</div>
+    <div class="row"><label>Passwort</label><input type="password" id="accPw" placeholder="neues Passwort" spellcheck="false"></div>
+    <div class="row"><label>Text im Launcher</label><input type="text" id="accText" value="5 Euro PayPal dann kannst du rein"></div>
+    <div class="row"><label>PayPal-Link</label><input type="text" id="accLink" placeholder="https://paypal.me/… (optional)" spellcheck="false"></div>
+    <div class="hint" style="margin-left:160px">Wer das Passwort einmal eingibt, bleibt auf seinem PC freigeschaltet. Neues Passwort = alle müssen es neu eingeben. Du selbst kommst immer rein.</div>
+    <div class="act" style="margin-top:10px"><span id="accState" class="hint" style="margin-right:auto;align-self:center"></span><button class="pbtn" id="accOff">Sperre aus</button><button class="pbtn" id="accSave">🔒 Sperre speichern</button></div>
     <div class="sec">Neue Version</div>
     <div class="row"><label>Online ist gerade</label><div id="online">–</div></div>
     <div class="row"><label>Neue Versionsnummer</label><input type="text" id="newVer" placeholder="1.0.1" spellcheck="false"></div>
@@ -112,6 +130,13 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:13px/1.
   </div>
 </div>
 
+<div id="lock"><div class="box">
+  <div class="ic">🔒</div>
+  <div class="msg" id="lockMsg">5 Euro PayPal dann kannst du rein</div>
+  <input type="password" id="lockPw" placeholder="Passwort" spellcheck="false">
+  <div class="row2"><button class="pp" id="lockPay" style="display:none">Zu PayPal</button><button class="un" id="lockGo">Freischalten</button></div>
+  <div class="err" id="lockErr"></div>
+</div></div>
 <div id="toast"></div>
 <script>
 const N=window.melonenNative; const $=s=>document.querySelector(s);
@@ -159,12 +184,20 @@ N.onUpdate(d=>{
     case 'downloaded': $('#status').textContent='Programm-Update '+d.version+' bereit'; $('#sub').textContent='Klicke auf „Installieren“ – Melonentextur startet danach neu.'; prog(100); setPlay('INSTALLIEREN','install',true,true); $('#skip').style.display='none'; break;
   }
 });
-$('#play').onclick=()=>{ if(mode==='start') N.start(); else if(mode==='content') doContentUpdate(); else if(mode==='exe'){ $('#skip').style.display='none'; N.download(); } else if(mode==='install') N.install(); };
-$('#skip').onclick=()=>N.start();
+/* Zugang mit Passwort */
+let ACC=null;
+async function showLock(){ try{ ACC=await N.accessState(); }catch(e){ ACC=null; } if(!ACC||!ACC.locked) return false;
+  $('#lockMsg').textContent=ACC.text||'5 Euro PayPal dann kannst du rein'; $('#lockPay').style.display=ACC.link?'block':'none'; $('#lockErr').textContent=''; $('#lock').classList.add('open'); setTimeout(()=>$('#lockPw').focus(),50); return true; }
+async function tryStart(){ const ok=await N.start(); if(ok===false) showLock(); }
+$('#lockPay').onclick=()=>{ if(ACC&&ACC.link) N.openUrl(ACC.link); };
+$('#lockGo').onclick=async()=>{ const ok=await N.accessTry($('#lockPw').value); if(ok){ $('#lock').classList.remove('open'); $('#lockPw').value=''; toast('Freigeschaltet – viel Spaß!'); } else { $('#lockErr').textContent='Falsches Passwort'; $('#lockPw').select(); } };
+$('#lockPw').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#lockGo').click(); });
+$('#play').onclick=()=>{ if(mode==='start') tryStart(); else if(mode==='content') doContentUpdate(); else if(mode==='exe'){ $('#skip').style.display='none'; N.download(); } else if(mode==='install') N.install(); };
+$('#skip').onclick=()=>tryStart();
 $('#min').onclick=()=>N.minimize(); $('#cls').onclick=()=>N.quit();
 $('#copylog').onclick=async()=>{ await N.copyLog(); toast('Kopiert! Jetzt in Discord einfügen (Strg+V)'); };
 $('#openlog').onclick=()=>N.openLog();
-N.check(); checkContent();
+N.check(); checkContent(); showLock();
 
 /* Veröffentlichen (nur sichtbar, wenn ein Token eingetragen ist) */
 function bump(v){ const p=String(v||'1.0.0').split('.').map(n=>parseInt(n)||0); while(p.length<3) p.push(0); p[2]++; return p.join('.'); }
@@ -175,7 +208,10 @@ async function openPub(){
   $('#online').textContent=c.online?('Version '+c.online):'noch keine Version online';
   if(!$('#newVer').value) $('#newVer').value=bump(c.online||c.local);
   $('#setup').style.display=c.hasToken?'none':'block';
+  try{ const a=await N.accessState(); $('#accState').textContent=a.active?'Sperre ist aktiv':'Keine Sperre aktiv'; if(a.text) $('#accText').value=a.text; if(a.link) $('#accLink').value=a.link; }catch(e){}
 }
+$('#accSave').onclick=async()=>{ const lg=$('#pubLog'); try{ await N.accessSet({password:$('#accPw').value,text:$('#accText').value,link:$('#accLink').value.trim()}); $('#accPw').value=''; $('#accState').textContent='Sperre ist aktiv'; lg.className='ok'; lg.textContent='Passwort-Sperre gespeichert – gilt sofort für alle.'; }catch(e){ lg.className='err'; lg.textContent=cleanErr(e); } };
+$('#accOff').onclick=async()=>{ const lg=$('#pubLog'); try{ await N.accessSet({off:true}); $('#accState').textContent='Keine Sperre aktiv'; lg.className='ok'; lg.textContent='Sperre ausgeschaltet.'; }catch(e){ lg.className='err'; lg.textContent=cleanErr(e); } };
 $('#pubBtn').onclick=openPub;
 $('#setupBtn').onclick=()=>{ $('#setup').style.display='block'; };
 $('#pubClose').onclick=()=>$('#pub').classList.remove('open');
