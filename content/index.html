@@ -248,6 +248,17 @@ details.adv summary:hover{color:var(--tx)}
 .catsel{margin-left:calc(10px*var(--u));padding:calc(2px*var(--u)) calc(6px*var(--u))}
 .shelfq{margin-left:calc(8px*var(--u));width:calc(170px*var(--u));background:var(--p2);border:calc(1px*var(--u)) solid var(--line);border-radius:calc(5px*var(--u));padding:calc(3px*var(--u)) calc(8px*var(--u));color:var(--tx)}
 .shelfq:focus{outline:none;border-color:var(--ac)}
+
+#shelf .items{flex-wrap:wrap;overflow-y:auto;overflow-x:hidden;align-content:flex-start}
+
+#modeSw{display:flex;border:calc(1px*var(--u)) solid var(--line);border-radius:calc(7px*var(--u));overflow:hidden;margin-right:calc(6px*var(--u))}
+#modeSw button{background:var(--p2);border:0;padding:calc(4px*var(--u)) calc(11px*var(--u));cursor:pointer;color:var(--tx);white-space:nowrap}
+#modeSw button+button{border-left:calc(1px*var(--u)) solid var(--line)}
+#modeSw button.on{background:var(--ac);color:#fff}
+#modHint{position:absolute;left:50%;bottom:calc(10px*var(--u));transform:translateX(-50%);background:rgba(14,15,17,.92);border:calc(1px*var(--u)) solid var(--line);border-radius:calc(7px*var(--u));padding:calc(5px*var(--u)) calc(12px*var(--u));font-size:calc(12px*var(--u));pointer-events:none;display:none;white-space:nowrap;max-width:96%;overflow:hidden;text-overflow:ellipsis}
+#modHint.on{display:block}
+#tools .mlabel{font-size:calc(10px*var(--u));color:#8b8e96;text-align:center;line-height:1.1;margin-top:-1px}
+body.model #shelf,body.model #layerBtns{opacity:.45;pointer-events:none}
 </style>
 </head>
 <body>
@@ -257,6 +268,7 @@ details.adv summary:hover{color:var(--tx)}
     <nav id="menus" style="display:flex;gap:2px"></nav>
     <div class="sp"></div>
     <span id="projName"></span>
+    <div id="modeSw"><button data-m="paint" title="Malen und texturieren">Malen</button><button data-m="model" title="Teile vom Modell verschieben, drehen, skalieren, kopieren oder löschen (Tab)">Modell bearbeiten</button></div>
     <button class="tbtn" id="btnAI" title="Assistent: sag, was du willst, und er macht es (Strg+K)">Assistent</button>
     <button class="tbtn" id="btnExport" title="Texturen exportieren (Strg+Umschalt+E)">Exportieren</button>
     <button class="tbtn" id="btnReport" title="Kopiert das Fehlerprotokoll – dann in Discord einfügen">Fehler melden</button>
@@ -269,6 +281,7 @@ details.adv summary:hover{color:var(--tx)}
     <canvas id="ov"></canvas>
     <div id="targetBadge"></div>
     <div id="vbar"></div>
+    <div id="modHint"></div>
     <div id="uvHint"><b>UV-Karte:</b> Rechte oder mittlere Maus = verschieben · Mausrad = zoomen · <b>A</b> = alles wählen, dann <b>G</b> bewegen · <b>R</b> drehen · <b>S</b> skalieren (wie in Blender) · Klick + Ziehen mit Werkzeug M · Linksklick bestätigt, Esc bricht ab</div>
   </main>
   <section id="shelf"><div class="tabs"></div><div class="items"></div></section>
@@ -287,7 +300,7 @@ details.adv summary:hover{color:var(--tx)}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '1.0.9';
+const APP_VERSION = '1.1.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -673,10 +686,27 @@ vec2 pat2(int id, vec2 q){
     vec2 ap=abs(gv); float hd=max(dot(ap,normalize(vec2(1.0,1.732))),ap.x); float wall=1.0-smoothstep(0.03,0.06,0.5-hd); return vec2(wall,wall-0.5); }
   if(id==26){ vec2 g=q*vec2(8.0,10.0); float row=floor(g.y); g.x+=mod(row,2.0)*0.5; vec2 f=fract(g); float d=length((f-vec2(0.5,0.0))*vec2(1.0,1.15));
     float edge=smoothstep(0.42,0.56,d); return vec2(clamp(edge*0.8+rnd1(vec3(floor(g),6.0))*0.2,0.0,1.0), 0.6-d); }
+  if(id==31){ vec2 g=q*vec2(4.0,8.0); float col=floor(g.x); float sh=mod(col,2.0); vec2 f=vec2(fract(g.x), fract(g.y+ (sh>0.5? fract(g.x): 1.0-fract(g.x))*0.5*2.0));
+    float r=rnd1(vec3(col,floor(g.y+(sh>0.5?fract(g.x):1.0-fract(g.x))),31.0)); float gap=1.0-smoothstep(0.0,0.04,min(min(f.x,1.0-f.x),min(f.y,1.0-f.y)*0.5));
+    float grain=0.5+0.5*sin((f.y*7.0+r*20.0)*3.1416); return vec2(clamp(gap+r*0.35*(0.4+uVar)+grain*0.25,0.0,1.0), -gap+grain*0.1); }
+  if(id==32){ vec2 g=q*2.0; vec2 c=floor(g); vec2 f=fract(g); float seam=1.0-smoothstep(0.0,0.012,min(min(f.x,1.0-f.x),min(f.y,1.0-f.y)));
+    vec2 rv=abs(fract(f*5.0+0.5)-0.5); float edge=min(min(f.x,1.0-f.x),min(f.y,1.0-f.y)); float riv=(1.0-smoothstep(0.08,0.12,length(fract(f*vec2(5.0))-0.5)))*(1.0-smoothstep(0.08,0.1,edge));
+    float r=rnd1(vec3(c,32.0)); return vec2(clamp(seam+r*0.25*(0.3+uVar)-riv*0.2,0.0,1.0), riv*0.8-seam); }
+  if(id==33){ float n1=rnd1(vec3(floor(q*180.0),33.0)); float n2=n01(vec3(q*8.0,2.0),4); return vec2(clamp(n2*0.7+n1*0.3*(0.5+uVar),0.0,1.0), n1*0.4+n2*0.3-0.35); }
+  if(id==34){ vec2 c=floor(q*16.0); float r=rnd1(vec3(c,34.0)); float r2=rnd1(vec3(floor(q*4.0),35.0)); float t=r*0.6*(0.4+uVar)+step(0.82,r2)*0.5*step(0.5,r); return vec2(clamp(t,0.0,1.0), r*0.2); }
+  if(id==35){ vec2 g=q*9.0; vec2 c=floor(g); vec2 f=fract(g); bool over=mod(c.x+c.y,2.0)<1.0; float a=over?sin(f.x*3.1416):sin(f.y*3.1416);
+    float fz=rnd1(vec3(floor(q*120.0),36.0)); return vec2(clamp(0.3+0.5*a+fz*0.25,0.0,1.0), a*0.8-0.4+fz*0.1); }
+  if(id==36){ vec2 g=q*3.0; vec2 r=vec2(g.x+g.y,g.x-g.y)*0.7071; vec2 f=fract(r); float d=min(min(f.x,1.0-f.x),min(f.y,1.0-f.y)); float seam=1.0-smoothstep(0.0,0.04,d);
+    float pillow=smoothstep(0.0,0.35,d); float stitch=seam*step(0.5,fract((r.x+r.y)*12.0)); return vec2(clamp(seam*0.6+stitch*0.3,0.0,1.0), pillow*0.9-0.45); }
+  if(id==37){ vec2 g=q*vec2(1.6,2.6); vec2 w=worley(vec3(g,1.7)); float cell=w.y-w.x; float mortar=1.0-smoothstep(0.04,0.1,cell); float r=rnd1(vec3(floor(g*3.0),37.0));
+    return vec2(max(mortar,n01(vec3(g*3.0,0.0),3)*0.45*(0.4+uVar)), smoothstep(0.05,0.5,cell)*0.9-mortar); }
+  if(id==38){ vec2 g=q*6.0; vec2 f=fract(g)-0.5; float d=1.0-smoothstep(0.22,0.25,length(f)); return vec2(d, d*0.1); }
+  if(id==39){ float s=fract((q.x+q.y)*2.0); float b=step(0.5,s); return vec2(b, 0.0); }
+  if(id==40){ vec2 c=floor(q*4.0); float b=mod(c.x+c.y,2.0); return vec2(b, 0.0); }
   if(id==30){ vec2 f=fract(q*10.0)-0.5; float bump=1.0-smoothstep(0.24,0.3,length(f)); return vec2(bump*0.25, bump-0.3); }
   return vec2(0.0);
 }
-bool triP(int id){ return (id>=6&&id<=8)||id==13||id==14||id==15||id==17||id==18||id==19||id==20||id==21||id==22||id==25||id==26||id==30; }
+bool triP(int id){ return (id>=31&&id<=40)||(id>=6&&id<=8)||id==13||id==14||id==15||id==17||id==18||id==19||id==20||id==21||id==22||id==25||id==26||id==30; }
 Mat pattern(vec3 p, vec3 n){
   vec3 q = p*uScale + uSeed*vec3(17.3,9.1,4.7);
   float t=0.0, h=0.0;
@@ -1467,7 +1497,7 @@ function parseGLTF(json, bin) {
 }
 
 /* ---------- Aufbereitung: Normalen, UVs, Kanten, Krümmung, Gruppen ---------- */
-function finalizeMesh(src, name) {
+function finalizeMesh(src, name, opts = {}) {
   const P0 = src.pos; const nV = P0.length / 3;
   // Entartete Dreiecke entfernen
   let I = src.idx; const keep = [];
@@ -1478,8 +1508,9 @@ function finalizeMesh(src, name) {
   // Normalisieren auf Radius 1
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < nV; i++) for (let k = 0; k < 3; k++) { const v = P0[i * 3 + k]; if (v < mn[k]) mn[k] = v; if (v > mx[k]) mx[k] = v; }
-  const ctr = [0, 1, 2].map((k) => (mn[k] + mx[k]) / 2);
-  const rad = Math.max(1e-9, Math.hypot(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) / 2);
+  let ctr = [0, 1, 2].map((k) => (mn[k] + mx[k]) / 2);
+  let rad = Math.max(1e-9, Math.hypot(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) / 2);
+  if (opts.raw) { ctr = [0, 0, 0]; rad = 1; }
   const P = new Float32Array(nV * 3);
   for (let i = 0; i < nV; i++) for (let k = 0; k < 3; k++) P[i * 3 + k] = (P0[i * 3 + k] - ctr[k]) / rad;
 
@@ -1603,7 +1634,8 @@ function finalizeMesh(src, name) {
       S.curv[t * 3 + k] = kap[pid[I[t * 3 + k]]];
     }
   }
-  return { name: name || 'Modell', nT, soup: S, groups, autoUV, ctr, rad };
+  const pidC = new Int32Array(nT * 3); for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) pidC[t * 3 + k] = pid[I[t * 3 + k]];
+  return { name: name || 'Modell', nT, soup: S, groups, autoUV, ctr, rad, pidC };
 }
 
 /* Automatische UVs: Box-Projektion, Inseln nebeneinander packen */
@@ -1655,6 +1687,7 @@ const BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'add', 'subtract', 'd
 const BASE_C = [0.55, 0.55, 0.55, 1], BASE_M = [0.5, 0, 0, 1];
 
 const S = {
+  mode: 'paint',
   res: 2048, hdepth: 0.06, mesh: null, layers: [], sel: null, target: 'layer',
   tool: 'paint',
   brush: { size: 40, flow: 1, opacity: 1, hard: 0.6, spacing: 0.12, shape: 0, angle: 0, jitAng: 0, jitSize: 0,
@@ -1694,6 +1727,7 @@ function compilePrograms() {
   P.proj = new Prog(VS_UV, FS_PROJ, 'proj');
   P.selComb = new Prog(VS_FULL, FS_SELCOMB, 'selComb');
   P.uvSel = new Prog(VS_WIRE2D, FS_UVSEL, 'uvSel');
+  P.modSel = new Prog(VS_VIEW, FS_UVSEL, 'modSel');
   P.shift = new Prog(VS_FULL, FS_SHIFT, 'shift');
   P.shift1 = new Prog(VS_FULL, FS_SHIFT1, 'shift1');
   P.colmask = new Prog(VS_FULL, FS_COLMASK, 'colmask');
@@ -1966,6 +2000,7 @@ function renderAll() {
       const p = E.P.view.use(); setEnvUniforms(p); bindChanTextures(p);
       p.set('uVP', cm.vp).set('uEye', cm.eye).set('uWire', S.view.wire).set('uAOStr', S.view.ao);
       drawSoup();
+      drawModSelection(cm);
       gl.disable(gl.DEPTH_TEST);
     } else {
       gl.disable(gl.DEPTH_TEST);
@@ -1987,7 +2022,7 @@ const U = { stack: [], redo: [], budget: 700 * 1024 * 1024 };
 function cloneLayer(l) {
   return { ...l, ch: { ...l.ch }, fill: l.fill ? { ...l.fill } : null, mask: l.mask ? { ...l.mask } : null, tex: l.tex ? { ...l.tex } : null };
 }
-function snapshot() { return { layers: S.layers.map(cloneLayer), sel: S.sel, target: S.target, uv: S.mesh ? S.mesh.soup.uv : null }; }
+function snapshot() { return { layers: S.layers.map(cloneLayer), sel: S.sel, target: S.target, mesh: S.mesh }; }
 function snapTexs(sn, set) { for (const l of sn.layers) { if (l.tex) { set.add(l.tex.c); set.add(l.tex.m); } if (l.mask && l.mask.tex) set.add(l.mask.tex); } }
 function gcTextures() {
   const live = new Set(); snapTexs({ layers: S.layers }, live);
@@ -2011,7 +2046,7 @@ function pushUndo() {
 }
 function restoreSnap(sn) {
   S.layers = sn.layers.map(cloneLayer); S.sel = sn.sel; S.target = sn.target;
-  if (sn.uv && S.mesh && sn.uv !== S.mesh.soup.uv) { S.mesh.soup.uv = sn.uv; uploadUV(); bakeMesh(); warmUp(); }
+  if (sn.mesh && sn.mesh !== S.mesh) { S.mesh = sn.mesh; uploadMesh(S.mesh); bakeMesh(); warmUp(); E.gbDirty = true; if (typeof MOD !== 'undefined') modSelChanged(true); if (typeof UVE !== 'undefined') { UVE.sel.clear(); UVE.idx = null; } }
   if (!S.layers.find((l) => l.id === S.sel)) S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null;
   E.needComp = true; S.dirty = true;
   if (typeof UI !== 'undefined') UI.refreshAll();
@@ -2334,8 +2369,8 @@ function uvBegin(mode, startUV) {
   pushUndo();
   const orig = S.mesh.soup.uv;
   const tris = uvSelTris();
-  UVE.op = { mode, start: startUV, orig, tris, center: uvCenter(tris, orig) };
-  S.mesh.soup.uv = new Float32Array(orig);
+  UVE.op = { mode, start: startUV, orig, origMesh: S.mesh, tris, center: uvCenter(tris, orig) };
+  S.mesh = { ...S.mesh, soup: { ...S.mesh.soup, uv: new Float32Array(orig) } };
   return true;
 }
 function uvUpdate(cur, opts = {}) {
@@ -2367,7 +2402,7 @@ async function uvConfirm() {
 }
 function uvCancel() {
   if (!UVE.op) return;
-  S.mesh.soup.uv = UVE.op.orig; UVE.op = null; uploadUV(); U.stack.pop();
+  S.mesh = UVE.op.origMesh; UVE.op = null; uploadUV(); U.stack.pop();
 }
 async function uvQuick(mode, angle) {
   if (!uvBegin(mode, [0, 0])) { toast('Wähl zuerst ein Teil aus (anklicken).'); return; }
@@ -2484,7 +2519,7 @@ function initTooltips() {
     TIP.timer = setTimeout(() => {
       if (TIP.target !== t || !document.body.contains(t)) return;
       TIP.el.innerHTML = '';
-      TIP.el.append(el('b', {}, t.dataset.tip), t.dataset.key ? el('kbd', {}, t.dataset.key) : null, t.dataset.desc ? el('div', {}, t.dataset.desc) : null);
+      TIP.el.append(...[el('b', {}, t.dataset.tip), t.dataset.key ? el('kbd', {}, t.dataset.key) : null, t.dataset.desc ? el('div', {}, t.dataset.desc) : null].filter(Boolean));
       const r = t.getBoundingClientRect(); TIP.el.classList.add('show');
       const w = TIP.el.offsetWidth, h = TIP.el.offsetHeight;
       let x = t.closest('#tools') ? r.right + 10 : r.left, y = t.closest('#tools') ? r.top : r.bottom + 8;
@@ -2674,9 +2709,198 @@ function zoomView(f) {
 }
 
 'use strict';
+/* ================= Modell-Modus (kleines Blender) ================= */
+const MOD = { sel: null, idx: null, op: null, selMode: 'part' };
+function modSelChanged(reset) {
+  if (reset || !MOD.sel || MOD.sel.length !== S.mesh.nT) MOD.sel = new Uint8Array(S.mesh ? S.mesh.nT : 0);
+  MOD.idx = null; E.needDraw = true;
+  if (typeof UI !== 'undefined' && S.mode === 'model') UI.renderCtx();
+}
+const modCount = () => { if (!MOD.sel) return 0; let n = 0; for (let i = 0; i < MOD.sel.length; i++) n += MOD.sel[i]; return n; };
+
+/* Auswahl per Klick */
+function modPick(r, x, y, add, remove) {
+  if (!MOD.sel || MOD.sel.length !== S.mesh.nT) modSelChanged(true);
+  const h = r.type === '3d' ? pickAt(r, x, y) : null;
+  let t = h ? h.tri : -1;
+  if (r.type === '2d') t = triAtUV((x - S.uv2d.pan[0]) / S.uv2d.zoom, (y - S.uv2d.pan[1]) / S.uv2d.zoom);
+  if (!add && !remove) MOD.sel.fill(0);
+  if (t >= 0) {
+    const tris = trisOfGroup(MOD.selMode === 'part' ? 'part' : MOD.selMode, t) || [...Array(S.mesh.nT).keys()];
+    const v = remove ? 0 : (add && MOD.sel[t] ? 0 : 1);
+    for (const i of tris) MOD.sel[i] = v;
+  }
+  modSelChanged();
+}
+function modSelectAll() { if (!MOD.sel) modSelChanged(true); const all = modCount() === MOD.sel.length; MOD.sel.fill(all ? 0 : 1); modSelChanged(); }
+function modInvert() { if (!MOD.sel) return; for (let i = 0; i < MOD.sel.length; i++) MOD.sel[i] = 1 - MOD.sel[i]; modSelChanged(); }
+function drawModSelection(cm) {
+  if (!MOD.sel || S.mode !== 'model') return;
+  if (!MOD.idx) { const a = []; for (let t = 0; t < MOD.sel.length; t++) if (MOD.sel[t]) a.push(t * 3, t * 3 + 1, t * 3 + 2); MOD.idx = new Uint32Array(a); }
+  if (!MOD.idx.length) return;
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -2);
+  E.P.modSel.use().set('uVP', cm.vp).set('uFill', [1.0, 0.55, 0.15, 0.22]);
+  gl.bindVertexArray(E.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, E.idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, MOD.idx, gl.STREAM_DRAW);
+  gl.drawElements(gl.TRIANGLES, MOD.idx.length, gl.UNSIGNED_INT, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null); gl.bindVertexArray(null);
+  gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthFunc(gl.LESS); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+}
+
+/* betroffene Ecken: alle Ecken, die an einer ausgewählten Position hängen (verbundene Flächen ziehen mit) */
+function modCorners() {
+  const m = S.mesh, pids = new Set();
+  for (let t = 0; t < m.nT; t++) if (MOD.sel[t]) for (let k = 0; k < 3; k++) pids.add(m.pidC[t * 3 + k]);
+  const out = [];
+  for (let i = 0; i < m.nT * 3; i++) if (pids.has(m.pidC[i])) out.push(i);
+  return out;
+}
+function project(cm, r, p) { const v = cm.vp; const x = v[0] * p[0] + v[4] * p[1] + v[8] * p[2] + v[12], y = v[1] * p[0] + v[5] * p[1] + v[9] * p[2] + v[13], w = v[3] * p[0] + v[7] * p[1] + v[11] * p[2] + v[15]; return [(x / w * 0.5 + 0.5) * r.w, (y / w * 0.5 + 0.5) * r.h, w]; }
+
+/* G / R / S wie in Blender */
+function modBegin(mode, r, x, y) {
+  if (!modCount()) { toast('Erst ein Teil anklicken (A = alles).'); return false; }
+  if (r.type !== '3d') { toast('Bewegen geht im 3D-Fenster.'); return false; }
+  const s = S.mesh.soup, corners = modCorners();
+  const c = [0, 0, 0]; for (const i of corners) for (let k = 0; k < 3; k++) c[k] += s.pos[i * 3 + k] / corners.length;
+  const cm = camMatrices(r);
+  MOD.op = { mode, r, cm, corners, center: c, cs: project(cm, r, c), start: [x, y], axis: null, pos: new Float32Array(s.pos), nrm: new Float32Array(s.nrm), origPos: s.pos, origNrm: s.nrm };
+  modUpdate(x, y, false);
+  return true;
+}
+function rotAxis(v, a, ang) { const c = Math.cos(ang), sn = Math.sin(ang), d = V3.dot(a, v), cr = V3.cross(a, v); return [v[0] * c + cr[0] * sn + a[0] * d * (1 - c), v[1] * c + cr[1] * sn + a[1] * d * (1 - c), v[2] * c + cr[2] * sn + a[2] * d * (1 - c)]; }
+function modUpdate(x, y, snap) {
+  const o = MOD.op; if (!o) return;
+  o.last = [x, y];
+  const { cm, r, center: c, cs } = o, s0 = o.origPos, n0 = o.origNrm, P = o.pos, N = o.nrm;
+  const AX = o.axis != null ? [[1, 0, 0], [0, 1, 0], [0, 0, 1]][o.axis] : null;
+  let move = [0, 0, 0], ang = 0, rotA = null, scl = [1, 1, 1];
+  if (o.mode === 'g') {
+    const dx = x - o.start[0], dy = y - o.start[1];
+    if (AX) { const a2 = project(cm, r, V3.add(c, AX)); const dir = [a2[0] - cs[0], a2[1] - cs[1]]; const L2 = dir[0] * dir[0] + dir[1] * dir[1] || 1; let t = (dx * dir[0] + dy * dir[1]) / L2; if (snap) t = Math.round(t * 20) / 20; move = V3.mul(AX, t); }
+    else { const wpp = 2 * cs[2] * Math.tan(S.cam.fov * Math.PI / 360) / r.h; const right = [cm.view[0], cm.view[4], cm.view[8]], up = [cm.view[1], cm.view[5], cm.view[9]]; move = V3.add(V3.mul(right, dx * wpp), V3.mul(up, dy * wpp)); if (snap) move = move.map((v) => Math.round(v * 20) / 20); }
+  } else if (o.mode === 'r') {
+    ang = Math.atan2(y - cs[1], x - cs[0]) - Math.atan2(o.start[1] - cs[1], o.start[0] - cs[0]);
+    if (snap) ang = Math.round(ang / (Math.PI / 12)) * Math.PI / 12;
+    rotA = AX || V3.norm(V3.sub(c, cm.eye));
+    if (!AX) ang = -ang;
+  } else {
+    let f = Math.hypot(x - cs[0], y - cs[1]) / Math.max(1, Math.hypot(o.start[0] - cs[0], o.start[1] - cs[1]));
+    if (snap) f = Math.round(f * 10) / 10;
+    scl = AX ? AX.map((a) => (a ? f : 1)) : [f, f, f];
+  }
+  o.desc = o.mode === 'g' ? `Bewegen ${move.map((v) => v.toFixed(2)).join(' / ')}` : o.mode === 'r' ? `Drehen ${(ang * 180 / Math.PI).toFixed(0)}°` : `Skalieren ${scl.map((v) => v.toFixed(2)).join(' / ')}`;
+  for (const i of o.corners) {
+    let p = [s0[i * 3] - c[0], s0[i * 3 + 1] - c[1], s0[i * 3 + 2] - c[2]], n = [n0[i * 3], n0[i * 3 + 1], n0[i * 3 + 2]];
+    if (o.mode === 'g') p = V3.add(p, move);
+    else if (o.mode === 'r') { p = rotAxis(p, rotA, ang); n = rotAxis(n, rotA, ang); }
+    else { p = [p[0] * scl[0], p[1] * scl[1], p[2] * scl[2]]; n = V3.norm([n[0] / scl[0], n[1] / scl[1], n[2] / scl[2]]); }
+    P[i * 3] = p[0] + c[0]; P[i * 3 + 1] = p[1] + c[1]; P[i * 3 + 2] = p[2] + c[2];
+    N[i * 3] = n[0]; N[i * 3 + 1] = n[1]; N[i * 3 + 2] = n[2];
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, E.bufs[0]); gl.bufferData(gl.ARRAY_BUFFER, P, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, E.bufs[1]); gl.bufferData(gl.ARRAY_BUFFER, N, gl.DYNAMIC_DRAW);
+  E.needDraw = true; E.gbDirty = true;
+  if (typeof UI !== 'undefined') UI.modHint(o.desc + (o.axis != null ? '  ·  Achse ' + 'XYZ'[o.axis] : '') + '  ·  X/Y/Z = Achse, Strg = einrasten, Linksklick/Enter = fertig, Esc = abbrechen');
+}
+function modAxis(a) { if (!MOD.op) return; MOD.op.axis = MOD.op.axis === a ? null : a; modUpdate(...(MOD.op.last || MOD.op.start), false); }
+async function modConfirm() {
+  const o = MOD.op; if (!o) return; MOD.op = null; UI.modHint('');
+  pushUndo();
+  await rebuildMesh(o.pos, o.nrm, S.mesh.soup.uv);
+}
+function modCancel() {
+  const o = MOD.op; if (!o) return; MOD.op = null; UI.modHint('');
+  gl.bindBuffer(gl.ARRAY_BUFFER, E.bufs[0]); gl.bufferData(gl.ARRAY_BUFFER, o.origPos, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, E.bufs[1]); gl.bufferData(gl.ARRAY_BUFFER, o.origNrm, gl.STATIC_DRAW);
+  E.needDraw = true; E.gbDirty = true;
+}
+/* Modell aus der Dreiecks-Suppe neu aufbauen (Kanten, Gruppen, Schatten neu berechnen) */
+async function rebuildMesh(pos, nrm, uv, keepSel) {
+  UI.busy('Modell wird aktualisiert …'); await sleep(30);
+  try {
+    const old = S.mesh, sel = keepSel || MOD.sel;
+    const m = finalizeMesh({ pos, nrm, uv, idx: seqIdx(pos.length / 3) }, old.name, { raw: true });
+    m.ctr = old.ctr; m.rad = old.rad; m.uvEdited = true;
+    S.mesh = m; uploadMesh(m); bakeMesh(); warmUp();
+    MOD.sel = sel && sel.length === m.nT ? sel : new Uint8Array(m.nT); MOD.idx = null;
+    UVE.sel.clear(); UVE.idx = null;
+    E.gbDirty = true; E.needComp = true; S.dirty = true;
+  } catch (e) { console.error('Modell', e); toast('Fehler: ' + e.message, 'err'); }
+  finally { UI.busy(null); UI.refreshAll(); }
+}
+const seqIdx = (n) => { const a = new Uint32Array(n); for (let i = 0; i < n; i++) a[i] = i; return a; };
+function soupSubset(keepTri, extraTris) {
+  const s = S.mesh.soup, nT = S.mesh.nT;
+  const list = []; for (let t = 0; t < nT; t++) if (keepTri(t)) list.push(t);
+  const all = list.concat(extraTris || []);
+  const P = new Float32Array(all.length * 9), N = new Float32Array(all.length * 9), T = new Float32Array(all.length * 6);
+  all.forEach((t, j) => { P.set(s.pos.subarray(t * 9, t * 9 + 9), j * 9); N.set(s.nrm.subarray(t * 9, t * 9 + 9), j * 9); T.set(s.uv.subarray(t * 6, t * 6 + 6), j * 6); });
+  return { P, N, T, n: list.length };
+}
+async function modDelete() {
+  const c = modCount(); if (!c) { toast('Nichts ausgewählt.'); return; }
+  if (c === S.mesh.nT) { toast('Alles löschen geht nicht – dann wäre das Modell leer.'); return; }
+  pushUndo();
+  const { P, N, T } = soupSubset((t) => !MOD.sel[t]);
+  MOD.sel = null; await rebuildMesh(P, N, T);
+}
+async function modDuplicate(r, x, y) {
+  if (!modCount()) { toast('Erst ein Teil auswählen.'); return; }
+  pushUndo();
+  const extra = []; for (let t = 0; t < S.mesh.nT; t++) if (MOD.sel[t]) extra.push(t);
+  const { P, N, T, n } = soupSubset(() => true, extra);
+  for (let i = n * 9; i < P.length; i += 3) P[i] += 0.004; // minimal versetzt, damit die Kopie nicht am Original klebt
+  const sel = new Uint8Array(n + extra.length); sel.fill(1, n);
+  await rebuildMesh(P, N, T, sel);
+  toast('Kopiert – jetzt mit der Maus verschieben, Klick = fertig');
+  if (r && r.type === '3d' && modBegin('g', r, x, y)) MOD.dragKey = true;
+}
+async function modMirror(axis = 0) {
+  if (!modCount()) { toast('Erst ein Teil auswählen.'); return; }
+  pushUndo();
+  const s = S.mesh.soup, corners = modCorners();
+  const c = [0, 0, 0]; for (const i of corners) for (let k = 0; k < 3; k++) c[k] += s.pos[i * 3 + k] / corners.length;
+  const P = new Float32Array(s.pos), N = new Float32Array(s.nrm), T = new Float32Array(s.uv);
+  for (const i of corners) { P[i * 3 + axis] = 2 * c[axis] - P[i * 3 + axis]; N[i * 3 + axis] *= -1; }
+  // Dreiecke umdrehen, damit die Außenseite außen bleibt
+  for (let t = 0; t < S.mesh.nT; t++) if (MOD.sel[t]) {
+    const sw = (a, sz) => { for (let k = 0; k < sz; k++) { const i1 = (t * 3 + 1) * sz + k, i2 = (t * 3 + 2) * sz + k; const tmp = a[i1]; a[i1] = a[i2]; a[i2] = tmp; } };
+    sw(P, 3); sw(N, 3); sw(T, 2);
+  }
+  await rebuildMesh(P, N, T);
+}
+async function modShade(smooth) {
+  pushUndo();
+  const s = S.mesh.soup, nT = S.mesh.nT;
+  const P = new Float32Array(s.pos), T = new Float32Array(s.uv);
+  if (smooth) {
+    const sel = modCount() ? MOD.sel : null;
+    // sanfte Normalen aus dem Aufbau berechnen lassen, ausgewählte Teile ersetzen
+    const tmp = finalizeMesh({ pos: P, nrm: null, uv: T, idx: seqIdx(P.length / 3) }, 'tmp', { raw: true });
+    const N = new Float32Array(s.nrm);
+    for (let t = 0; t < nT; t++) if (!sel || sel[t]) N.set(tmp.soup.nrm.subarray(t * 9, t * 9 + 9), t * 9);
+    await rebuildMesh(P, N, T);
+  } else {
+    const N = new Float32Array(s.nrm); const sel = modCount() ? MOD.sel : null;
+    for (let t = 0; t < nT; t++) if (!sel || sel[t]) {
+      const a = t * 9; const e1 = [P[a + 3] - P[a], P[a + 4] - P[a + 1], P[a + 5] - P[a + 2]], e2 = [P[a + 6] - P[a], P[a + 7] - P[a + 1], P[a + 8] - P[a + 2]];
+      const n = V3.norm(V3.cross(e1, e2)); for (let k = 0; k < 3; k++) N.set(n, a + k * 3);
+    }
+    await rebuildMesh(P, N, T);
+  }
+}
+function setMode(m) {
+  if (MOD.op) modCancel();
+  S.mode = m;
+  if (m === 'model') { if (!MOD.sel || MOD.sel.length !== S.mesh.nT) modSelChanged(true); if (S.view.layout === '2d') setLayout('3d'); }
+  UI.refreshAll(); drawOverlay();
+}
+
+'use strict';
 /* ================= Materialien, Smart-Materialien, Masken, Pinsel ================= */
-const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack', 'Holzbretter (Fass)', 'Jeans', 'Strick', 'Karo', 'Tarnmuster', 'Riffelblech', 'Wellblech', 'Lochblech', 'Fliesen', 'Holzdielen', 'Kopfsteinpflaster', 'Asphalt', 'Marmor', 'Waben', 'Schuppen', 'Erde / Gras', 'Rinde', 'Hammerschlag', 'Noppen'];
-const PAT_USES_B = [false, ...Array(30).fill(true)];
+const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack', 'Holzbretter (Fass)', 'Jeans', 'Strick', 'Karo', 'Tarnmuster', 'Riffelblech', 'Wellblech', 'Lochblech', 'Fliesen', 'Holzdielen', 'Kopfsteinpflaster', 'Asphalt', 'Marmor', 'Waben', 'Schuppen', 'Erde / Gras', 'Rinde', 'Hammerschlag', 'Noppen', 'Fischgrät', 'Nietenplatten', 'Filz / Teppich', 'Pixel', 'Sackleinen', 'Steppung', 'Natursteinmauer', 'Punkte', 'Warnstreifen', 'Schachbrett'];
+const PAT_USES_B = [false, ...Array(40).fill(true)];
 const GENS = ['Aus', 'Kanten', 'Ecken und Ritzen', 'Schattige Stellen', 'Wolkig', 'Von oben', 'Von unten', 'Kratzer', 'Flecken', 'Ringe (Bänder)', 'Laufspuren', 'Grunge', 'Lichtseite'];
 const SHAPES = ['Rund', 'Quadrat', 'Kreide', 'Spritzer', 'Kratzer', 'Ring'];
 const BLEND_NAMES = { normal: 'Normal', multiply: 'Multiplizieren', screen: 'Aufhellen (Screen)', overlay: 'Überlagern', add: 'Addieren', subtract: 'Subtrahieren', darken: 'Abdunkeln', lighten: 'Aufhellen', softlight: 'Weiches Licht' };
@@ -2691,17 +2915,17 @@ const MATERIALS = {
   rost: { name: 'Rost', cat: 'Metall', fill: { pat: 4, colA: '#8f4320', colB: '#4a2311', roughA: 0.82, roughB: 0.95, metalA: 0.1, metalB: 0, hAmt: 0.35, scale: 3, vari: 0.6 } },
   holz: { name: 'Holz hell', cat: 'Holz', fill: { pat: 2, colA: '#c89d6b', colB: '#8a5c35', roughA: 0.55, roughB: 0.7, metalA: 0, metalB: 0, hAmt: 0.18, scale: 2.2, vari: 0.5 } },
   holz2: { name: 'Holz dunkel', cat: 'Holz', fill: { pat: 2, colA: '#6c4529', colB: '#352012', roughA: 0.5, roughB: 0.65, metalA: 0, metalB: 0, hAmt: 0.18, scale: 2.2, vari: 0.5 } },
-  lack: { name: 'Lack rot', cat: 'Kunststoff & Lack', fill: { pat: 1, colA: '#c41f2b', colB: '#b01a25', roughA: 0.28, roughB: 0.34, metalA: 0, metalB: 0, hAmt: 0.01, scale: 6, vari: 0.1 } },
-  plastik: { name: 'Plastik glänzend', cat: 'Kunststoff & Lack', fill: { pat: 0, colA: '#2f7de1', colB: '#2f7de1', roughA: 0.2, roughB: 0.2, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
-  plastik2: { name: 'Plastik matt', cat: 'Kunststoff & Lack', fill: { pat: 1, colA: '#3b3b40', colB: '#323236', roughA: 0.62, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.02, scale: 8, vari: 0.2 } },
-  gummi: { name: 'Gummi', cat: 'Kunststoff & Lack', fill: { pat: 1, colA: '#1e1e20', colB: '#29292b', roughA: 0.85, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.06, scale: 10, vari: 0.3 } },
+  lack: { name: 'Lack rot', cat: 'Lack & Kunststoff', fill: { pat: 1, colA: '#c41f2b', colB: '#b01a25', roughA: 0.28, roughB: 0.34, metalA: 0, metalB: 0, hAmt: 0.01, scale: 6, vari: 0.1 } },
+  plastik: { name: 'Plastik glänzend', cat: 'Lack & Kunststoff', fill: { pat: 0, colA: '#2f7de1', colB: '#2f7de1', roughA: 0.2, roughB: 0.2, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
+  plastik2: { name: 'Plastik matt', cat: 'Lack & Kunststoff', fill: { pat: 1, colA: '#3b3b40', colB: '#323236', roughA: 0.62, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.02, scale: 8, vari: 0.2 } },
+  gummi: { name: 'Gummi', cat: 'Lack & Kunststoff', fill: { pat: 1, colA: '#1e1e20', colB: '#29292b', roughA: 0.85, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.06, scale: 10, vari: 0.3 } },
   leder: { name: 'Leder', cat: 'Stoff & Leder', fill: { pat: 5, colA: '#6d3c22', colB: '#3f1f10', roughA: 0.5, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.3, scale: 3, vari: 0.5 } },
   stoff: { name: 'Stoff', cat: 'Stoff & Leder', fill: { pat: 6, colA: '#41598a', colB: '#22355a', roughA: 0.88, roughB: 0.96, metalA: 0, metalB: 0, hAmt: 0.35, scale: 3, vari: 0.5 } },
   beton: { name: 'Beton', cat: 'Stein & Boden', fill: { pat: 9, colA: '#9c9a94', colB: '#76746e', roughA: 0.88, roughB: 0.96, metalA: 0, metalB: 0, hAmt: 0.25, scale: 3, vari: 0.4 } },
   ziegel: { name: 'Ziegel', cat: 'Stein & Boden', fill: { pat: 7, colA: '#9e4b33', colB: '#cdc4b4', roughA: 0.82, roughB: 0.95, metalA: 0, metalB: 0, hAmt: 0.5, scale: 2, vari: 0.6 } },
-  karbon: { name: 'Karbon', cat: 'Kunststoff & Lack', fill: { pat: 8, colA: '#141416', colB: '#46474c', roughA: 0.22, roughB: 0.3, metalA: 0, metalB: 0.1, hAmt: 0.12, scale: 3, vari: 0.5 } },
+  karbon: { name: 'Karbon', cat: 'Lack & Kunststoff', fill: { pat: 8, colA: '#141416', colB: '#46474c', roughA: 0.22, roughB: 0.3, metalA: 0, metalB: 0.1, hAmt: 0.12, scale: 3, vari: 0.5 } },
   stein: { name: 'Stein', cat: 'Stein & Boden', fill: { pat: 9, colA: '#837f76', colB: '#57544d', roughA: 0.8, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.45, scale: 2, vari: 0.8 } },
-  autolack: { name: 'Autolack Metallic', cat: 'Kunststoff & Lack', fill: { pat: 11, colA: '#1d4bcc', colB: '#a9c0ff', roughA: 0.24, roughB: 0.12, metalA: 0.55, metalB: 1, hAmt: 0, scale: 6, vari: 0.4 } },
+  autolack: { name: 'Autolack Metallic', cat: 'Lack & Kunststoff', fill: { pat: 11, colA: '#1d4bcc', colB: '#a9c0ff', roughA: 0.24, roughB: 0.12, metalA: 0.55, metalB: 1, hAmt: 0, scale: 6, vari: 0.4 } },
   schale: { name: 'Melonenschale', cat: 'Natur', fill: { pat: 10, colA: '#2b6e2d', colB: '#9ccf63', roughA: 0.38, roughB: 0.48, metalA: 0, metalB: 0, hAmt: 0.05, scale: 1.2, vari: 0.4 } },
   fleisch: { name: 'Melonen-Fruchtfleisch', cat: 'Natur', fill: { pat: 1, colA: '#ff4f64', colB: '#ff8592', roughA: 0.5, roughB: 0.35, metalA: 0, metalB: 0, hAmt: 0.1, scale: 5, vari: 0.4 } },
   bretter: { name: 'Holzbretter', cat: 'Holz', fill: { pat: 12, colA: '#a8743f', colB: '#5e3a1c', roughA: 0.6, roughB: 0.75, metalA: 0, metalB: 0, hAmt: 0.3, scale: 2.2, vari: 0.6 } },
@@ -2740,11 +2964,11 @@ const MATERIALS = {
   schuppen: { name: 'Schlangenhaut', cat: 'Natur', fill: { pat: 26, colA: '#5b6b2f', colB: '#20250f', roughA: 0.4, roughB: 0.6, metalA: 0, metalB: 0, hAmt: 0.4, scale: 2, vari: 0.5 } },
   eis: { name: 'Eis', cat: 'Natur', fill: { pat: 24, colA: '#bfe3f2', colB: '#ffffff', roughA: 0.08, roughB: 0.25, metalA: 0, metalB: 0, hAmt: 0.05, scale: 1.5, vari: 0.6 } },
   lava: { name: 'Lava-Gestein', cat: 'Natur', fill: { pat: 28, colA: '#ff5a14', colB: '#1a1414', roughA: 0.6, roughB: 0.9, metalA: 0, metalB: 0, hAmt: 0.6, scale: 2, vari: 0.5 } },
-  waben: { name: 'Waben (Karbon)', cat: 'Kunststoff & Lack', fill: { pat: 25, colA: '#1b1c1f', colB: '#3c3f45', roughA: 0.3, roughB: 0.4, metalA: 0.2, metalB: 0.3, hAmt: 0.4, scale: 2, vari: 0.4 } },
-  noppen: { name: 'Gummi-Noppen', cat: 'Kunststoff & Lack', fill: { pat: 30, colA: '#1c1c1d', colB: '#2a2a2b', roughA: 0.85, roughB: 0.8, metalA: 0, metalB: 0, hAmt: 0.5, scale: 2, vari: 0.3 } },
-  lack_schwarz: { name: 'Lack schwarz glänzend', cat: 'Kunststoff & Lack', fill: { pat: 0, colA: '#0e0e10', colB: '#0e0e10', roughA: 0.08, roughB: 0.08, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
-  lack_weiss: { name: 'Lack weiß', cat: 'Kunststoff & Lack', fill: { pat: 0, colA: '#f1f1ef', colB: '#f1f1ef', roughA: 0.25, roughB: 0.25, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
-  polizei: { name: 'Lack Polizei-Blau', cat: 'Kunststoff & Lack', fill: { pat: 11, colA: '#16326e', colB: '#5b7fd1', roughA: 0.22, roughB: 0.12, metalA: 0.4, metalB: 0.9, hAmt: 0, scale: 6, vari: 0.3 } },
+  waben: { name: 'Waben (Karbon)', cat: 'Lack & Kunststoff', fill: { pat: 25, colA: '#1b1c1f', colB: '#3c3f45', roughA: 0.3, roughB: 0.4, metalA: 0.2, metalB: 0.3, hAmt: 0.4, scale: 2, vari: 0.4 } },
+  noppen: { name: 'Gummi-Noppen', cat: 'Lack & Kunststoff', fill: { pat: 30, colA: '#1c1c1d', colB: '#2a2a2b', roughA: 0.85, roughB: 0.8, metalA: 0, metalB: 0, hAmt: 0.5, scale: 2, vari: 0.3 } },
+  lack_schwarz: { name: 'Lack schwarz glänzend', cat: 'Lack & Kunststoff', fill: { pat: 0, colA: '#0e0e10', colB: '#0e0e10', roughA: 0.08, roughB: 0.08, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
+  lack_weiss: { name: 'Lack weiß', cat: 'Lack & Kunststoff', fill: { pat: 0, colA: '#f1f1ef', colB: '#f1f1ef', roughA: 0.25, roughB: 0.25, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
+  polizei: { name: 'Lack Polizei-Blau', cat: 'Lack & Kunststoff', fill: { pat: 11, colA: '#16326e', colB: '#5b7fd1', roughA: 0.22, roughB: 0.12, metalA: 0.4, metalB: 0.9, hAmt: 0, scale: 6, vari: 0.3 } },
   papier: { name: 'Pappe', cat: 'Sonstiges', fill: { pat: 1, colA: '#b8946a', colB: '#a5815a', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.05, scale: 10, vari: 0.4 } },
   ruß: { name: 'Ruß', cat: 'Schmutz & Effekte', fill: { pat: 1, colA: '#0f0e0d', colB: '#1f1c1a', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0, scale: 5, vari: 0.4 } },
   wasser: { name: 'Nässe', cat: 'Schmutz & Effekte', fill: { pat: 1, colA: '#2a2a2c', colB: '#3a3a3c', roughA: 0.05, roughB: 0.1, metalA: 0, metalB: 0, hAmt: 0, scale: 4, vari: 0.3 } },
@@ -2844,6 +3068,113 @@ const SMART = {
   ] },
   melone: { name: 'Melone', layers: [M('schale')] },
 };
+
+/* ================= Große Bibliothek: Varianten erzeugen ================= */
+(function buildLibrary() {
+  const sh = (h, k) => rgb2hex(hex2rgb(h).map((v) => clamp(v * k, 0, 1)));
+  const add = (key, name, cat, fill) => { if (!MATERIALS[key]) MATERIALS[key] = { name, cat, fill: Object.assign({ pat: 1, colA: '#888888', colB: '#666666', roughA: 0.5, roughB: 0.6, metalA: 0, metalB: 0, hAmt: 0.02, scale: 3, vari: 0.4 }, fill) }; };
+  const COLORS = { Rot: '#c4202b', Dunkelrot: '#6e1016', Orange: '#e8701c', Gelb: '#f2c418', Hellgrün: '#7cc443', Grün: '#2f8a3c', Dunkelgrün: '#1c4a26', Türkis: '#1fa3a0', Hellblau: '#5aa9e6', Blau: '#2456c4', Dunkelblau: '#14254f', Lila: '#6b3fa0', Pink: '#e0508f', Weiß: '#efefed', Grau: '#7d7f83', Anthrazit: '#2e3034', Schwarz: '#111113', Beige: '#d8c7a6', Braun: '#6b4426', Olive: '#5d6437', Creme: '#efe6cf', Bordeaux: '#5a1424', Sand: '#c2a878', Petrol: '#14525a' };
+  const slug = (t) => t.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '_');
+  for (const [n, c] of Object.entries(COLORS)) {
+    const k = slug(n);
+    add('lackg_' + k, `Lack ${n} glänzend`, 'Lack & Kunststoff', { pat: 1, colA: c, colB: sh(c, 0.96), roughA: 0.12, roughB: 0.16, hAmt: 0.005, scale: 6, vari: 0.05 });
+    add('lackm_' + k, `Lack ${n} matt`, 'Lack & Kunststoff', { pat: 1, colA: c, colB: sh(c, 0.92), roughA: 0.62, roughB: 0.7, hAmt: 0.01, scale: 6, vari: 0.1 });
+    add('plast_' + k, `Kunststoff ${n}`, 'Lack & Kunststoff', { pat: 1, colA: c, colB: sh(c, 0.94), roughA: 0.35, roughB: 0.42, hAmt: 0.02, scale: 9, vari: 0.15 });
+    add('metlack_' + k, `Metalliclack ${n}`, 'Lack & Kunststoff', { pat: 11, colA: sh(c, 0.85), colB: sh(c, 1.5), roughA: 0.24, roughB: 0.12, metalA: 0.55, metalB: 0.95, hAmt: 0, scale: 6, vari: 0.4 });
+    add('stoff_' + k, `Stoff ${n}`, 'Stoff & Leder', { pat: 6, colA: c, colB: sh(c, 0.7), roughA: 0.9, roughB: 0.96, hAmt: 0.3, scale: 3, vari: 0.5 });
+    add('filz_' + k, `Filz ${n}`, 'Stoff & Leder', { pat: 33, colA: c, colB: sh(c, 0.75), roughA: 0.97, roughB: 1, hAmt: 0.2, scale: 3, vari: 0.5 });
+  }
+  const LEDER = { Braun: '#6d3c22', Hellbraun: '#9a6236', Cognac: '#9c4f22', Schwarz: '#1d1c1e', Rot: '#7a1c1c', Weiß: '#e3ddd2', Grau: '#55575a', Dunkelblau: '#1c2742' };
+  for (const [n, c] of Object.entries(LEDER)) { add('leder_' + slug(n), `Leder ${n}`, 'Stoff & Leder', { pat: 5, colA: c, colB: sh(c, 0.6), roughA: 0.45, roughB: 0.68, hAmt: 0.3, scale: 3, vari: 0.5 }); add('stepp_' + slug(n), `Gesteppt ${n}`, 'Stoff & Leder', { pat: 36, colA: c, colB: sh(c, 0.55), roughA: 0.45, roughB: 0.6, hAmt: 0.6, scale: 2, vari: 0.4 }); }
+  [['Rot', '#8c2f2f'], ['Grau', '#77797c'], ['Creme', '#e7dcc4'], ['Grün', '#2f5a37'], ['Blau', '#2d4b80'], ['Schwarz', '#222224']].forEach(([n, c]) => add('strick_' + slug(n), `Strick ${n}`, 'Stoff & Leder', { pat: 14, colA: c, colB: sh(c, 0.6), roughA: 0.95, roughB: 1, hAmt: 0.5, scale: 3, vari: 0.4 }));
+  [['Rot-Schwarz', '#b8262b', '#1a1a1d'], ['Blau-Weiß', '#2b4f9a', '#e8e8e8'], ['Grün-Schwarz', '#2e6b3a', '#151515'], ['Grau-Weiß', '#6e7072', '#dcdcdc']].forEach(([n, a, b]) => add('karo_' + slug(n), `Karo ${n}`, 'Stoff & Leder', { pat: 15, colA: a, colB: b, roughA: 0.9, roughB: 0.92, hAmt: 0.15, scale: 2, vari: 0.4 }));
+  [['dunkel', '#1c2a47', '#5d7099'], ['schwarz', '#1b1b1f', '#55555c'], ['grau', '#4b4f57', '#a3a7ae']].forEach(([n, a, b]) => add('jeans_' + n, `Jeans ${n}`, 'Stoff & Leder', { pat: 13, colA: a, colB: b, roughA: 0.9, roughB: 0.95, hAmt: 0.25, scale: 3, vari: 0.5 }));
+  [['Wald', '#4d5a2c', '#2b2a1b'], ['Wüste', '#c2a878', '#7d6644'], ['Schnee', '#e5e7ea', '#8d939b'], ['Urban', '#6f7175', '#2f3033'], ['Marine', '#26324a', '#4d5f7d']].forEach(([n, a, b]) => add('tarn_' + slug(n), `Tarnmuster ${n}`, 'Stoff & Leder', { pat: 16, colA: a, colB: b, roughA: 0.9, roughB: 0.92, hAmt: 0.05, scale: 2, vari: 0.5 }));
+  add('sackleinen', 'Sackleinen', 'Stoff & Leder', { pat: 35, colA: '#b59a6a', colB: '#7d6640', roughA: 0.95, roughB: 1, hAmt: 0.45, scale: 2, vari: 0.5 });
+  add('teppich_rot', 'Teppich rot', 'Stoff & Leder', { pat: 33, colA: '#8a1d24', colB: '#5c1016', roughA: 1, roughB: 1, hAmt: 0.3, scale: 5, vari: 0.6 });
+  add('fell', 'Fell / Plüsch', 'Stoff & Leder', { pat: 33, colA: '#8a6a4a', colB: '#4d3826', roughA: 1, roughB: 1, hAmt: 0.6, scale: 8, vari: 0.8 });
+  // Metalle
+  const MET = { Eisen: ['#8c8f93', 0.5], Stahl: ['#a6aaaf', 0.38], Edelstahl: ['#c9ccd0', 0.22], Chrom: ['#ececee', 0.05], Aluminium: ['#d4d6d9', 0.35], Gold: ['#ffcf5c', 0.25], Weißgold: ['#e8e2d0', 0.22], Roségold: ['#e9a88c', 0.25], Silber: ['#e6e7ea', 0.18], Kupfer: ['#dc8f5f', 0.32], Messing: ['#d9b25a', 0.3], Bronze: ['#a8743e', 0.4], Titan: ['#8f9299', 0.35], Zink: ['#a9adb0', 0.5], Blei: ['#6f7174', 0.6], Nickel: ['#c3bfb4', 0.3], Gusseisen: ['#4a4b4d', 0.7], Platin: ['#d8d9db', 0.2] };
+  for (const [n, [c, r]] of Object.entries(MET)) {
+    const k = slug(n);
+    add('m_' + k, n, 'Metall', { pat: 1, colA: c, colB: sh(c, 0.85), roughA: r, roughB: Math.min(1, r + 0.12), metalA: 1, metalB: 1, hAmt: 0.02, scale: 4, vari: 0.35 });
+    add('mg_' + k, `${n} gebürstet`, 'Metall', { pat: 3, colA: c, colB: sh(c, 0.82), roughA: Math.max(0.15, r - 0.05), roughB: r + 0.12, metalA: 1, metalB: 1, hAmt: 0.03, scale: 2, vari: 0.4 });
+    add('mh_' + k, `${n} gehämmert`, 'Metall', { pat: 29, colA: c, colB: sh(c, 0.8), roughA: r, roughB: Math.max(0.1, r - 0.1), metalA: 1, metalB: 1, hAmt: 0.35, scale: 2, vari: 0.4 });
+  }
+  [['Blau', '#2b5fb8'], ['Rot', '#b8262b'], ['Schwarz', '#1f2024'], ['Grün', '#2f8a4a'], ['Gold', '#c99a3a'], ['Lila', '#6b3fa0']].forEach(([n, c]) => add('eloxal_' + slug(n), `Eloxiert ${n}`, 'Metall', { pat: 3, colA: c, colB: sh(c, 0.8), roughA: 0.3, roughB: 0.4, metalA: 1, metalB: 1, hAmt: 0.02, scale: 2, vari: 0.3 }));
+  add('patina', 'Kupfer-Patina', 'Metall', { pat: 4, colA: '#4f9a84', colB: '#2d5e52', roughA: 0.8, roughB: 0.9, metalA: 0, metalB: 0.2, hAmt: 0.25, scale: 3, vari: 0.6 });
+  add('verzinkt', 'Verzinkt', 'Metall', { pat: 24, colA: '#a9adb0', colB: '#cfd2d4', roughA: 0.45, roughB: 0.35, metalA: 1, metalB: 1, hAmt: 0, scale: 3, vari: 0.8 });
+  // Industrie
+  [['grau', '#8b9095'], ['grün', '#3c6b4a'], ['rot', '#8e2b26'], ['blau', '#2d5486']].forEach(([n, c]) => add('well_' + n, `Wellblech ${n}`, 'Industrie', { pat: 18, colA: c, colB: sh(c, 1.25), roughA: 0.45, roughB: 0.35, metalA: n === 'grau' ? 1 : 0.3, metalB: n === 'grau' ? 1 : 0.4, hAmt: 0.6, scale: 2, vari: 0.4 }));
+  [['Stahl', '#8f9398'], ['Dunkel', '#3e4044'], ['Oliv', '#4e5531']].forEach(([n, c]) => add('niet_' + slug(n), `Nietenplatten ${n}`, 'Industrie', { pat: 32, colA: c, colB: sh(c, 0.6), roughA: 0.45, roughB: 0.6, metalA: 1, metalB: 1, hAmt: 0.5, scale: 2, vari: 0.5 }));
+  [['Gelb-Schwarz', '#f2c418', '#141414'], ['Rot-Weiß', '#c4202b', '#efefed'], ['Blau-Weiß', '#1f4fb5', '#efefed']].forEach(([n, a, b]) => add('warn_' + slug(n), `Warnstreifen ${n}`, 'Industrie', { pat: 39, colA: a, colB: b, roughA: 0.4, roughB: 0.4, hAmt: 0, scale: 2, vari: 0 }));
+  [['Schwarz', '#2a2b2e'], ['Grau', '#6b6e72'], ['Grün', '#2f4a36'], ['Blau', '#2c4058']].forEach(([n, c]) => add('hammer_' + slug(n), `Hammerschlaglack ${n}`, 'Industrie', { pat: 29, colA: c, colB: sh(c, 1.35), roughA: 0.35, roughB: 0.3, metalA: 0.6, metalB: 0.7, hAmt: 0.3, scale: 2, vari: 0.4 }));
+  add('gitter', 'Lochblech fein', 'Industrie', { pat: 19, colA: '#9a9ea3', colB: '#111', roughA: 0.4, roughB: 0.9, metalA: 1, metalB: 0, hAmt: 0.6, scale: 4, vari: 0.3 });
+  add('riffel_alu', 'Riffelblech Alu', 'Industrie', { pat: 17, colA: '#c3c6ca', colB: '#e2e4e6', roughA: 0.35, roughB: 0.25, metalA: 1, metalB: 1, hAmt: 0.6, scale: 2, vari: 0.4 });
+  add('reifen', 'Reifenprofil', 'Industrie', { pat: 17, colA: '#1a1a1b', colB: '#262627', roughA: 0.85, roughB: 0.8, metalA: 0, metalB: 0, hAmt: 0.9, scale: 1.5, vari: 0.2 });
+  // Holzarten
+  const WOOD = { Eiche: ['#b08455', '#7a5432'], Buche: ['#d0a27a', '#a0704a'], Kiefer: ['#dbb27a', '#a8743e'], Fichte: ['#e1c49a', '#b8915e'], Walnuss: ['#6b4a32', '#3b2618'], Kirsche: ['#a0583a', '#6c3420'], Mahagoni: ['#7a3424', '#4a1c12'], Ebenholz: ['#2a2220', '#141010'], Birke: ['#e6d3ad', '#c2a676'], Ahorn: ['#e3c99a', '#c09a64'], Teak: ['#a67444', '#6e4626'], Zeder: ['#b0683f', '#7a4024'], Bambus: ['#d9c07a', '#a8904a'], Treibholz: ['#a9a299', '#6f6a62'] };
+  for (const [n, [a, b]] of Object.entries(WOOD)) {
+    const k = slug(n);
+    add('wood_' + k, n, 'Holz', { pat: 2, colA: a, colB: b, roughA: 0.55, roughB: 0.7, hAmt: 0.18, scale: 2.2, vari: 0.5 });
+    add('dielen_' + k, `Dielen ${n}`, 'Holz', { pat: 21, colA: a, colB: b, roughA: 0.5, roughB: 0.68, hAmt: 0.3, scale: 2, vari: 0.6 });
+    add('parkett_' + k, `Parkett ${n}`, 'Holz', { pat: 31, colA: a, colB: b, roughA: 0.3, roughB: 0.45, hAmt: 0.2, scale: 2, vari: 0.6 });
+    add('lackholz_' + k, `${n} lackiert`, 'Holz', { pat: 2, colA: a, colB: b, roughA: 0.15, roughB: 0.22, hAmt: 0.05, scale: 2.2, vari: 0.5 });
+  }
+  // Stein & Boden
+  const STONE = { 'Granit grau': ['#8a8a88', '#4f4f4e', 9], 'Granit rot': ['#9a5a4c', '#4a2a24', 9], 'Granit schwarz': ['#2c2c2e', '#5a5a5c', 9], Sandstein: ['#c9a874', '#9c7b4c', 9], Schiefer: ['#3f4447', '#2a2e31', 9], Kalkstein: ['#d6cfbf', '#b0a690', 9], Basalt: ['#3a3a3a', '#252525', 28], 'Marmor grün': ['#2e5a48', '#d8e0d6', 24], 'Marmor rosa': ['#e8c8c0', '#a87870', 24], 'Marmor beige': ['#e6dcc6', '#9a8a6a', 24], Terrazzo: ['#dad6cc', '#6a6560', 23], Schotter: ['#8a8680', '#4e4b46', 22] };
+  for (const [n, [a, b, p]] of Object.entries(STONE)) add('st_' + slug(n), n, 'Stein & Boden', { pat: p, colA: a, colB: b, roughA: p === 24 ? 0.15 : 0.8, roughB: p === 24 ? 0.2 : 0.9, hAmt: p === 24 ? 0 : 0.35, scale: 2, vari: 0.6 });
+  [['rot', '#9e4b33'], ['gelb', '#c9a466'], ['weiß', '#d9d4c8'], ['braun', '#6e4632'], ['grau', '#7a7672']].forEach(([n, c]) => add('ziegel_' + slug(n), `Ziegel ${n}`, 'Stein & Boden', { pat: 7, colA: c, colB: '#cdc4b4', roughA: 0.82, roughB: 0.95, hAmt: 0.5, scale: 2, vari: 0.6 }));
+  [['grau', '#8a8682'], ['beige', '#b5a284'], ['dunkel', '#4e4b47']].forEach(([n, c]) => add('mauer_' + n, `Natursteinmauer ${n}`, 'Stein & Boden', { pat: 37, colA: c, colB: '#3a3835', roughA: 0.85, roughB: 0.95, hAmt: 0.7, scale: 1.5, vari: 0.7 }));
+  [['Weiß', '#eeeeec'], ['Schwarz', '#1d1d1f'], ['Grau', '#8c8e91'], ['Blau', '#2f6f9e'], ['Grün', '#3f7a5a'], ['Beige', '#d8c9a8'], ['Terrakotta', '#b0583a'], ['Rosa', '#e6a8b4']].forEach(([n, c]) => { add('fl_' + slug(n), `Fliesen ${n}`, 'Stein & Boden', { pat: 20, colA: c, colB: '#9a9a96', roughA: 0.15, roughB: 0.85, hAmt: 0.4, scale: 2, vari: 0.3 }); add('hex_' + slug(n), `Sechseck-Fliesen ${n}`, 'Stein & Boden', { pat: 25, colA: '#a09e98', colB: c, roughA: 0.85, roughB: 0.2, hAmt: 0.4, scale: 1.5, vari: 0.3 }); });
+  add('schach', 'Schachbrett-Fliesen', 'Stein & Boden', { pat: 40, colA: '#eeeeec', colB: '#1d1d1f', roughA: 0.15, roughB: 0.15, hAmt: 0, scale: 2, vari: 0 });
+  [['hell', '#b3b0aa'], ['dunkel', '#5f5d5a'], ['rau', '#8e8b85']].forEach(([n, c]) => add('beton_' + n, `Beton ${n}`, 'Stein & Boden', { pat: 9, colA: c, colB: sh(c, 0.8), roughA: 0.85, roughB: 0.95, hAmt: n === 'rau' ? 0.45 : 0.2, scale: 3, vari: 0.5 }));
+  add('asphalt_nass', 'Asphalt nass', 'Stein & Boden', { pat: 23, colA: '#1f1f21', colB: '#5a5a5c', roughA: 0.15, roughB: 0.4, hAmt: 0.3, scale: 2, vari: 0.4 });
+  add('pflaster_rot', 'Pflaster rot', 'Stein & Boden', { pat: 22, colA: '#8a4a3a', colB: '#2d2420', roughA: 0.8, roughB: 0.95, hAmt: 0.7, scale: 2, vari: 0.6 });
+  // Natur
+  [['Erde dunkel', '#2e2218', '#4c3828', 27], ['Lehm', '#8a5e3a', '#6a4426', 1], ['Schlamm', '#3b3020', '#2a2216', 27], ['Sand hell', '#e6d3a6', '#c2a878', 23], ['Wüstensand', '#d8a868', '#b07c40', 23], ['Kies', '#9a948a', '#5a564f', 22], ['Waldboden', '#3d3020', '#55471f', 27], ['Rasen', '#3f7a2a', '#69a83e', 27], ['Trockenes Gras', '#a89a52', '#7a6a32', 27], ['Schnee', '#f2f5f8', '#c8d2dc', 23], ['Laub', '#a4562a', '#6b3a1a', 16], ['Fels', '#6e6a64', '#3e3b37', 28]].forEach(([n, a, b, p]) => add('n_' + slug(n), n, 'Natur', { pat: p, colA: a, colB: b, roughA: n === 'Schnee' ? 0.6 : 0.92, roughB: 0.95, hAmt: 0.35, scale: 3, vari: 0.6 }));
+  [['grün', '#5b6b2f', '#20250f'], ['braun', '#7a5a34', '#3a2814'], ['rot', '#8a2a1a', '#3a0f08'], ['blau', '#2a4a7a', '#0f1a30']].forEach(([n, a, b]) => add('schupp_' + n, `Schuppen ${n}`, 'Natur', { pat: 26, colA: a, colB: b, roughA: 0.35, roughB: 0.55, hAmt: 0.4, scale: 2, vari: 0.5 }));
+  // Pixel & Muster (gut für Roblox)
+  [['Gras', '#5aa83a', '#3c7a26'], ['Erde', '#8a5a34', '#5e3c20'], ['Stein', '#8a8a8a', '#5a5a5a'], ['Holz', '#b0844e', '#7a5530'], ['Sand', '#e0cc8e', '#c4ac6a'], ['Wasser', '#2f6fd6', '#2459b0'], ['Lava', '#ff6a14', '#c4300a'], ['Schnee', '#f4f6f8', '#d8e0e8']].forEach(([n, a, b]) => add('px_' + slug(n), `Pixel ${n}`, 'Pixel & Muster', { pat: 34, colA: a, colB: b, roughA: 0.8, roughB: 0.85, hAmt: 0.05, scale: 1.5, vari: 0.6 }));
+  [['Rot-Weiß', '#c4202b', '#f2f2f2'], ['Schwarz-Weiß', '#151515', '#f2f2f2'], ['Blau-Gelb', '#2456c4', '#f2c418']].forEach(([n, a, b]) => { add('dots_' + slug(n), `Punkte ${n}`, 'Pixel & Muster', { pat: 38, colA: b, colB: a, roughA: 0.5, roughB: 0.5, hAmt: 0, scale: 2, vari: 0 }); add('check_' + slug(n), `Karomuster ${n}`, 'Pixel & Muster', { pat: 40, colA: a, colB: b, roughA: 0.5, roughB: 0.5, hAmt: 0, scale: 2, vari: 0 }); });
+  // Effekte
+  add('blut', 'Blut', 'Schmutz & Effekte', { pat: 1, colA: '#5a0a0a', colB: '#8a1010', roughA: 0.2, roughB: 0.35, hAmt: 0.02, scale: 4, vari: 0.5 });
+  add('oel', 'Öl', 'Schmutz & Effekte', { pat: 1, colA: '#0d0b08', colB: '#1f1a12', roughA: 0.08, roughB: 0.15, hAmt: 0, scale: 4, vari: 0.3 });
+  add('farbe_spritzer', 'Farbe getrocknet', 'Schmutz & Effekte', { pat: 1, colA: '#e8e6e0', colB: '#cfccc4', roughA: 0.6, roughB: 0.7, hAmt: 0.05, scale: 8, vari: 0.3 });
+  add('schlamm_nass', 'Schlamm nass', 'Schmutz & Effekte', { pat: 27, colA: '#3b2e1e', colB: '#2a2014', roughA: 0.25, roughB: 0.4, hAmt: 0.3, scale: 3, vari: 0.6 });
+  add('salz', 'Salzkruste', 'Schmutz & Effekte', { pat: 23, colA: '#e4e0d4', colB: '#bab4a4', roughA: 0.95, roughB: 0.9, hAmt: 0.2, scale: 4, vari: 0.5 });
+
+  // ---------- Fertige Looks automatisch kombinieren ----------
+  const L = (id, ex = {}) => ({ name: MATERIALS[id].name, ...ex, fill: { ...MATERIALS[id].fill, ...(ex.fill || {}) } });
+  const addLook = (key, name, layers) => { if (!SMART[key]) SMART[key] = { name, layers }; };
+  const edgeWear = (metal) => ({ ...L(metal), name: 'Abgeplatzt (Metall)', mask: { gen: 1, level: 0.42, width: 0.05, rough: 0.75, soft: 0.03, scale: 3 } });
+  const dirt = (o = 0.75) => ({ ...L('schmutz'), name: 'Dreck in Ecken', opacity: o, mask: { gen: 2, level: 0.5, width: 0.05, rough: 0.6, soft: 0.12, scale: 3 } });
+  const dust = (o = 0.6) => ({ ...L('staub'), name: 'Staub', opacity: o, mask: { gen: 5, level: 0.4, rough: 0.6, soft: 0.12, scale: 2 } });
+  for (const n of ['Rot', 'Blau', 'Grün', 'Gelb', 'Orange', 'Weiß', 'Schwarz', 'Olive', 'Türkis', 'Grau']) {
+    const k = slug(n);
+    addLook('abgLack_' + k, `Abgeplatzter Lack ${n}`, [L('m_eisen'), { ...L('lackm_' + k), name: 'Lack', mask: { gen: 1, inv: true, level: 0.42, width: 0.05, rough: 0.75, soft: 0.03, scale: 3 } }, dirt()]);
+    addLook('rostLack_' + k, `Rostiger Lack ${n}`, [L('rost'), { ...L('lackm_' + k), name: 'Lack', mask: { gen: 11, inv: true, level: 0.35, rough: 0.6, soft: 0.05, scale: 2 } }, { ...L('rost'), name: 'Rost-Laufspuren', ch: { h: false }, opacity: 0.8, mask: { gen: 10, level: 0.3, soft: 0.08, scale: 2 } }]);
+    addLook('dreckStoff_' + k, `Dreckiger Stoff ${n}`, [L('stoff_' + k), dirt(0.9), dust(0.5)]);
+  }
+  for (const n of ['Eiche', 'Kiefer', 'Walnuss', 'Mahagoni', 'Birke', 'Teak', 'Treibholz']) {
+    const k = slug(n);
+    const HN = { Eiche: 'Eichenholz', Kiefer: 'Kiefernholz', Walnuss: 'Walnussholz', Mahagoni: 'Mahagoniholz', Birke: 'Birkenholz', Teak: 'Teakholz', Treibholz: 'Treibholz' };
+    addLook('altHolz_' + k, `Altes ${HN[n]}`, [L('wood_' + k), dirt(0.8), { name: 'Helle Kanten', fill: { pat: 1, colA: sh(MATERIALS['wood_' + k].fill.colA, 1.3), colB: sh(MATERIALS['wood_' + k].fill.colA, 1.15), roughA: 0.75, roughB: 0.8, hAmt: 0, scale: 4, vari: 0.3 }, ch: { h: false }, opacity: 0.7, mask: { gen: 1, level: 0.5, width: 0.03, rough: 0.5, soft: 0.05, scale: 4 } }]);
+    addLook('boden_' + k, `Abgenutzter Boden ${n}`, [L('dielen_' + k), dirt(0.7), { ...L('m_aluminium'), name: 'Kratzer', opacity: 0.25, ch: { h: false, m: false }, mask: { gen: 7, level: 0.5, soft: 0.1, scale: 2 } }]);
+  }
+  for (const m of ['eisen', 'stahl', 'gusseisen', 'zink']) addLook('verrostet_' + m, `Verrostetes ${MATERIALS['m_' + m].name}`, [L('m_' + m), { ...L('rost'), name: 'Rost', mask: { gen: 11, level: 0.45, soft: 0.06, scale: 2 } }, { ...L('rost'), name: 'Rost in Ecken', mask: { gen: 2, level: 0.55, width: 0.07, rough: 0.8, soft: 0.1, scale: 3 } }]);
+  for (const m of ['kupfer', 'bronze', 'messing']) addLook('patina_' + m, `${MATERIALS['m_' + m].name} mit Patina`, [L('m_' + m), { ...L('patina'), name: 'Patina', mask: { gen: 2, level: 0.55, width: 0.08, rough: 0.8, soft: 0.1, scale: 3 } }, { ...L('patina'), name: 'Patina-Flecken', opacity: 0.8, mask: { gen: 11, level: 0.3, soft: 0.06, scale: 2 } }]);
+  for (const n of ['Braun', 'Schwarz', 'Cognac', 'Rot']) addLook('altLeder_' + slug(n), `Altes Leder ${n}`, [L('leder_' + slug(n)), { name: 'Helle Kanten', fill: { pat: 1, colA: sh(LEDER[n], 1.6), colB: sh(LEDER[n], 1.35), roughA: 0.7, roughB: 0.8, hAmt: 0, scale: 4, vari: 0.3 }, ch: { h: false }, mask: { gen: 1, level: 0.5, width: 0.04, rough: 0.7, soft: 0.08, scale: 4 } }, dust(0.4)]);
+  for (const s2 of ['st_granit_grau', 'st_sandstein', 'mauer_grau', 'ziegel_rot']) addLook('moos_' + s2, `${MATERIALS[s2].name} mit Moos`, [L(s2), dirt(0.7), { ...L('moos'), name: 'Moos', mask: { gen: 5, level: 0.42, rough: 0.8, soft: 0.06, scale: 2.5 } }]);
+  for (const s2 of ['wood_kiefer', 'st_granit_grau', 'm_stahl', 'ziegel_rot']) addLook('schnee_' + s2, `${MATERIALS[s2].name} verschneit`, [L(s2), { ...L('n_schnee'), name: 'Schnee', mask: { gen: 5, level: 0.5, rough: 0.5, soft: 0.04, scale: 2 } }]);
+  [['Polizei', 'polizei', 'lack_weiss'], ['Feuerwehr', 'lackg_rot', 'm_chrom'], ['Rettungsdienst', 'lackg_weiss', 'lackg_rot'], ['Militär Sand', 'lackm_sand', 'm_eisen'], ['Militär Oliv', 'lackm_olive', 'm_eisen']].forEach(([n, a, b]) => addLook('fz_' + slug(n), `Fahrzeug ${n}`, [L(b), { ...L(a), name: 'Lack', mask: { gen: 1, inv: true, level: 0.25, width: 0.03, rough: 0.8, soft: 0.04, scale: 4 } }, dust(0.35), { ...L('schlamm_nass'), name: 'Dreck unten', opacity: 0.7, mask: { gen: 6, level: 0.3, rough: 0.7, soft: 0.12, scale: 2 } }]));
+  addLook('blutig', 'Blutverschmiert', [L('m_stahl'), { ...L('blut'), name: 'Blut', mask: { gen: 11, level: 0.35, soft: 0.05, scale: 2 } }, { ...L('blut'), name: 'Blut-Laufspuren', ch: { h: false }, mask: { gen: 10, level: 0.3, soft: 0.08, scale: 2 } }]);
+  addLook('oelig', 'Öliges Metall', [L('m_stahl'), { ...L('oel'), name: 'Öl', mask: { gen: 2, level: 0.55, width: 0.06, rough: 0.7, soft: 0.1, scale: 3 } }, { ...L('oel'), name: 'Öl-Laufspuren', ch: { h: false }, opacity: 0.8, mask: { gen: 10, level: 0.3, soft: 0.08, scale: 2 } }]);
+  addLook('nassAsphalt', 'Nasse Straße', [L('asphalt'), { ...L('wasser'), name: 'Pfützen', ch: { c: false, h: false }, mask: { gen: 8, level: 0.4, soft: 0.06, scale: 1.2 } }]);
+  addLook('pixelBlock', 'Pixel-Grasblock', [L('px_erde'), { ...L('px_gras'), name: 'Gras oben', mask: { gen: 5, level: 0.5, rough: 0.1, soft: 0.01, scale: 2 } }]);
+  addLook('kiste', 'Holzkiste', [L('dielen_kiefer'), edgeWear('m_eisen'), dirt(0.8)]);
+  addLook('tresor', 'Tresor', [L('hammer_grau'), { ...L('m_messing'), name: 'Messingkanten', mask: { gen: 1, level: 0.45, width: 0.03, rough: 0.2, soft: 0.03, scale: 3 } }, dirt(0.5)]);
+})();
 
 /* Ebenen aus einer Vorlage bauen */
 function layersFromSpec(spec, forPreview = false) {
@@ -3002,7 +3333,7 @@ async function buildProject() {
     if (l.mask && l.mask.tex) { o.mask.tex = `L${l.id}_mask.bin`; files.push({ name: o.mask.tex, data: texToBytes(l.mask.tex) }); }
     layers.push(o);
   }
-  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
+  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, edited: !!S.mesh.uvEdited, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
   files.unshift({ name: 'projekt.json', data: enc.encode(JSON.stringify(meta)) });
   return makeZip(files);
 }
@@ -3026,8 +3357,9 @@ async function loadProjectBuffer(buf) {
   const f = new Float32Array(mb.buffer.slice(mb.byteOffset, mb.byteOffset + mb.byteLength));
   const pos = f.subarray(0, n * 3), nrm = f.subarray(n * 3, n * 6), uv = f.subarray(n * 6, n * 8);
   const idx = new Uint32Array(n); for (let i = 0; i < n; i++) idx[i] = i;
-  const mesh = finalizeMesh({ pos, nrm, uv, idx }, meta.meshName);
+  const mesh = finalizeMesh({ pos, nrm, uv, idx }, meta.meshName, { raw: !!meta.ctr });
   if (meta.ctr) { mesh.ctr = meta.ctr; mesh.rad = meta.rad; }
+  if (meta.edited) mesh.uvEdited = true;
   await startProject(mesh, meta.res, meta.name, () => {
     S.hdepth = meta.hdepth ?? S.hdepth;
     let maxId = 0;
@@ -3287,6 +3619,7 @@ const UI = {
     $('#btnExport').prepend(ico('down', 15));
     $('#btnExport').onclick = () => this.exportDialog();
     $('#btnAI').onclick = () => toggleAI();
+    document.querySelectorAll('#modeSw button').forEach((b) => (b.onclick = () => setMode(b.dataset.m)));
     $('#btnReport').onclick = () => this.report();
     if (NATIVE && NATIVE.openLauncher) $('#btnLauncher').onclick = () => NATIVE.openLauncher(); else $('#btnLauncher').style.display = 'none';
     $('#layerBtns').append(
@@ -3406,6 +3739,27 @@ const UI = {
   /* ---------- Werkzeuge ---------- */
   renderTools() {
     const t = $('#tools'); t.innerHTML = '';
+    document.body.classList.toggle('model', S.mode === 'model');
+    $('#stHint').textContent = S.mode === 'model' ? 'Linksklick: Teil wählen   ·   G / R / S: bewegen, drehen, skalieren   ·   Rechtsklick: Ansicht drehen   ·   Tab: zurück zum Malen' : 'Linksklick: malen   ·   Rechtsklick: drehen   ·   Mausrad: zoomen   ·   [ und ]: Pinselgröße';
+    document.querySelectorAll('#modeSw button').forEach((b) => b.classList.toggle('on', b.dataset.m === S.mode));
+    if (S.mode === 'model') {
+      const mb = (icon, tip, key, desc, fn) => el('button', { 'data-tip': tip, 'data-key': key, 'data-desc': desc, onclick: fn }, ico(icon, 20));
+      const at = () => { const r = E.regions.find((q) => q.type === '3d'); return r ? [r, r.w / 2, r.h / 2 + 40] : [null]; };
+      const go = (m) => () => { const [r, x, y] = at(); if (r && modBegin(m, r, x, y)) MOD.dragKey = true; };
+      t.append(
+        mb('select', 'Alles auswählen', 'A', 'Wählt das ganze Modell aus – oder hebt die Auswahl auf.', () => modSelectAll()),
+        mb('move', 'Bewegen', 'G', 'Ausgewähltes mit der Maus verschieben. Klick = fertig.', go('g')),
+        mb('recolor', 'Drehen', 'R', 'Ausgewähltes drehen. X, Y oder Z drücken für eine feste Achse.', go('r')),
+        mb('frame', 'Skalieren', 'S', 'Ausgewähltes größer oder kleiner machen.', go('s')),
+        mb('copy', 'Duplizieren', 'Umschalt+D', 'Macht eine Kopie vom ausgewählten Teil und hängt sie an die Maus.', () => { const [r, x, y] = at(); modDuplicate(r, x, y); }),
+        mb('mirror', 'Spiegeln (links/rechts)', '', 'Spiegelt das ausgewählte Teil.', () => modMirror(0)),
+        mb('trash', 'Löschen', 'X / Entf', 'Löscht das ausgewählte Teil.', () => modDelete()),
+        el('div', { class: 'sep' }), el('div', { class: 'sep' }),
+        mb('undo', 'Rückgängig', 'Strg+Z', '', () => undo()), mb('redo', 'Wiederholen', 'Strg+Y', '', () => redo()),
+        mb('frame', 'Kamera zurücksetzen', 'Pos1', '', () => { frameCamera(); }),
+        mb('brush', 'Zurück zum Malen', 'Tab', 'Wechselt wieder in den Mal-Modus.', () => setMode('paint')));
+      return;
+    }
     for (const tl of TOOLS) {
       if (tl === '-') continue;
       t.append(el('button', { class: S.tool === tl.id ? 'on' : '', 'data-tip': tl.name, 'data-key': tl.key, 'data-desc': tl.desc, onclick: () => setTool(tl.id) }, ico(tl.icon, 20)));
@@ -3418,6 +3772,21 @@ const UI = {
   },
   renderCtx() {
     const c = $('#ctx'); c.innerHTML = ''; const b = S.brush;
+    if (S.mode === 'model') {
+      const chip = (t, fn, tip, on) => el('button', { class: 'chip' + (on ? ' on' : ''), title: tip || '', onclick: fn }, t);
+      const modes = [['part', 'Ganzes Teil', '1'], ['planar', 'Fläche', '2'], ['island', 'UV-Insel', '3'], ['tri', 'Dreieck', '4']];
+      const n = modCount();
+      c.append(el('b', { class: 'tname' }, 'Modell bearbeiten'), el('span', { class: 'sep' }), el('label', { class: 'hint' }, 'Klick wählt:'),
+        ...modes.map(([m, t, k]) => chip(t, () => { MOD.selMode = m; this.renderCtx(); }, `Taste ${k}`, MOD.selMode === m)),
+        el('span', { class: 'sep' }),
+        el('span', { class: 'hint' }, n ? `${n} von ${S.mesh.nT} Dreiecken ausgewählt` : 'Nichts ausgewählt – auf ein Teil klicken'),
+        el('span', { class: 'sep' }),
+        chip('Umkehren', () => modInvert(), 'Auswahl umkehren (Strg+I)'),
+        chip('Glatt', () => modShade(true), 'Weiche Schattierung für die Auswahl (oder alles)'),
+        chip('Kantig', () => modShade(false), 'Harte Kanten für die Auswahl (oder alles)'),
+        el('span', { class: 'hint' }, 'Umschalt+Klick = dazu · Strg+Klick = weg · G/R/S wie in Blender'));
+      return;
+    }
     const sep = () => el('span', { class: 'sep' });
     const hint = (t) => el('span', { class: 'hint' }, t);
     const btn = (t, fn, tip, on) => el('button', { class: 'chip' + (on ? ' on' : ''), title: tip || '', onclick: fn }, t);
@@ -3746,9 +4115,12 @@ const UI = {
     tabs.append(el('span', { class: 'hint' }, hints[this.shelfTab]));
     const it = $('#shelf .items'); it.innerHTML = '';
     const match = (name) => !this.q || name.toLowerCase().includes(this.q.toLowerCase());
+    if (!this._io) this._io = new IntersectionObserver((ents) => { for (const e of ents) if (e.isIntersecting) { this._io.unobserve(e.target); this.queuePreview(e.target.dataset.key); } }, { root: $('#shelf .items'), rootMargin: '200px' });
+    this._io.disconnect();
     const tile = (key, name, onclick, oncontext, on) => {
       const img = this.previews.get(key);
-      const t = el('button', { class: 'tile' + (on ? ' on' : ''), title: name, onclick }, img ? el('img', { src: img, alt: '' }) : el('div', { class: 'ph' }), el('span', {}, name));
+      const t = el('button', { class: 'tile' + (on ? ' on' : ''), title: name, onclick, 'data-key': key }, img ? el('img', { src: img, alt: '' }) : el('div', { class: 'ph' }), el('span', {}, name));
+      if (!img) this._io.observe(t);
       if (oncontext) t.addEventListener('contextmenu', (e) => { e.preventDefault(); oncontext(); });
       return t;
     };
@@ -3757,20 +4129,31 @@ const UI = {
     if (this.shelfTab === 'mask') GENS.forEach((g, i) => { if (i) it.append(tile('g:' + i, g, () => this.addMask(1, i))); });
     if (this.shelfTab === 'shape') SHAPES.forEach((s, i) => { if (!this.previews.has('b:' + i)) this.previews.set('b:' + i, shapeIcon(i)); it.append(tile('b:' + i, s, () => { S.brush.shape = i; this.renderCtx(); this.renderShelf(); if (S.tool !== 'paint' && S.tool !== 'erase') setTool('paint'); }, null, S.brush.shape === i)); });
   },
-  async buildPreviews() {
-    const jobs = [];
-    for (const [k, s] of Object.entries(SMART)) jobs.push(['s:' + k, () => layersFromSpec(s.layers, true)]);
-    for (const [k, m] of Object.entries(MATERIALS)) jobs.push(['m:' + k, () => layersFromSpec([m], true)]);
-    GENS.forEach((g, i) => { if (i) jobs.push(['g:' + i, () => layersFromSpec(genPreviewSpec(i), true)]); });
-    let n = 0;
-    for (const [key, mk] of jobs) {
-      if (this.previews.has(key)) continue;
-      try { this.previews.set(key, renderPreview(mk())); } catch (e) { console.error('Vorschau', key, e); }
-      if (++n % 3 === 0) this.renderShelf();
-      await sleep(20);
-    }
-    this.renderShelf();
+  previewJob(key) {
+    const [t, k] = [key[0], key.slice(2)];
+    if (t === 's' && SMART[k]) return () => layersFromSpec(SMART[k].layers, true);
+    if (t === 'm' && MATERIALS[k]) return () => layersFromSpec([MATERIALS[k]], true);
+    if (t === 'g') return () => layersFromSpec(genPreviewSpec(+k), true);
+    return null;
   },
+  queuePreview(key) {
+    if (!key || this.previews.has(key) || !E.P.comp) return;
+    (this._pq = this._pq || []).push(key);
+    if (this._pqRun) return;
+    this._pqRun = true;
+    const step = () => {
+      const key2 = this._pq.shift();
+      if (!key2) { this._pqRun = false; return; }
+      if (!this.previews.has(key2)) {
+        const job = this.previewJob(key2);
+        try { if (job) { this.previews.set(key2, renderPreview(job())); const tl = document.querySelector(`.tile[data-key="${CSS.escape(key2)}"]`); if (tl) { const ph = tl.querySelector('.ph'); if (ph) ph.replaceWith(el('img', { src: this.previews.get(key2), alt: '' })); } } }
+        catch (e) { console.error('Vorschau', key2, e); }
+      }
+      setTimeout(step, 25);
+    };
+    setTimeout(step, 0);
+  },
+  async buildPreviews() { this.renderShelf(); },
   applySmart(k) {
     if (!S.mesh) return;
     pushUndo(); const ls = layersFromSpec(SMART[k].layers);
@@ -3789,6 +4172,7 @@ const UI = {
     this._modalClosable = closable;
   },
   closeModal() { $('#modal').classList.add('hidden'); $('#modal').innerHTML = ''; },
+  modHint(t) { const h = $('#modHint'); if (!h) return; h.textContent = t || ''; h.classList.toggle('on', !!t); },
   busy(msg) { $('#busy').classList.toggle('on', !!msg); $('#busyMsg').textContent = msg || ''; },
   openFile(accept) {
     const f = $('#fileIn'); f.value = ''; f.accept = accept || '.obj,.glb,.gltf,.mtex';
@@ -4446,6 +4830,10 @@ function drawOverlay() {
   g.clearRect(0, 0, ov.width, ov.height);
   if (S.view.layout === 'split' && E.regions[1]) { g.fillStyle = '#2f3138'; g.fillRect(E.regions[1].x - 2, 0, 3, ov.height); }
   if (!mouse || !mouse.inside || mouse.nav) return;
+  if (S.mode === 'model') {
+    if (MOD.op && mouse.r) { const o = MOD.op, r = o.r; g.setLineDash([5 * dpr, 4 * dpr]); g.lineWidth = 1.2 * dpr; g.strokeStyle = 'rgba(255,170,80,.9)'; g.beginPath(); g.moveTo(r.x + o.cs[0], ov.height - r.y - o.cs[1]); g.lineTo(mouse.x * dpr, mouse.y * dpr); g.stroke(); g.setLineDash([]); }
+    return;
+  }
   const T = S.tool;
   if (drag && drag.mode === 'tool') {
     const col = isSelTool(S.tool) ? 'rgba(120,170,255,.25)' : hexA(S.brush.color, 0.45);
@@ -4497,6 +4885,7 @@ function setupInput() {
     const T = S.tool;
     // laufende UV-Transformation (G/R/S) bestätigen oder abbrechen
     if (UVE.op && drag && drag.mode === 'uvkey') { if (e.button === 0) uvConfirm(); else uvCancel(); drag = null; return; }
+    if (MOD.op) { if (e.button === 0) modConfirm(); else modCancel(); MOD.dragKey = false; drawOverlay(); return; }
     c.setPointerCapture(e.pointerId);
     if (T === 'zoom' && (e.button === 0 || e.button === 2)) { zoomAt(h, e.button === 0 ? 1 / 1.4 : 1.4); return; }
     const altTool = isSelTool(T) || ['clone', 'tone'].includes(T);
@@ -4512,6 +4901,7 @@ function setupInput() {
       return;
     }
     if (e.button !== 0) return;
+    if (S.mode === 'model') { modPick(h.r, h.x, h.y, e.shiftKey, e.ctrlKey); return; }
     const selMode = e.shiftKey ? 1 : e.altKey ? 2 : 0;
     if (T === 'pick') {
       const p = pipetteAt(h.r, h.x, h.y);
@@ -4569,6 +4959,7 @@ function setupInput() {
   c.addEventListener('pointermove', (e) => {
     const h = hitRegion(e.offsetX, e.offsetY);
     mouse = { x: e.offsetX, y: e.offsetY, inside: true, nav: !!(drag && !['paint', 'tool', 'uvdrag', 'uvkey', 'mv'].includes(drag.mode)), r: h ? h.r : null, lx: h ? h.x : 0, ly: h ? h.y : 0 };
+    if (MOD.op) { if (h && h.r === MOD.op.r) modUpdate(h.x, h.y, e.ctrlKey); drawOverlay(); return; }
     if (drag && drag.mode === 'uvkey') {
       if (h && h.r.type === '2d') uvUpdate(regionUV(h.r, h.x, h.y), { snap: e.ctrlKey });
       drawOverlay(); return;
@@ -4649,6 +5040,7 @@ function setupInput() {
     const tag = (e.target.tagName || '').toLowerCase();
     if (e.key === 'Escape') {
       if (UVE.op) { uvCancel(); drag = null; return; }
+      if (MOD.op) { modCancel(); drawOverlay(); return; }
       if (!$('#modal').classList.contains('hidden') && UI._modalClosable !== false && S.mesh) UI.closeModal();
       return;
     }
@@ -4656,6 +5048,7 @@ function setupInput() {
     if (!$('#modal').classList.contains('hidden')) return;
     const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
     if (UVE.op && drag && drag.mode === 'uvkey' && e.key === 'Enter') { uvConfirm(); drag = null; return; }
+    if (MOD.op && e.key === 'Enter') { modConfirm(); return; }
     if (ctrl) {
       if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
       else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
@@ -4682,11 +5075,25 @@ function setupInput() {
       else if (e.key === 'Delete' && e.shiftKey) { e.preventDefault(); UI.delLayer(); }
       else if (k === 'd') { e.preventDefault(); selectNone(); }
       else if (k === 'a') { e.preventDefault(); if (S.tool === 'uvmove') uvSelectAll(); else selectNone(); }
-      else if (k === 'i' && !e.shiftKey) { e.preventDefault(); selectInvert(); }
+      else if (k === 'i' && !e.shiftKey) { e.preventDefault(); if (S.mode === 'model') modInvert(); else selectInvert(); }
       return;
     }
     if (!S.mesh) return;
     const b = S.brush;
+    if (e.key === 'Tab') { e.preventDefault(); setMode(S.mode === 'model' ? 'paint' : 'model'); return; }
+    if (S.mode === 'model') {
+      if (MOD.op) { if (['x', 'y', 'z'].includes(k)) modAxis('xyz'.indexOf(k)); else if (['g', 'r', 's'].includes(k) && k !== MOD.op.mode) { const o = MOD.op; modCancel(); modBegin(k, o.r, ...(o.last || o.start)); } return; }
+      const over3d = mouse && mouse.inside && mouse.r && mouse.r.type === '3d';
+      if (['g', 'r', 's'].includes(k) && !e.shiftKey && !e.altKey) { if (over3d) modBegin(k, mouse.r, mouse.lx, mouse.ly); else toast('Maus über das 3D-Fenster halten.'); return; }
+      if (k === 'd' && e.shiftKey) { modDuplicate(over3d ? mouse.r : null, mouse && mouse.lx, mouse && mouse.ly); return; }
+      if (k === 'a') { if (e.altKey) { MOD.sel && MOD.sel.fill(0); modSelChanged(); } else modSelectAll(); return; }
+      if (k === 'x' || e.key === 'Delete') { modDelete(); return; }
+      if (k === 'm') { modMirror(0); return; }
+      const sm = { 1: 'part', 2: 'planar', 3: 'island', 4: 'tri' }[e.key]; if (sm) { MOD.selMode = sm; UI.renderCtx(); return; }
+      if (e.key === 'Home' || k === '0') { frameCamera(); return; }
+      if (k === 'w') { S.view.wire = !S.view.wire; UI.renderVbar(); E.needDraw = true; }
+      return;
+    }
     // Blender-Tasten: Maus über dem 2D-Fenster
     const over2d = mouse && mouse.inside && mouse.r && mouse.r.type === '2d';
     if (over2d && ['g', 'r', 's'].includes(k) && !e.altKey) {
@@ -4762,7 +5169,7 @@ async function startProject(mesh, res, name, setup) {
   uploadMesh(mesh);
   bakeMesh((m) => UI.busy(m));
   warmUp();
-  UVE.sel.clear(); UVE.idx = null; E.cloneSrc = null;
+  UVE.sel.clear(); UVE.idx = null; E.cloneSrc = null; MOD.sel = null; MOD.idx = null; MOD.op = null; S.mode = 'paint';
   if (setup) setup();
   else { const l = newLayer('paint'); S.layers.push(l); S.sel = l.id; }
   if (!setup) frameCamera();
