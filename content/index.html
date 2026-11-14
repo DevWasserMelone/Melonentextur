@@ -185,7 +185,7 @@ details.adv summary:hover{color:var(--tx)}
 #tools .sep{margin:calc(3px*var(--u)) 0}
 
 /* Assistent */
-#ai{position:absolute;right:calc(8px*var(--u));top:calc(52px*var(--u));bottom:calc(8px*var(--u));width:min(calc(360px*var(--u)),46%);background:#1b1c20f2;border:calc(1px*var(--u)) solid var(--line);border-radius:calc(10px*var(--u));display:none;flex-direction:column;z-index:20;box-shadow:0 calc(10px*var(--u)) calc(30px*var(--u)) #0008;backdrop-filter:blur(calc(6px*var(--u)))}
+#ai{position:absolute;right:calc(8px*var(--u));top:calc(52px*var(--u));bottom:calc(48px*var(--u));width:min(calc(330px*var(--u)),36%);background:#1b1c20f2;border:calc(1px*var(--u)) solid var(--line);border-radius:calc(10px*var(--u));display:none;flex-direction:column;z-index:20;box-shadow:0 calc(10px*var(--u)) calc(30px*var(--u)) #0008;backdrop-filter:blur(calc(6px*var(--u)))}
 #ai.open{display:flex}
 .aih{display:flex;align-items:center;gap:calc(6px*var(--u));padding:calc(8px*var(--u)) calc(10px*var(--u));border-bottom:calc(1px*var(--u)) solid var(--line)}
 .aih .aip{color:var(--mu);font-size:calc(11.5px*var(--u));flex:1}
@@ -226,6 +226,9 @@ details.adv summary:hover{color:var(--tx)}
 #vbar{flex-wrap:wrap;max-width:calc(100% - calc(140px*var(--u)));justify-content:flex-end}
 #top{overflow:hidden}
 .tbtn{white-space:nowrap}
+
+#uvHint{position:absolute;bottom:calc(8px*var(--u));right:calc(8px*var(--u));background:#16171bdd;border:calc(1px*var(--u)) solid var(--line);border-radius:calc(7px*var(--u));padding:calc(5px*var(--u)) calc(10px*var(--u));color:#b9bcc5;font-size:calc(11.5px*var(--u));line-height:1.5;pointer-events:none;z-index:5}
+#uvHint b{color:#fff;font-weight:600}
 </style>
 </head>
 <body>
@@ -247,6 +250,7 @@ details.adv summary:hover{color:var(--tx)}
     <canvas id="ov"></canvas>
     <div id="targetBadge"></div>
     <div id="vbar"></div>
+    <div id="uvHint"><b>UV-Karte:</b> Rechte oder mittlere Maus = verschieben · Mausrad = zoomen · <b>A</b> = alles wählen, dann <b>G</b> bewegen · <b>R</b> drehen · <b>S</b> skalieren (wie in Blender) · Klick + Ziehen mit Werkzeug M · Linksklick bestätigt, Esc bricht ab</div>
   </main>
   <section id="shelf"><div class="tabs"></div><div class="items"></div></section>
   <aside id="side">
@@ -263,7 +267,7 @@ details.adv summary:hover{color:var(--tx)}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.4';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -634,6 +638,11 @@ Mat pattern(vec3 p, vec3 n){
   else if(uPat==10){ float ang=atan(p.z,p.x); float wob=fbm(q*vec3(2.0,0.7,2.0),4);
     float s=sin(ang*max(1.0,floor(uScale*6.0+0.5))+wob*2.5);
     float e=0.15+uVar*0.35; t=smoothstep(-e,e,s); t=clamp(t+fbm(q*9.0,3)*0.2,0.0,1.0); h=fbm(q*6.0,3)*0.3; }
+  else if(uPat==12){ if(abs(n.y)>0.75){ float r=length(q.xz)+fbm(q*1.2,3)*0.3; float ring=fract(r*3.0); t=smoothstep(0.1,0.9,ring)*0.6; h=-t*0.4; }
+    else { float N=max(4.0,floor(uScale*7.0+0.5)); float u=(atan(p.z,p.x)/6.2832+0.5)*N; float st=floor(u); float f=fract(u);
+      float groove=1.0-smoothstep(0.0,0.05,min(f,1.0-f)); float rr=rnd1(vec3(st,3.0,uSeed));
+      float grain=n01(vec3(st*7.3+f*2.0,p.y*1.4,uSeed)*vec3(1.0,2.5,1.0)+vec3(0.0,fbm(vec3(f*3.0,p.y*8.0,st),3)*0.3,0.0),4);
+      t=clamp(rr*0.45*(0.4+uVar)+grain*0.45+groove,0.0,1.0); h=-groove+grain*0.25; } }
   else if(uPat==11){ float sp=n01(q*90.0,2); t=smoothstep(0.62-uVar*0.15,0.8,sp)+fbm(q*3.0,3)*0.1; t=clamp(t,0.0,1.0); h=0.0; }
   Mat m; m.col=mix(uColA,uColB,t); m.rough=mix(uRoughA,uRoughB,t); m.metal=mix(uMetalA,uMetalB,t); m.h=h*uHAmt; return m;
 }
@@ -658,7 +667,9 @@ float genMask(vec3 p, vec3 n, vec4 bk){
     float l=max(max(1.0-smoothstep(0.0,0.06,s1),1.0-smoothstep(0.0,0.06,s2)),1.0-smoothstep(0.0,0.06,s3));
     v=l*smoothstep(0.35,0.6,n01(q*0.8,3)); }
   else if(uGen==8){ v=1.0-smoothstep(0.0,0.9,worley(q*2.0).x)+(nz-0.5)*0.4; }
-  if(uGen!=4 && uGen!=7) v += (nz-0.5)*uGRough*1.6;
+  else if(uGen==9){ float N=max(1.0,floor(uGScale+0.5)); float y=(p.y*0.5+0.5)*N; float d=abs(fract(y+0.5)-0.5)*2.0; v=1.0-smoothstep(uGWidth*4.0,uGWidth*4.0+0.03,d); }
+  if(uGen!=4 && uGen!=7 && uGen!=9) v += (nz-0.5)*uGRough*1.6;
+  if(uGen==9) v += (nz-0.5)*uGRough*1.2;
   float t=1.0-uGLevel; float s=max(uGSoft,0.002);
   float m=smoothstep(t-s,t+s,v);
   if(uGInv) m=1.0-m;
@@ -2292,9 +2303,9 @@ function initTooltips() {
 
 'use strict';
 /* ================= Materialien, Smart-Materialien, Masken, Pinsel ================= */
-const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack'];
-const PAT_USES_B = [false, true, true, true, true, true, true, true, true, true, true, true];
-const GENS = ['Aus', 'Kanten', 'Ecken und Ritzen', 'Schattige Stellen', 'Wolkig', 'Von oben', 'Von unten', 'Kratzer', 'Flecken'];
+const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack', 'Holzbretter (Fass)'];
+const PAT_USES_B = [false, true, true, true, true, true, true, true, true, true, true, true, true];
+const GENS = ['Aus', 'Kanten', 'Ecken und Ritzen', 'Schattige Stellen', 'Wolkig', 'Von oben', 'Von unten', 'Kratzer', 'Flecken', 'Ringe (Bänder)'];
 const SHAPES = ['Rund', 'Quadrat', 'Kreide', 'Spritzer', 'Kratzer', 'Ring'];
 const BLEND_NAMES = { normal: 'Normal', multiply: 'Multiplizieren', screen: 'Aufhellen (Screen)', overlay: 'Überlagern', add: 'Addieren', subtract: 'Subtrahieren', darken: 'Abdunkeln', lighten: 'Aufhellen', softlight: 'Weiches Licht' };
 
@@ -2321,6 +2332,8 @@ const MATERIALS = {
   autolack: { name: 'Autolack Metallic', fill: { pat: 11, colA: '#1d4bcc', colB: '#a9c0ff', roughA: 0.24, roughB: 0.12, metalA: 0.55, metalB: 1, hAmt: 0, scale: 6, vari: 0.4 } },
   schale: { name: 'Melonenschale', fill: { pat: 10, colA: '#2b6e2d', colB: '#9ccf63', roughA: 0.38, roughB: 0.48, metalA: 0, metalB: 0, hAmt: 0.05, scale: 1.2, vari: 0.4 } },
   fleisch: { name: 'Melonen-Fruchtfleisch', fill: { pat: 1, colA: '#ff4f64', colB: '#ff8592', roughA: 0.5, roughB: 0.35, metalA: 0, metalB: 0, hAmt: 0.1, scale: 5, vari: 0.4 } },
+  bretter: { name: 'Holzbretter', fill: { pat: 12, colA: '#a8743f', colB: '#5e3a1c', roughA: 0.6, roughB: 0.75, metalA: 0, metalB: 0, hAmt: 0.3, scale: 2.2, vari: 0.6 } },
+  stahl_dunkel: { name: 'Dunkler Stahl', fill: { pat: 1, colA: '#4a4c50', colB: '#2e3033', roughA: 0.45, roughB: 0.65, metalA: 1, metalB: 1, hAmt: 0.05, scale: 4, vari: 0.6 } },
   schmutz: { name: 'Schmutz', fill: { pat: 1, colA: '#3b3026', colB: '#251d16', roughA: 0.92, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.05, scale: 4, vari: 0.5 } },
   staub: { name: 'Staub', fill: { pat: 1, colA: '#bdb5a6', colB: '#a39b8c', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.02, scale: 6, vari: 0.4 } },
   moos: { name: 'Moos', fill: { pat: 1, colA: '#506e22', colB: '#2d4612', roughA: 0.92, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.22, scale: 6, vari: 0.6 } },
@@ -2371,6 +2384,13 @@ const SMART = {
     { name: 'Dunkles Metall', fill: { pat: 1, colA: '#3d3936', colB: '#262422', roughA: 0.55, roughB: 0.75, metalA: 1, metalB: 0.9, hAmt: 0.05, scale: 3, vari: 0.5 } },
     { name: 'Anlauffarben', fill: { pat: 1, colA: '#5b3c7e', colB: '#c47b2d', roughA: 0.32, roughB: 0.4, metalA: 1, metalB: 1, hAmt: 0, scale: 1.5, vari: 0.9 }, ch: { h: false }, mask: { gen: 4, level: 0.45, soft: 0.25, scale: 1.2 } },
     { name: 'Ruß', fill: { pat: 1, colA: '#121110', colB: '#1d1b19', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0, scale: 5, vari: 0.3 }, mask: { gen: 2, level: 0.55, width: 0.07, rough: 0.7, soft: 0.15, scale: 3 } },
+  ] },
+  holzfass: { name: 'Holzfass', layers: [
+    M('bretter'),
+    { ...M('stahl_dunkel'), name: 'Metallringe', fill: { ...MATERIALS.stahl_dunkel.fill, hAmt: 0.4 }, hblend: 'add', mask: { gen: 9, scale: 3, width: 0.06, rough: 0.2, soft: 0.02, level: 0.5 } },
+    { ...M('rost'), name: 'Rost an den Ringen', opacity: 0.7, mask: { gen: 9, scale: 3, width: 0.065, rough: 1, soft: 0.05, level: 0.03 } },
+    { ...M('schmutz'), name: 'Dreck in Ritzen', mask: { gen: 2, level: 0.55, width: 0.05, rough: 0.6, soft: 0.12, scale: 3 } },
+    { ...M('schmutz'), name: 'Dreck unten', opacity: 0.7, mask: { gen: 6, level: 0.35, rough: 0.7, soft: 0.15, scale: 2 } },
   ] },
   melone: { name: 'Melone', layers: [M('schale')] },
 };
@@ -3408,7 +3428,7 @@ const AI_DO = {
     if (num(a.metal, 0, 1) != null) f.metalA = f.metalB = +a.metal;
     if (num(a.scale, 0.2, 12) != null) f.scale = +a.scale;
     if (num(a.height, -1, 1) != null) f.hAmt = +a.height;
-    pushUndo(); insertLayers([newLayer('fill', { name: a.name || (k ? MATERIALS[k].name : 'Füll-Ebene'), fill: f })]); UI.refreshAll();
+    pushUndo(); insertLayers([newLayer('fill', { name: a.name || (k ? MATERIALS[k].name : 'Füll-Ebene'), fill: f, opacity: num(a.opacity, 0, 1) })]); UI.refreshAll();
     return 'Füll-Ebene angelegt';
   },
   paint_layer(a) { UI.addLayer('paint', { name: a.name }); return 'Mal-Ebene angelegt'; },
@@ -3437,7 +3457,7 @@ const AI_DO = {
     if (a.remove) { pushUndo(); l.mask = null; E.needComp = true; UI.refreshAll(); return 'Maske entfernt'; }
     const g = Math.max(0, aiIdx(GENS, a.generator) ?? 0);
     UI.addMask(1, g);
-    if (l.mask) { if (num(a.strength, 0, 1) != null) l.mask.level = +a.strength; if (num(a.width, 0.005, 0.25) != null) l.mask.width = +a.width; if (a.invert != null) l.mask.inv = !!a.invert; }
+    if (l.mask) { if (num(a.scale, 0.2, 12) != null) l.mask.scale = +a.scale; if (num(a.strength, 0, 1) != null) l.mask.level = +a.strength; if (num(a.width, 0.005, 0.25) != null) l.mask.width = +a.width; if (a.invert != null) l.mask.inv = !!a.invert; }
     E.needComp = true; UI.refreshAll(); return 'Maske gesetzt';
   },
   delete(a) { const l = aiFindLayer(a.target); if (!l) throw new Error('Ebene nicht gefunden'); S.sel = l.id; UI.delLayer(); return 'Ebene gelöscht'; },
@@ -3511,7 +3531,7 @@ Mögliche Aktionen (Felder sind optional):
 - {"aktion":"fill","name","color","color2","material","pattern","rough","metal","scale","height"} – neue Füll-Ebene. Farben als #rrggbb. Muster: ${PATTERNS.join(', ')}
 - {"aktion":"paint_layer","name"} – neue leere Mal-Ebene
 - {"aktion":"layer","target":Ebenenname,"rename","opacity"(0-1),"visible","blend","color","color2","material","pattern","rough","metal","scale","height"} – Ebene ändern. Mischmodi: ${BLENDS.join(', ')}
-- {"aktion":"mask","target","generator","strength"(0-1),"width"(0.005-0.25),"invert","remove"} – automatische Maske. Generatoren: ${GENS.slice(1).join(', ')}
+- {"aktion":"mask","target","generator","strength"(0-1),"width"(0.005-0.25),"scale","invert","remove"} – automatische Maske für die Ebene (ohne target: die zuletzt angelegte). Generatoren: ${GENS.slice(1).join(', ')}. Bei „Ringe (Bänder)“ ist scale die Anzahl der Ringe (z. B. 3) und width die Dicke (~0.06).
 - {"aktion":"delete","target"}, {"aktion":"select","target"}, {"aktion":"move_layer","target","dir":"hoch|runter"}
 - {"aktion":"brush","color","size"(1-400),"opacity","hardness","rough","metal","height","material","shape","mirror"} – Pinsel einstellen. Spitzen: ${SHAPES.join(', ')}
 - {"aktion":"tool","tool":ID} – Werkzeug wählen. IDs: ${TOOLS.filter((t) => t !== '-').map((t) => `${t.id} (${t.name})`).join(', ')}
@@ -3521,7 +3541,8 @@ Mögliche Aktionen (Felder sind optional):
 - {"aktion":"undo"}, {"aktion":"redo"}, {"aktion":"camera"}
 - {"aktion":"new_model","shape"} – neues Projekt mit Grundkörper: ${list(PRIMS)}
 
-Tipps: Rauheit 0 = glänzend, 1 = matt. Metall 1 = metallisch. Ebenen oben verdecken Ebenen darunter. Masken bestimmen, wo eine Ebene sichtbar ist.
+Tipps: Mehrere Aktionen hintereinander sind erlaubt, z. B. erst fill und direkt danach mask für diese neue Ebene. Für realistische Ergebnisse mehrere Ebenen kombinieren (Grundmaterial, Details mit Masken, Dreck in Ecken, Kanten-Abnutzung). Ein Fass: Look holzfass oder Material bretter + Metallringe mit Maske „Ringe (Bänder)“.
+Rauheit 0 = glänzend, 1 = matt. Metall 1 = metallisch. Ebenen oben verdecken Ebenen darunter. Masken bestimmen, wo eine Ebene sichtbar ist.
 Malen per Hand kannst du nicht – dafür erklärst du kurz, welches Werkzeug man nimmt. Erfinde keine Aktionen.
 
 Aktueller Zustand: ${JSON.stringify(state)}`;
@@ -3578,24 +3599,52 @@ async function aiAsk(text, useHist = false) {
 }
 
 /* ---------- Einfache Befehle ohne KI ---------- */
+const AI_WORDS = [
+  [/bier ?fass|holz ?fass|wein ?fass|fass/, () => ({ aktion: 'look', id: 'holzfass' }), 'Holzfass mit Metallringen'],
+  [/rost/, () => ({ aktion: 'look', id: 'rostEisen' })],
+  [/abgeplatzt|lack ab/, () => ({ aktion: 'look', id: 'lackAb' })],
+  [/militär|militaer|armee|army/, () => ({ aktion: 'look', id: 'militaer' })],
+  [/altes holz|alt.*holz|holz.*alt/, () => ({ aktion: 'look', id: 'altHolz' })],
+  [/gold/, () => ({ aktion: 'look', id: 'goldDreck' })],
+  [/moos|stein/, () => ({ aktion: 'look', id: 'moosStein' })],
+  [/auto|lack|polizei|sportwagen/, () => ({ aktion: 'look', id: 'kratzLack' })],
+  [/verbrannt|feuer|ruß|russ/, () => ({ aktion: 'look', id: 'verbrannt' })],
+  [/melone/, () => ({ aktion: 'look', id: 'melone' })],
+];
+const AI_EXTRA = [
+  [/(metall|eisen|stahl).{0,25}(ring|band|bänder|reif|teile? drum|streifen)|(ring|band|bänder|reif).{0,25}(metall|eisen|stahl)/, () => [{ aktion: 'fill', name: 'Metallringe', material: 'stahl_dunkel', height: 0.4 }, { aktion: 'mask', generator: 'Ringe (Bänder)', width: 0.06, scale: 3 }], 'Metallringe'],
+  [/realistisch|echt|dreckig|benutzt|gebraucht|alt aussehen/, () => [{ aktion: 'fill', name: 'Dreck in Ecken', material: 'schmutz' }, { aktion: 'mask', generator: 'Ecken und Ritzen', strength: 0.55, width: 0.05 },
+    { aktion: 'fill', name: 'Staub', material: 'staub', opacity: 0.6 }, { aktion: 'mask', generator: 'Von oben', strength: 0.35 }], 'Dreck und Staub für mehr Realismus'],
+  [/abgenutzt|kanten.*(hell|abgenutzt|kaputt)|abgewetzt/, () => [{ aktion: 'mask', generator: 'Kanten', invert: true, strength: 0.4 }], 'abgenutzte Kanten'],
+  [/kratzer/, () => [{ aktion: 'fill', name: 'Kratzer', material: 'alu' }, { aktion: 'mask', generator: 'Kratzer', strength: 0.5 }], 'Kratzer'],
+];
 function aiOffline(t) {
-  const s = t.toLowerCase().replace(/["„“'][^"„“']*["„“']/g, ' '); const acts = [];
-  const color = Object.keys(COLOR_WORDS).sort((a, b) => b.length - a.length).find((w) => new RegExp('\\b' + w).test(s));
-  const look = Object.entries(SMART).find(([, v]) => s.includes(v.name.toLowerCase()) || v.name.toLowerCase().split(' ').some((w) => w.length > 4 && s.includes(w.slice(0, -1))));
-  const mat = Object.entries(MATERIALS).find(([, v]) => v.name.toLowerCase().split(' ').some((w) => w.length > 3 && s.includes(w.toLowerCase())));
-  if (/rückgängig|zurück/.test(s)) acts.push({ aktion: 'undo' });
-  else if (/export/.test(s)) acts.push({ aktion: 'export', preset: /roblox/.test(s) ? 'roblox' : /fivem|gta/.test(s) ? 'fivem' : /unity/.test(s) ? 'unity' : /unreal/.test(s) ? 'unreal' : 'blender' });
-  else if (/rost/.test(s)) acts.push({ aktion: 'look', id: 'rostEisen' });
-  else if (/abgenutzt|kanten|abgeplatzt|alt\b/.test(s) && curLayer()) acts.push({ aktion: 'mask', generator: 'Kanten', invert: true });
-  else if (/pinsel/.test(s) && /größer|groesser/.test(s)) acts.push({ aktion: 'brush', size: Math.min(400, S.brush.size * 1.6) });
-  else if (/pinsel/.test(s) && /kleiner/.test(s)) acts.push({ aktion: 'brush', size: Math.max(1, S.brush.size / 1.6) });
-  else if (look && /look|mach|mache|sieht/.test(s)) acts.push({ aktion: 'look', id: look[0] });
-  else if (/schreib|text/.test(s)) { const m = /["„“']([^"„“']+)["„“']/.exec(t); acts.push({ aktion: 'text', text: m ? m[1] : 'Text', color }); }
-  else if (/alles|komplett|ganz|färb|farbe/.test(s) && color) acts.push({ aktion: 'fill', name: 'Farbe ' + color, color: COLOR_WORDS[color], rough: /glänz|glanz/.test(s) ? 0.2 : /matt/.test(s) ? 0.8 : 0.5, metal: /metall/.test(s) ? 1 : 0 });
-  else if (mat) acts.push({ aktion: 'material', id: mat[0] });
-  else if (color) acts.push({ aktion: 'brush', color: COLOR_WORDS[color] });
-  if (!acts.length) return { antwort: 'Das verstehe ich ohne KI leider nicht. Probier z. B. „mach alles rot“, „rostig machen“, „Pinsel größer“, „schreib \'Melone\'“ oder „export für Roblox“. Für richtige Gespräche trag oben beim Zahnrad einen kostenlosen Schlüssel ein.', aktionen: [] };
-  return { antwort: 'Mach ich!', aktionen: acts };
+  const raw = t.toLowerCase();
+  const s = raw.replace(/["„“'][^"„“']*["„“']/g, ' ');
+  const acts = []; const said = [];
+  if (/^(hi|hallo|hey|moin|servus)\b/.test(s)) return { antwort: 'Hey! Sag mir einfach, wie dein Modell aussehen soll, z. B. „Holzfass mit Metallringen“, „mach alles rot“ oder „rostig und dreckig“.', aktionen: [] };
+  if (/rückgängig|zurück/.test(s)) return { antwort: 'Mach ich rückgängig.', aktionen: [{ aktion: 'undo' }] };
+  if (/export/.test(s)) return { antwort: 'Ich öffne den Export.', aktionen: [{ aktion: 'export', preset: /roblox/.test(s) ? 'roblox' : /fivem|gta/.test(s) ? 'fivem' : /unity/.test(s) ? 'unity' : /unreal/.test(s) ? 'unreal' : 'blender' }] };
+  if (/pinsel/.test(s) && /größer|groesser|dicker/.test(s)) return { antwort: 'Pinsel ist größer.', aktionen: [{ aktion: 'brush', size: Math.min(400, S.brush.size * 1.6) }] };
+  if (/pinsel/.test(s) && /kleiner|dünner/.test(s)) return { antwort: 'Pinsel ist kleiner.', aktionen: [{ aktion: 'brush', size: Math.max(1, S.brush.size / 1.6) }] };
+  if (/wie|was|warum|hilfe|erklär/.test(s) && /\?|wie |erklär|hilfe/.test(s)) {
+    if (/uv/.test(s)) return { antwort: 'UV-Teile verschiebst du im 2D-Fenster rechts: Taste M (UV verschieben), Teil anklicken und ziehen. Oder Maus über das 2D-Fenster, A für alles und dann G (bewegen), R (drehen) oder S (skalieren) – wie in Blender. Ansicht verschieben: mittlere oder rechte Maustaste, zoomen: Mausrad.', aktionen: [] };
+    if (/export|roblox|fivem/.test(s)) return { antwort: 'Oben rechts auf „Exportieren“, Vorlage wählen (z. B. Roblox), fertig. Du bekommst eine ZIP mit allen Texturen.', aktionen: [] };
+    if (/mask/.test(s)) return { antwort: 'Eine Maske legt fest, wo eine Ebene sichtbar ist. Rechts bei „Maske“ auf „Maske hinzufügen“, dann mit Weiß (zeigen) oder Schwarz (verstecken) malen – oder bei „Automatisch“ z. B. „Kanten“ wählen.', aktionen: [] };
+    return { antwort: 'Kurz gesagt: Links sind die Werkzeuge (Maus kurz drüberhalten zeigt, was sie machen), rechts die Ebenen. Unten fertige Looks und Materialien – einfach anklicken. Für ausführliche Antworten richte beim Zahnrad die kostenlose Google-KI ein.', aktionen: [] };
+  }
+  for (const [re, fn, label] of AI_WORDS) if (re.test(s)) { acts.push(fn()); said.push(label || 'den Look'); break; }
+  if (!acts.length) {
+    const mat = Object.entries(MATERIALS).find(([, v]) => v.name.toLowerCase().split(/\s+/).some((w) => w.length > 3 && s.includes(w)));
+    const color = Object.keys(COLOR_WORDS).sort((a, b) => b.length - a.length).find((w) => new RegExp('(^|[^a-zäöüß])' + w).test(s));
+    if (/schreib|text/.test(s)) { const m = /["„“']([^"„“']+)["„“']/.exec(t); acts.push({ aktion: 'text', text: m ? m[1] : 'Text', color }); said.push('den Text'); }
+    else if (color && /alles|komplett|ganz|färb|farbe|mach|anmal/.test(s)) { acts.push({ aktion: 'fill', name: 'Farbe ' + color, color: COLOR_WORDS[color], rough: /glänz|glanz/.test(s) ? 0.18 : /matt/.test(s) ? 0.85 : 0.5, metal: /metall/.test(s) ? 1 : 0 }); said.push('die Farbe ' + color); }
+    else if (mat) { acts.push({ aktion: 'material', id: mat[0] }); said.push(mat[1].name); }
+    else if (color) { acts.push({ aktion: 'brush', color: COLOR_WORDS[color] }); said.push('Pinselfarbe ' + color); }
+  }
+  for (const [re, fn, label] of AI_EXTRA) if (re.test(s) && !(label === 'Metallringe' && acts.some((a) => a.id === 'holzfass'))) { acts.push(...fn()); said.push(label); }
+  if (!acts.length) return { antwort: 'Das verstehe ich ohne KI noch nicht. Probier z. B. „Holzfass mit Metallringen“, „mach alles dunkelblau und glänzend“, „rostig und dreckig“ oder „schreib \'Melone\'“.\n\nFür echte Gespräche: Zahnrad oben → Google Gemini → kostenlosen Schlüssel eintragen (dauert 2 Minuten).', aktionen: [] };
+  return { antwort: 'Mach ich: ' + said.join(' + ') + '.', aktionen: acts };
 }
 
 /* ---------- Chatfenster ---------- */
@@ -3671,7 +3720,8 @@ let dpr = window.devicePixelRatio || 1;
 /* Oberfläche passend zur Fenstergröße skalieren */
 const UISCALE = { v: +(localStorage.getItem('mt_ui') || 0) };
 function applyUIScale() {
-  const auto = clamp(Math.min(innerWidth / 1500, innerHeight / 860), 0.78, 1.8);
+  const f = Math.min(innerWidth / 1920, innerHeight / 1080);
+  const auto = clamp(1 + (f - 1) * 0.4, 0.82, 1.2);
   const u = UISCALE.v || auto;
   document.documentElement.style.setProperty('--u', u.toFixed(3));
   document.documentElement.classList.toggle('narrow', innerWidth / u < 1180);
@@ -3688,6 +3738,8 @@ function resize() {
   else E.regions = [{ type: L, x: 0, y: 0, w: W, h: H }];
   E.gbDirty = true; E.needDraw = true;
   drawOverlay();
+  const r2 = E.regions.find((x) => x.type === '2d'); const hint = $('#uvHint');
+  if (hint) { hint.style.display = r2 ? '' : 'none'; if (r2) { hint.style.left = (r2.x / dpr + 10) + 'px'; } }
 }
 /* Maus (CSS-Pixel) -> Region + lokale Gerätepixel (Ursprung unten links) */
 function hitRegion(cx, cy) {
@@ -3961,12 +4013,19 @@ function setupInput() {
     }
     if (!S.mesh) return;
     const b = S.brush;
-    // Blender-Tasten im UV-Werkzeug
-    if (S.tool === 'move' && ['g', 'r', 's'].includes(k) && UVE.sel.size && mouse && mouse.r && mouse.r.type === '2d') {
+    // Blender-Tasten: Maus über dem 2D-Fenster
+    const over2d = mouse && mouse.inside && mouse.r && mouse.r.type === '2d';
+    if (over2d && ['g', 'r', 's'].includes(k) && !e.altKey) {
+      if (S.tool !== 'move') setTool('move');
+      if (!UVE.sel.size) uvSelectAll();
       if (uvBegin(k, regionUV(mouse.r, mouse.lx, mouse.ly))) drag = { mode: 'uvkey', r: mouse.r };
       return;
     }
-    if (S.tool === 'move' && k === 'a') { uvSelectAll(); return; }
+    if ((over2d || S.tool === 'move') && k === 'a' && !e.altKey) {
+      if (S.tool !== 'move') setTool('move');
+      if (UVE.sel.size && UVE.sel.size === islandTris().size) { UVE.sel.clear(); uvSelChanged(); } else uvSelectAll();
+      return;
+    }
     const tool = TOOLS.find((t) => t !== '-' && t.key.toLowerCase() === k);
     if (tool && !e.altKey) { setTool(tool.id); return; }
     switch (e.key) {
