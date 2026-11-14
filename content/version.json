@@ -1,5 +1,5 @@
 {
-  "version": "1.0.7",
-  "notes": "🍉 Melonentextur 1.0.7\n\n✨ Neu\n• Menüs wie in Paint.NET: Bild, Ebenen, Anpassungen, Effekte\n• Kopieren, Ausschneiden, Einfügen, Ebenen zusammenführen, spiegeln, drehen\n• Effekte: Weichzeichnen, Schärfen, Verpixeln, Relief, Kanten finden, Tontrennung\n\n🛠 Verbessert\n• Assistent versteht Wünsche besser und macht nichts mehr doppelt\n• Knopf zum Einrichten der kostenlosen KI direkt im Chat\n\n🐞 Behoben\n• Menüs oben ließen sich nicht öffnen",
+  "version": "1.0.8",
+  "notes": "🍉 Melonentextur 1.0.8\n\n✨ Neu\n• 42 neue Materialien: Jeans, Strick, Karo, Tarnmuster, Riffelblech, Wellblech, Fliesen, Pflaster, Marmor, Asphalt, Gras, Erde, Eis, Lava und viele mehr\n• 8 neue fertige Looks: Alte Jeans, Uniform, Rostiges Wellblech, Industrieboden, Alter Pflasterweg, Abgenutztes Leder, Edler Marmor, Verbranntes Auto\n• Neue automatische Masken: Laufspuren, Grunge, Lichtseite\n\n🛠 Verbessert\n• Materialien mit Kategorien und Suchfeld",
   "date": "2026-11-14"
 }
