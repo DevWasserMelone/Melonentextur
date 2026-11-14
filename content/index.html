@@ -287,7 +287,7 @@ details.adv summary:hover{color:var(--tx)}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -738,7 +738,7 @@ float genMask(vec3 p, vec3 n, vec4 bk){
   else if(uGen==12){ v=clamp(dot(n,normalize(vec3(0.5,0.8,0.4)))*0.5+0.5,0.0,1.0); }
   else if(uGen==9){ float N=max(1.0,floor(uGScale+0.5)); float y=(p.y*0.5+0.5)*N; float d=abs(fract(y+0.5)-0.5)*2.0; v=1.0-smoothstep(uGWidth*4.0,uGWidth*4.0+0.03,d); }
   if(uGen!=4 && uGen!=7 && uGen!=9) v += (nz-0.5)*uGRough*1.6;
-  if(uGen==9) v += (nz-0.5)*uGRough*1.2;
+  if(uGen==9){ v += (nz-0.5)*uGRough*1.2; }
   float t=1.0-uGLevel; float s=max(uGSoft,0.002);
   float m=smoothstep(t-s,t+s,v);
   if(uGInv) m=1.0-m;
@@ -833,14 +833,31 @@ void main(){ vec2 fc=gl_FragCoord.xy; ivec2 sz=textureSize(uSrc,0); vec4 best=ve
     vec4 s=texelFetch(uSrc,q,0); if(s.z>0.5){ float d=distance(s.xy,fc); if(d<bd){bd=d;best=s;} } }
   o=best; }`;
 
-const FS_FILL = G_HEAD + G_NOISE + G_PATTERN + `
+/* Shader nur mit dem Code für EIN Muster / EINEN Generator bauen (klein = schnell) */
+function specializeSrc(src, v, id) {
+  src = src.split(`else if(${v}==`).join(`if(${v}==`);
+  const key = `if(${v}==`; let out = '', i = 0;
+  for (;;) {
+    const j = src.indexOf(key, i); if (j < 0) { out += src.slice(i); break; }
+    const k = j + key.length; const m = /^(\d+)\)/.exec(src.slice(k));
+    if (!m) { out += src.slice(i, k); i = k; continue; }
+    const b = src.indexOf('{', k + m[0].length); let d = 0, e = b;
+    for (; e < src.length; e++) { if (src[e] === '{') d++; else if (src[e] === '}') { d--; if (d === 0) break; } }
+    out += src.slice(i, j);
+    if (+m[1] === id) out += 'if(true)' + src.slice(k + m[0].length, e + 1);
+    i = e + 1;
+  }
+  return out;
+}
+const patternFor = (id) => specializeSrc(specializeSrc(G_PATTERN.replace('uniform int uPat;', `const int uPat=${id};`).replace('else if(triP(uPat))', 'if(triP(uPat))'), 'uPat', id), 'id', id);
+const genFor = (id) => specializeSrc(G_GEN.replace('uniform int uGen;', `const int uGen=${id};`), 'uGen', id);
+const FS_FILL_T = (id) => G_HEAD + G_NOISE + patternFor(id) + `
 uniform sampler2D uPos,uNrm;
 layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
 void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
   if(pp.a<0.5){ oC=vec4(0.0); oM=vec4(0.0); return; }
   Mat m=pattern(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz)); oC=vec4(m.col,1.0); oM=vec4(m.rough,m.metal,m.h,1.0); }`;
-
-const FS_GENC = G_HEAD + G_NOISE + G_GEN + `
+const FS_GENC_T = (id) => G_HEAD + G_NOISE + genFor(id) + `
 uniform sampler2D uPos,uNrm,uBake; out vec4 o;
 void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
   if(pp.a<0.5){ o=vec4(0.0); return; }
@@ -926,8 +943,8 @@ void main(){ float a=0.0;
 
 const FS_ONE = G_HEAD + `out vec4 o; void main(){ o=vec4(1.0); }`;
 
-const FS_APPLY = G_HEAD + G_NOISE + G_PATTERN + `
-uniform sampler2D uBC,uBM,uStroke,uSC,uSel,uPos,uNrm; uniform float uOpac; uniform int uOp,uSrc; uniform vec3 uCol; uniform vec3 uMat; uniform bool uUsePat,uHasSel;
+const FS_APPLY = G_HEAD + `
+uniform sampler2D uBC,uBM,uStroke,uSC,uSel,uPC,uPM; uniform float uOpac; uniform int uOp,uSrc; uniform vec3 uCol; uniform vec3 uMat; uniform bool uUsePat,uHasSel;
 uniform ivec2 uOff; uniform float uBlurR; uniform vec3 uTgt; uniform float uTolR;
 layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
 ivec2 SZ;
@@ -951,7 +968,7 @@ void main(){ SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=fC(
     c = k>0.0 ? c+(1.0-c)*k : c*(1.0+k); oC=vec4(clamp(c,0.0,1.0)*bc.a,bc.a); oM=bm; return; }
   vec3 col=uCol; vec3 mat=uMat;
   if(uOp==4) col=sc.rgb/max(sc.a,1e-4);
-  else if(uUsePat){ vec4 pp=texelFetch(uPos,ip,0); Mat m=pattern(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz)); col=m.col; mat=vec3(m.rough,m.metal,m.h); }
+  else if(uUsePat){ col=texelFetch(uPC,ip,0).rgb; mat=texelFetch(uPM,ip,0).rgb; }
   oC=vec4(col*a,a)+bc*(1.0-a); oM=vec4(mat*a,a)+bm*(1.0-a); }`;
 
 const FS_APPLYMASK = G_HEAD + `
@@ -1659,8 +1676,6 @@ function compilePrograms() {
   P.geo = new Prog(VS_UV, FS_GEOBAKE, 'geo');
   P.jfaInit = new Prog(VS_FULL, FS_JFAINIT, 'jfaInit');
   P.jfa = new Prog(VS_FULL, FS_JFA, 'jfa');
-  P.fill = new Prog(VS_FULL, FS_FILL, 'fill');
-  P.gen = new Prog(VS_FULL, FS_GENC, 'gen');
   P.comp = new Prog(VS_FULL, FS_COMPOSITE, 'comp');
   P.final = new Prog(VS_FULL, FS_FINAL, 'final');
   P.copy = new Prog(VS_FULL, FS_COPY, 'copy');
@@ -1689,6 +1704,22 @@ function compilePrograms() {
   P.merge = new Prog(VS_FULL, FS_MERGE, 'merge');
   P.mcopy = new Prog(VS_FULL, FS_MCOPY, 'mcopy');
   P.flat = new Prog(VS_FULL, FS_FLAT, 'flat');
+}
+
+const FILL_PROGS = new Map(), GEN_PROGS = new Map();
+function fillProg(id) { let p = FILL_PROGS.get(id); if (!p) { p = new Prog(VS_FULL, FS_FILL_T(id), 'fill' + id); FILL_PROGS.set(id, p); } return p; }
+function genProg(id) { let p = GEN_PROGS.get(id); if (!p) { p = new Prog(VS_FULL, FS_GENC_T(id), 'gen' + id); GEN_PROGS.set(id, p); } return p; }
+/* Pinsel-Material einmal als Textur berechnen */
+function brushMatTex(id) {
+  const mat = MATERIALS[id]; if (!mat || !E.T) return null;
+  const key = id + '@' + S.res;
+  if (E.bmat && E.bmat.key === key) return E.bmat;
+  if (E.bmat) { E.bmat.c.free(); E.bmat.m.free(); }
+  const f = Object.assign(defaultFill(), mat.fill);
+  E.bmat = { key, c: new Tex(S.res, S.res, 'rgba8'), m: new Tex(S.res, S.res, 'rgba16f') };
+  bindTargets([E.bmat.c, E.bmat.m]); gl.disable(gl.BLEND);
+  const p = fillProg(f.pat | 0).use(); setPatternUniforms(p, f); p.tex('uPos', E.T.pos).tex('uNrm', E.T.nrm); drawFull();
+  return E.bmat;
 }
 
 /* ---------- Modell hochladen ---------- */
@@ -1738,6 +1769,7 @@ function bakeMesh(progress) {
   if (E.isl) E.isl.free();
   if (E.stroke) E.stroke.free();
   if (E.strokeCol) E.strokeCol.free();
+  if (E.bmat) { E.bmat.c.free(); E.bmat.m.free(); E.bmat = null; }
   if (E.sel) { E.sel.free(); E.sel = null; }
   for (const c of E.caches.values()) freeCache(c);
   E.caches.clear();
@@ -1747,7 +1779,7 @@ function bakeMesh(progress) {
   // Umgebungsverdeckung (AO) aus vielen Richtungen
   const aoAcc = new Tex(res, res, 'rgba16f'); clearTex(aoAcc, [0, 0, 0, 0]);
   const depth = new Tex(1024, 1024, 'rgba32f');
-  const ND = E.nVerts > 900000 ? 32 : 64;
+  const ND = E.nVerts > 900000 ? 24 : 40;
   for (let i = 0; i < ND; i++) {
     const y = 1 - (i + 0.5) / ND * 2, r = Math.sqrt(1 - y * y), ph = i * 2.39996323;
     const dir = [Math.cos(ph) * r, y, Math.sin(ph) * r];
@@ -1801,7 +1833,7 @@ function getCache(T, l) {
     const h = JSON.stringify(l.fill);
     if (c.fh !== h) {
       if (!c.c) { c.c = new Tex(T.size, T.size, 'rgba8'); c.m = new Tex(T.size, T.size, 'rgba16f'); }
-      bindTargets([c.c, c.m]); const p = E.P.fill.use(); setPatternUniforms(p, l.fill);
+      bindTargets([c.c, c.m]); const p = fillProg(l.fill.pat | 0).use(); setPatternUniforms(p, l.fill);
       p.tex('uPos', T.pos).tex('uNrm', T.nrm); drawFull(); c.fh = h;
     }
   }
@@ -1809,7 +1841,7 @@ function getCache(T, l) {
     const h = genKey(l.mask);
     if (c.gh !== h) {
       if (!c.g) c.g = new Tex(T.size, T.size, 'r8');
-      bindTargets([c.g]); const p = E.P.gen.use(); setGenUniforms(p, l.mask);
+      bindTargets([c.g]); const p = genProg(l.mask.gen | 0).use(); setGenUniforms(p, l.mask);
       p.tex('uPos', T.pos).tex('uNrm', T.nrm).tex('uBake', T.bake); drawFull(); c.gh = h;
     }
   }
@@ -1994,7 +2026,7 @@ function defaultFill() { return { pat: 0, colA: '#b8b8b8', colB: '#6e6e6e', roug
 function defaultMask(gen = 0) { return { tex: null, gen, level: 0.5, width: 0.04, rough: 0.5, soft: 0.06, scale: 2, seed: 0, inv: false }; }
 function newLayer(kind, opts = {}) {
   const n = S.layers.filter((l) => l.kind === kind).length + 1;
-  const l = { id: uid(), name: opts.name || (kind === 'paint' ? 'Mal-Ebene ' + n : 'Füll-Ebene ' + n), kind, visible: true, opacity: 1, blend: 'normal', hblend: 'add',
+  const l = { id: uid(), name: opts.name || (kind === 'paint' ? 'Mal-Ebene ' + n : 'Füll-Ebene ' + n), kind, visible: true, opacity: 1, blend: 'normal', hblend: kind === 'fill' ? 'normal' : 'add',
     ch: { c: true, r: true, m: true, h: true }, fill: kind === 'fill' ? Object.assign(defaultFill(), opts.fill || {}) : null, mask: null, tex: kind === 'paint' ? newPaintTex() : null };
   if (opts.mask) { l.mask = Object.assign(defaultMask(), opts.mask); l.mask.tex = newMaskTex(1); }
   if (opts.opacity != null) l.opacity = opts.opacity;
@@ -2079,11 +2111,11 @@ function applyStroke() {
     common(P.applyMask.use().tex('uB', ST.before.mask)).set('uVal', b.maskVal);
   } else {
     bindTargets([l.tex.c, l.tex.m]);
-    const p = common(P.apply.use().tex('uBC', ST.before.c).tex('uBM', ST.before.m).tex('uPos', E.T.pos).tex('uNrm', E.T.nrm))
+    const bm = b.mat && MATERIALS[b.mat] && ST.op === 0 ? brushMatTex(b.mat) : null;
+    bindTargets([l.tex.c, l.tex.m]);
+    const p = common(P.apply.use().tex('uBC', ST.before.c).tex('uBM', ST.before.m).tex('uPC', bm && bm.c).tex('uPM', bm && bm.m))
       .set('uCol', hex2rgb(b.color)).set('uMat', [b.rough, b.metal, b.height]);
-    const mat = b.mat && MATERIALS[b.mat];
-    p.set('uUsePat', !!mat && ST.op === 0);
-    if (mat) setPatternUniforms(p, Object.assign(defaultFill(), mat.fill));
+    p.set('uUsePat', !!bm);
   }
   drawFull();
   E.needComp = true;
@@ -2372,8 +2404,7 @@ function warmUp() {
     bindTargets([E.strokeCol]); P.proj.use().set('uMode', 1).set('uView', [1, 1]).set('uZoom', 0).set('uPan', [-10, -10]).tex('uScreen', null).tex('uGPos', E.gb.pos); drawSoup();
     // Auftragen
     bindTargets([tc, tm]);
-    const pa = P.apply.use().tex('uBC', null).tex('uBM', sm).tex('uStroke', sk).tex('uSC', null).tex('uSel', sk).tex('uPos', E.T.pos).tex('uNrm', E.T.nrm).set('uOp', 0).set('uUsePat', true);
-    setPatternUniforms(pa, defaultFill()); drawFull();
+    P.apply.use().tex('uBC', null).tex('uBM', sm).tex('uStroke', sk).tex('uSC', null).tex('uSel', sk).tex('uPC', null).tex('uPM', sm).set('uOp', 0).set('uUsePat', true); drawFull();
     bindTargets([tk]); P.applyMask.use().tex('uB', sk).tex('uStroke', sk).tex('uSC', null).tex('uSel', sk).set('uOp', 2); drawFull();
     bindTargets([tk]); P.selComb.use().tex('uOld', sk).tex('uSC', null).tex('uStroke', sk); drawFull();
     bindTargets([tk]); P.one.use(); drawSoup();
@@ -2819,7 +2850,7 @@ function layersFromSpec(spec, forPreview = false) {
   const out = [];
   for (const s of spec) {
     const l = {
-      id: forPreview ? 'p' + uid() : uid(), name: s.name, kind: 'fill', visible: true, opacity: s.opacity != null ? s.opacity : 1, blend: 'normal', hblend: 'add',
+      id: forPreview ? 'p' + uid() : uid(), name: s.name, kind: 'fill', visible: true, opacity: s.opacity != null ? s.opacity : 1, blend: 'normal', hblend: s.hblend || 'normal',
       ch: Object.assign({ c: true, r: true, m: true, h: true }, s.ch || {}), fill: Object.assign(defaultFill(), s.fill), mask: null, tex: null,
     };
     if (s.mask) { l.mask = Object.assign(defaultMask(), s.mask); l.mask.tex = forPreview ? null : newMaskTex(1); }
