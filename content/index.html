@@ -388,7 +388,7 @@ html.pro #status{background:#1a1b1d}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '2.8.1';
+const APP_VERSION = '2.9.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -4430,13 +4430,35 @@ async function umatThumb(bytes) {
   return c.toDataURL('image/jpeg', 0.8);
 }
 /* Dateien → Materialien (gleicher Grundname = ein Material) */
-/* Substance-Dateien (.spsm): eingebettete Bilder herausholen – prozedurale Teile gehen nur in Adobes Engine */
+const SUBST_RE = /\.(spsm|sbsar|spmsk|sppr|sbs|spexp|sbsprs)$/i;
+/* TGA (oft in Substance-Paketen) in PNG umwandeln */
+async function tgaToPng(u8) {
+  const idl = u8[0], cmt = u8[1], type = u8[2], w = u8[12] | u8[13] << 8, h = u8[14] | u8[15] << 8, bpp = u8[16], desc = u8[17];
+  if (cmt || ![2, 3, 10, 11].includes(type) || !w || !h) throw new Error('TGA-Variante wird nicht unterstützt');
+  const bp = bpp >> 3, gray = type === 3 || type === 11, rle = type >= 10;
+  let p = 18 + idl; const px = new Uint8ClampedArray(w * h * 4); let i = 0;
+  const put = (o) => { if (gray) { px[i] = px[i + 1] = px[i + 2] = u8[o]; px[i + 3] = bp > 1 ? u8[o + 1] : 255; } else { px[i] = u8[o + 2]; px[i + 1] = u8[o + 1]; px[i + 2] = u8[o]; px[i + 3] = bp === 4 ? u8[o + 3] : 255; } i += 4; };
+  while (i < px.length && p < u8.length) {
+    if (!rle) { put(p); p += bp; continue; }
+    const c = u8[p++], n = (c & 127) + 1;
+    if (c & 128) { for (let k = 0; k < n && i < px.length; k++) put(p); p += bp; } else for (let k = 0; k < n && i < px.length; k++) { put(p); p += bp; }
+  }
+  const top = !!(desc & 32), cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const id = new ImageData(w, h);
+  for (let y = 0; y < h; y++) id.data.set(px.subarray((top ? y : h - 1 - y) * w * 4, ((top ? y : h - 1 - y) + 1) * w * 4), y * w * 4);
+  cv.getContext('2d').putImageData(id, 0, 0);
+  return new Uint8Array(await (await new Promise((r) => cv.toBlob(r, 'image/png'))).arrayBuffer());
+}
+const IMG_RE = /\.(png|jpe?g|webp|tga)$/i;
+async function imgBytes(name, d) { return /\.tga$/i.test(name) ? { name: name.replace(/\.tga$/i, '.png'), bytes: await tgaToPng(d) } : { name, bytes: d }; }
+/* Substance-Dateien (.spsm, .sbsar …): eingebettete Bilder herausholen – prozedurale Teile gehen nur in Adobes Engine */
 async function substanceImages(f) {
   const buf = await f.arrayBuffer(), u8 = new Uint8Array(buf), group = f.name.replace(/\.[^.]+$/, '');
+  if (u8[0] === 0x37 && u8[1] === 0x7a && u8[2] === 0xbc && u8[3] === 0xaf) return { packed: true, list: [] };
   const skip = (n) => /(thumb|preview|icon|vorschau)/i.test(n);
   const out = [];
   if (u8[0] === 0x50 && u8[1] === 0x4b) {
-    try { const z = await readZip(buf); for (const [n, d] of z) if (/\.(png|jpe?g|webp)$/i.test(n) && !skip(n) && d.length > 2000) out.push({ name: n.split('/').pop(), bytes: d, group }); } catch (e) { console.warn('spsm zip', e); }
+    try { const z = await readZip(buf); for (const [n, d] of z) if (IMG_RE.test(n) && !skip(n) && d.length > 2000) { try { const im = await imgBytes(n.split('/').pop(), d); out.push({ ...im, group }); } catch (e) { console.warn(n, e); } } } catch (e) { console.warn('substance zip', e); }
   }
   if (!out.length) {
     // eingebettete PNG-Bilder direkt im Datenstrom suchen
@@ -4452,16 +4474,16 @@ async function substanceImages(f) {
     // das größte Bild ist meist die Vorschau oder die Grundtextur – kleine Symbolbilder weglassen
     out.sort((a, b) => b.w - a.w);
   }
-  return out;
+  return { packed: false, list: out };
 }
 async function importMaterials(fileList) {
   const items = [];
   for (const f of fileList) {
-    if (/\.(spsm|sbsar|spmsk)$/i.test(f.name)) { const got = await substanceImages(f); if (!got.length) { toast(`„${f.name}“ enthält keine Bilder – das Material ist komplett aus Adobes Substance-Effekten gebaut, die nur Substance Painter berechnen kann. Tipp: Dort auf eine Kugel legen, die Texturen als PNG exportieren und hier reinziehen.`, 'warn'); continue; } items.push(...got); continue; }
-    if (/\.zip$/i.test(f.name)) { const z = await readZip(await f.arrayBuffer()); for (const [n, d] of z) if (/\.(png|jpe?g|webp)$/i.test(n)) items.push({ name: n.split('/').pop(), bytes: d, group: f.name.replace(/\.zip$/i, '') }); }
-    else if (/^image\//.test(f.type) || /\.(png|jpe?g|webp)$/i.test(f.name)) items.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
+    if (SUBST_RE.test(f.name)) { const r = await substanceImages(f); const got = r.list; if (!got.length) { toast(r.packed ? `„${f.name}“ ist mit Adobes eigenem Verfahren gepackt und enthält nur Substance-Rezepte, die nur Substance Painter/Designer berechnen kann. Tipp: Dort die Texturen als PNG exportieren und hier reinziehen.` : `„${f.name}“ enthält keine Bilder – das Material ist komplett aus Adobes Substance-Effekten gebaut, die nur Substance Painter berechnen kann. Tipp: Dort auf eine Kugel legen, die Texturen als PNG exportieren und hier reinziehen.`, 'warn'); continue; } items.push(...got); continue; }
+    if (/\.zip$/i.test(f.name)) { const z = await readZip(await f.arrayBuffer()); for (const [n, d] of z) if (IMG_RE.test(n)) { try { items.push({ ...(await imgBytes(n.split('/').pop(), d)), group: f.name.replace(/\.zip$/i, '') }); } catch (e) { console.warn(n, e); } } }
+    else if (IMG_RE.test(f.name) || /^image\/(png|jpeg|webp)/.test(f.type)) items.push(await imgBytes(f.name, new Uint8Array(await f.arrayBuffer())));
   }
-  if (!items.length) { if (!fileList.some((f) => /\.(spsm|sbsar|spmsk)$/i.test(f.name))) toast('Keine Bilder gefunden (PNG, JPG oder ZIP).', 'warn'); return 0; }
+  if (!items.length) { if (!fileList.some((f) => SUBST_RE.test(f.name))) toast('Keine Bilder gefunden (PNG, JPG oder ZIP).', 'warn'); return 0; }
   const groups = new Map();
   for (const it of items) { const g = it.group || baseName(it.name); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(it); }
   const list = await umatList(); let n = 0;
@@ -4482,7 +4504,7 @@ async function importMaterials(fileList) {
 }
 async function deleteUserMat(id) { const list = await umatList(); const i = list.findIndex((x) => x.id === id); if (i >= 0) list.splice(i, 1); await PDB.put('u:list', list); }
 function importDialog() {
-  const inp = el('input', { type: 'file', multiple: true, accept: 'image/*,.zip,.spsm,.sbsar' });
+  const inp = el('input', { type: 'file', multiple: true, accept: 'image/*,.tga,.zip,.spsm,.sbsar,.spmsk,.sppr,.sbs' });
   inp.onchange = async () => { if (!inp.files.length) return; UI.busy('Material wird importiert …'); try { await importMaterials([...inp.files]); } catch (e) { console.error(e); toast('Import fehlgeschlagen: ' + e.message, 'err'); } finally { UI.busy(null); } };
   inp.click();
 }
@@ -5622,7 +5644,7 @@ const UI = {
     const menus = [
       ['Datei', [
         ['Neu …', 'Strg+N', () => this.welcome()],
-        ['Öffnen …', 'Strg+O', () => this.openFile('.mtex,.glb,.gltf,.fbx,.obj,.dae,.stl,.ply,.mtl,.png,.jpg,.jpeg,.spsm,.sbsar')],
+        ['Öffnen …', 'Strg+O', () => this.openFile('.mtex,.glb,.gltf,.fbx,.obj,.dae,.stl,.ply,.mtl,.png,.jpg,.jpeg,.tga,.spsm,.sbsar,.spmsk,.sppr,.sbs')],
         ['Meine Projekte …', '', () => this.welcome()],
         '-',
         ['Speichern', 'Strg+S', () => saveToLibrary()],
@@ -7509,7 +7531,7 @@ function setupInput() {
     if (/\.hdr$/i.test(f.name) && S.mesh) { UI.busy('Umgebung wird geladen …'); loadEnvFile(f).catch((er) => toast('Laden fehlgeschlagen: ' + er.message, 'err')).finally(() => UI.busy(null)); return; }
     const model = all.find((x) => /\.(obj|glb|gltf|fbx|stl|ply|dae|mtex|spp|blend)$/i.test(x.name));
     if (model) { handleFile(model, null, all.filter((x) => x !== model)); return; }
-    const subs = all.filter((x) => /\.(spsm|sbsar|spmsk)$/i.test(x.name));
+    const subs = all.filter((x) => SUBST_RE.test(x.name) || /\.tga$/i.test(x.name));
     if (subs.length) { UI.busy('Substance-Material wird gelesen …'); importMaterials(subs).catch((er) => toast('Import fehlgeschlagen: ' + er.message, 'err')).finally(() => UI.busy(null)); return; }
     const onShelf = e.target && e.target.closest && e.target.closest('#shelf');
     if (/\.zip$/i.test(f.name) || (onShelf && all.some((x) => /^image\//.test(x.type))) || (all.length > 1 && all.every((x) => /^image\//.test(x.type)))) { UI.busy('Material wird importiert …'); importMaterials(all).catch((er) => toast('Import fehlgeschlagen: ' + er.message, 'err')).finally(() => UI.busy(null)); return; }
@@ -7529,7 +7551,7 @@ function setupInput() {
 async function handleFile(file, res, extra) {
   const name = file.name.replace(/\.[^.]+$/, '');
   const ext = (file.name.split('.').pop() || '').toLowerCase();
-  if (['spsm', 'sbsar', 'spmsk'].includes(ext)) { UI.busy('Substance-Material wird gelesen …'); try { await importMaterials([file]); } finally { UI.busy(null); } return; }
+  if (SUBST_RE.test(file.name) || ext === 'tga') { UI.busy('Substance-Material wird gelesen …'); try { await importMaterials([file]); } finally { UI.busy(null); } return; }
   if (ext === 'spp') { toast('.spp ist das geschlossene Projektformat von Substance Painter und kann nicht gelesen werden. Exportiere dort das Modell (FBX/OBJ/GLB) und die Texturen (PNG) – beides kannst du hier reinziehen.', 'err'); return; }
   if (ext === 'blend') { toast('.blend kann nicht direkt geöffnet werden. In Blender: Datei → Exportieren → glTF 2.0 (.glb) oder FBX – das hier reinziehen.', 'err'); return; }
   if (![...MODEL_EXT, 'mtex'].includes(ext)) { toast('Diese Datei kann Melonentextur nicht öffnen. Geht: .glb, .gltf, .fbx, .obj, .dae, .stl, .ply und .mtex', 'err'); return; }
