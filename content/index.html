@@ -352,7 +352,7 @@ html.pro #status{background:#1a1b1d}
     <div id="targetBadge"></div>
     <div id="vbar"></div>
     <div id="modHint"></div>
-    <div id="uvHint"><b>UV-Karte:</b> Klick = Teil wählen · Shift + Klick = mehrere · <b>A</b> = alles · <b>G</b> bewegen · <b>R</b> drehen · <b>S</b> skalieren · Mittlere/rechte Maus = Ansicht verschieben · Linksklick bestätigt, Esc bricht ab</div>
+    <div id="uvHint"><b>UV-Karte:</b> Bild hier reinziehen · Klick = Teil wählen · Shift + Klick = mehrere · Rechteck aufziehen = mehrere · <b>A</b> = alles · <b>G</b> bewegen · <b>R</b> drehen · <b>S</b> skalieren · Mittlere/rechte Maus = Ansicht verschieben · Linksklick bestätigt, Esc bricht ab</div>
   </main>
   <section id="shelf"><div class="split" id="splitShelf" title="Ziehen = Höhe ändern"></div><div class="cats"></div><div class="smain"><div class="tabs"></div><div class="items"></div></div></section>
   <aside id="side">
@@ -373,7 +373,7 @@ html.pro #status{background:#1a1b1d}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.5.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1325,27 +1325,30 @@ const FS_PREVGEO = G_HEAD + `
 in vec2 vUV; uniform mat3 uRot;
 layout(location=0) out vec4 oPos; layout(location=1) out vec4 oNrm; layout(location=2) out vec4 oBake; layout(location=3) out vec4 oVN;
 float sdRB(vec3 p, vec3 b, float r){ vec3 q=abs(p)-b+r; return length(max(q,0.0))+min(max(q.x,max(q.y,q.z)),0.0)-r; }
-void main(){ vec2 uv=vUV*2.0-1.0; vec3 ro=uRot*vec3(uv*1.05,3.0); vec3 rd=uRot*vec3(0.0,0.0,-1.0);
-  const float H=0.6, R=0.1; float t=0.0; bool hit=false;
-  for(int i=0;i<80;i++){ float d=sdRB(ro+rd*t,vec3(H),R); if(d<1e-4){hit=true;break;} t+=d; if(t>6.0) break; }
-  if(!hit){ oPos=vec4(0.0); oNrm=vec4(0.0,1.0,0.0,0.0); oBake=vec4(1000.0,1000.0,0.0,1.0); oVN=vec4(0.0); return; }
-  vec3 p=ro+rd*t; vec2 e=vec2(1e-3,0.0);
-  vec3 n=normalize(vec3(sdRB(p+e.xyy,vec3(H),R)-sdRB(p-e.xyy,vec3(H),R), sdRB(p+e.yxy,vec3(H),R)-sdRB(p-e.yxy,vec3(H),R), sdRB(p+e.yyx,vec3(H),R)-sdRB(p-e.yyx,vec3(H),R)));
-  vec3 q=abs(p); float mx=max(q.x,max(q.y,q.z)), mn=min(q.x,min(q.y,q.z)); float mid=q.x+q.y+q.z-mx-mn;
-  float inner=H-R; float dist=max(0.0,inner-mid);
-  float ao=1.0-0.25*smoothstep(0.02,0.0,dist)*0.0;
-  oPos=vec4(p,1.0); oNrm=vec4(n,1.0); oBake=vec4(dist,1000.0,mid>inner?1.0/R:0.0,ao); oVN=vec4(transpose(uRot)*n,1.0); }`;
+void main(){ vec2 uv=vUV*2.0-1.0; uv*=1.12; float r2=dot(uv,uv);
+  // Materialkugel
+  if(r2>1.0){ oPos=vec4(0.0); oNrm=vec4(0.0,1.0,0.0,0.0); oBake=vec4(1000.0,1000.0,0.0,1.0); oVN=vec4(0.0); return; }
+  vec3 nv=vec3(uv,sqrt(1.0-r2)); vec3 p=uRot*nv*0.9; vec3 n=normalize(uRot*nv);
+  float ao=mix(0.82,1.0,smoothstep(0.0,0.6,nv.z));
+  oPos=vec4(p,1.0); oNrm=vec4(n,1.0); oBake=vec4(1000.0,1000.0,0.0,ao); oVN=vec4(nv,1.0); }`;
 
 const FS_PREVSHADE = G_HEAD + G_ENV + `
 uniform sampler2D uC,uM,uVN,uPos; uniform float uHS; out vec4 o;
 void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); ivec2 sz=textureSize(uC,0);
-  if(texelFetch(uPos,ip,0).a<0.5){ o=vec4(0.0); return; }
+  vec2 sc=(vec2(ip)+0.5)/vec2(sz)*2.0-1.0;
+  if(texelFetch(uPos,ip,0).a<0.5){ float v=length(sc); vec3 bg=mix(vec3(0.19,0.195,0.2),vec3(0.13,0.135,0.14),smoothstep(0.2,1.3,v));
+    float sh=smoothstep(1.15,0.7,length((sc-vec2(0.06,-0.08))*vec2(1.0,1.0)))*0.25; o=vec4(pow(bg*(1.0-sh),vec3(1.0)),1.0); return; }
   vec4 c=texelFetch(uC,ip,0), m=texelFetch(uM,ip,0);
   float hl=texelFetch(uM,clamp(ip-ivec2(1,0),ivec2(0),sz-1),0).b, hr=texelFetch(uM,clamp(ip+ivec2(1,0),ivec2(0),sz-1),0).b;
   float hd=texelFetch(uM,clamp(ip-ivec2(0,1),ivec2(0),sz-1),0).b, hu=texelFetch(uM,clamp(ip+ivec2(0,1),ivec2(0),sz-1),0).b;
-  vec3 N=normalize(texelFetch(uVN,ip,0).xyz+vec3(hl-hr,hd-hu,0.0)*uHS);
-  vec3 col=shadePBR(c.rgb,m.r,m.g,1.0,N,vec3(0.0,0.0,1.0));
-  o=vec4(col,1.0); }`;
+  vec3 N0=texelFetch(uVN,ip,0).xyz;
+  vec3 N=normalize(N0+vec3(hl-hr,hd-hu,0.0)*uHS);
+  float hc=m.b; float cav=clamp(0.5+(4.0*hc-hl-hr-hd-hu)*uHS*0.6,0.35,1.15);
+  vec3 col=shadePBR(c.rgb,m.r,m.g,cav,N,vec3(0.0,0.0,1.0));
+  float rim=pow(1.0-max(N0.z,0.0),3.0); col+=vec3(0.05,0.055,0.06)*rim;
+  float edge=smoothstep(1.0,0.97,length(sc*1.12));
+  vec3 bg=vec3(0.15);
+  o=vec4(mix(bg,col,edge),1.0); }`;
 
 /* Verschieben von Pixeln / Auswahl im UV-Raum */
 const G_SHIFT = `
@@ -2648,9 +2651,9 @@ function changeResolution(res) {
 let PREV = null;
 function previewTarget() {
   if (PREV) return PREV;
-  const sz = 112;
+  const sz = 160;
   const T = { size: sz, pos: new Tex(sz, sz, 'rgba32f'), nrm: new Tex(sz, sz, 'rgba16f'), bake: new Tex(sz, sz, 'rgba16f'), vn: new Tex(sz, sz, 'rgba16f'), acc: makeAcc(sz), caches: new Map(), out: new Tex(sz, sz, 'rgba8') };
-  const a = -0.62, b = 0.5;
+  const a = -0.35, b = 0.25;
   const rot = new Float32Array([Math.cos(a), 0, -Math.sin(a), 0, 1, 0, Math.sin(a), 0, Math.cos(a)]);
   const rx = new Float32Array([1, 0, 0, 0, Math.cos(b), Math.sin(b), 0, -Math.sin(b), Math.cos(b)]);
   const m3 = (A, B) => { const o = new Float32Array(9); for (let c = 0; c < 3; c++) for (let r = 0; r < 3; r++) { let s = 0; for (let k = 0; k < 3; k++) s += A[k * 3 + r] * B[c * 3 + k]; o[c * 3 + r] = s; } return o; };
@@ -2665,7 +2668,7 @@ function renderPreview(layers) {
   bindTargets([T.out]);
   const p = E.P.prevShade.use(); const env = S.view.env, rot = S.view.envRot, ex = S.view.exposure;
   S.view.env = 0; S.view.envRot = 0.6; S.view.exposure = 1.05; setEnvUniforms(p); S.view.env = env; S.view.envRot = rot; S.view.exposure = ex;
-  p.tex('uC', acc.c).tex('uM', acc.m).tex('uVN', T.vn).tex('uPos', T.pos).set('uHS', 1.2); drawFull();
+  p.tex('uC', acc.c).tex('uM', acc.m).tex('uVN', T.vn).tex('uPos', T.pos).set('uHS', 3.0); drawFull();
   const px = readRGBA8(T.out);
   for (const c of T.caches.values()) freeCache(c);
   T.caches.clear();
@@ -2790,6 +2793,19 @@ function uvPick(r, x, y, add) {
   if (t >= 0) { const id = S.mesh.groups.island[t]; if (add && UVE.sel.has(id)) UVE.sel.delete(id); else UVE.sel.add(id); }
   uvSelChanged();
   return t >= 0;
+}
+/* Rechteck aufziehen: alle UV-Teile, die im Rechteck liegen (Shift = dazu, Strg = weg) */
+function uvBoxSelect(d) {
+  const toUV = (x, y) => [(x - S.uv2d.pan[0]) / S.uv2d.zoom, (y - S.uv2d.pan[1]) / S.uv2d.zoom];
+  const a = toUV(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1)), b = toUV(Math.max(d.x0, d.x1), Math.max(d.y0, d.y1));
+  if (Math.abs(d.x1 - d.x0) < 3 && Math.abs(d.y1 - d.y0) < 3) { if (!d.add && !d.sub) { UVE.sel.clear(); uvSelChanged(); } return; }
+  if (!d.add && !d.sub) UVE.sel.clear();
+  const uv = S.mesh.soup.uv, isl = S.mesh.groups.island;
+  for (let t = 0; t < S.mesh.nT; t++) {
+    const u = (uv[t * 6] + uv[t * 6 + 2] + uv[t * 6 + 4]) / 3, v = (uv[t * 6 + 1] + uv[t * 6 + 3] + uv[t * 6 + 5]) / 3;
+    if (u >= a[0] && u <= b[0] && v >= a[1] && v <= b[1]) { if (d.sub) UVE.sel.delete(isl[t]); else UVE.sel.add(isl[t]); }
+  }
+  uvSelChanged();
 }
 function uvSelectAll() { UVE.sel = new Set(islandTris().keys()); uvSelChanged(); }
 function uploadUV() { gl.bindBuffer(gl.ARRAY_BUFFER, E.bufs[2]); gl.bufferData(gl.ARRAY_BUFFER, S.mesh.soup.uv, gl.STATIC_DRAW); E.needDraw = true; E.gbDirty = true; }
@@ -6257,6 +6273,11 @@ function drawOverlay() {
     return;
   }
   const T = S.tool;
+  if (drag && drag.mode === 'uvbox') {
+    const r = drag.r, x = r.x + Math.min(drag.x0, drag.x1), y = ov.height - r.y - Math.max(drag.y0, drag.y1), w = Math.abs(drag.x1 - drag.x0), hh = Math.abs(drag.y1 - drag.y0);
+    g.fillStyle = 'rgba(255,170,60,.12)'; g.fillRect(x, y, w, hh); g.setLineDash([5 * dpr, 4 * dpr]); g.strokeStyle = 'rgba(255,190,90,.95)'; g.lineWidth = 1.2 * dpr; g.strokeRect(x, y, w, hh); g.setLineDash([]);
+    return;
+  }
   if (drag && drag.mode === 'seam') {
     const r = drag.r, sm = seamDefaults(S.brush);
     g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
@@ -6361,8 +6382,9 @@ function setupInput() {
       return;
     }
     if (T === 'uvmove') {
-      const hit = uvPick(h.r, h.x, h.y, e.shiftKey);
-      if (hit && h.r.type === '2d' && !e.shiftKey) drag = { mode: 'uvdrag', r: h.r, start: regionUV(h.r, h.x, h.y), sx: h.x, sy: h.y };
+      const hit = uvPick(h.r, h.x, h.y, e.shiftKey || e.ctrlKey);
+      if (hit && h.r.type === '2d' && !e.shiftKey && !e.ctrlKey) drag = { mode: 'uvdrag', r: h.r, start: regionUV(h.r, h.x, h.y), sx: h.x, sy: h.y };
+      else if (!hit && h.r.type === '2d') drag = { mode: 'uvbox', r: h.r, x0: h.x, y0: h.y, x1: h.x, y1: h.y, add: e.shiftKey, sub: e.ctrlKey };
       return;
     }
     if (T === 'selWand') { wandSelect(h.r, h.x, h.y, selMode); return; }
@@ -6413,7 +6435,7 @@ function setupInput() {
   });
   c.addEventListener('pointermove', (e) => {
     const h = hitRegion(e.offsetX, e.offsetY);
-    mouse = { x: e.offsetX, y: e.offsetY, inside: true, nav: !!(drag && !['paint', 'tool', 'uvdrag', 'uvkey', 'mv', 'seam'].includes(drag.mode)), r: h ? h.r : null, lx: h ? h.x : 0, ly: h ? h.y : 0 };
+    mouse = { x: e.offsetX, y: e.offsetY, inside: true, nav: !!(drag && !['paint', 'tool', 'uvdrag', 'uvkey', 'mv', 'seam', 'uvbox'].includes(drag.mode)), r: h ? h.r : null, lx: h ? h.x : 0, ly: h ? h.y : 0 };
     if (MOD.op) { if (h && h.r === MOD.op.r) modUpdate(h.x, h.y, e.ctrlKey); drawOverlay(); return; }
     if (drag && drag.mode === 'adjb') { adjDragUpdate(drag, e.clientX - drag.x, e.clientY - drag.y); UI.renderCtx(); mouse = { ...drag.m, nav: false }; drawOverlay(); return; }
     if (drag && drag.mode === 'sten') {
@@ -6425,6 +6447,7 @@ function setupInput() {
       if (h && h.r.type === '2d') uvUpdate(regionUV(h.r, h.x, h.y), { snap: e.ctrlKey });
       drawOverlay(); return;
     }
+    if (drag && drag.mode === 'uvbox') { if (h && h.r === drag.r) { drag.x1 = h.x; drag.y1 = h.y; } E.ovDirty = true; return; }
     if (drag && drag.mode === 'seam') {
       if (h && h.r === drag.r) { const lp = drag.pts[drag.pts.length - 1]; if (Math.hypot(h.x - lp[0], h.y - lp[1]) > 1.5 * dpr) drag.pts.push([h.x, h.y]); }
       E.ovDirty = true; return;
@@ -6471,6 +6494,7 @@ function setupInput() {
     if (!drag || drag.mode === 'uvkey') return;
     const d = drag; drag = null;
     if (d.mode === 'adjb') { UI.modHint(''); UI.renderCtx(); UI.renderProps(); }
+    if (d.mode === 'uvbox') uvBoxSelect(d);
     if (d.mode === 'seam') { if (d.pts.length > 1) { applySeam(d.r, d.pts); const lp = d.pts[d.pts.length - 1]; E.seamLast = { r: d.r, x: lp[0], y: lp[1] }; } }
     if (d.mode === 'paint' && S.tool === 'particle' && PART.list.length) { PART.waitEnd = true; }
     else if (d.mode === 'paint') {
@@ -6603,7 +6627,14 @@ function setupInput() {
     if (model) { handleFile(model, null, all.filter((x) => x !== model)); return; }
     const onShelf = e.target && e.target.closest && e.target.closest('#shelf');
     if (/\.zip$/i.test(f.name) || (onShelf && all.some((x) => /^image\//.test(x.type))) || (all.length > 1 && all.every((x) => /^image\//.test(x.type)))) { UI.busy('Material wird importiert …'); importMaterials(all).catch((er) => toast('Import fehlgeschlagen: ' + er.message, 'err')).finally(() => UI.busy(null)); return; }
-    if (/^image\//.test(f.type) && S.mesh) { if (S.tool === 'decal') { createImageBitmap(f).then((img) => { E.decalImg = img; E.decalName = f.name; UI.renderCtx(); }); } else { UI.busy('Bild wird geladen …'); imageLayer(f).then(() => UI.refreshAll()).finally(() => UI.busy(null)); } return; }
+    if (/^image\//.test(f.type) && S.mesh) {
+      const cr = $('#gl').getBoundingClientRect(); const hr = hitRegion(e.clientX - cr.left, e.clientY - cr.top);
+      if (hr && hr.r.type === '2d') {
+        UI.busy('Bild wird auf die UV-Karte gelegt …');
+        imageLayer(f).then(() => { setTool('uvmove'); UI.refreshAll(); toast('Bild liegt jetzt auf der UV-Karte. Mit V die UV-Teile anklicken und mit G auf die passende Stelle im Bild schieben – wie in Blender.'); }).finally(() => UI.busy(null));
+        return;
+      }
+      if (S.tool === 'decal') { createImageBitmap(f).then((img) => { E.decalImg = img; E.decalName = f.name; UI.renderCtx(); }); } else { UI.busy('Bild wird geladen …'); imageLayer(f).then(() => UI.refreshAll()).finally(() => UI.busy(null)); } return; }
     handleFile(f);
   });
 }
