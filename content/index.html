@@ -373,7 +373,7 @@ html.pro #status{background:#1a1b1d}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '2.2.3';
+const APP_VERSION = '2.3.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -990,7 +990,7 @@ void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
   Mat m=pattern(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz)); oC=vec4(m.col,1.0); oM=vec4(m.rough,m.metal,m.h,1.0); }`;
 /* Füllung mit Foto-Material (Farbe/Rauheit/Metall/Höhe aus Bildern), wahlweise ohne Nähte (dreiseitig projiziert) */
 const FS_PHOTO = G_HEAD + `
-uniform sampler2D uPos,uNrm,uBake,uIC,uIR,uIM,uIH,uIAO; uniform bool uHasR,uHasM,uHasH,uHasAO,uTri;
+uniform sampler2D uPos,uNrm,uBake,uIC,uIR,uIM,uIH,uIAO; uniform bool uHasR,uHasM,uHasH,uHasAO,uTri,uRInv;
 uniform float uScale,uRot,uTintAmt,uHue,uBright,uROff,uMetal,uHAmt,uAOAmt; uniform vec3 uTint;
 layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
 vec2 rot(vec2 p){ float c=cos(uRot), s=sin(uRot); return vec2(c*p.x-s*p.y, s*p.x+c*p.y); }
@@ -1005,7 +1005,7 @@ void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
   if(uHasAO) col*=mix(1.0,smp(uIAO,p,w,uv).r,uAOAmt);
   col=clamp(hueShift(col,uHue),0.0,1.0); col=uBright>0.0? col+(1.0-col)*uBright : col*(1.0+uBright);
   float L=dot(col,vec3(0.299,0.587,0.114)); col=mix(col,uTint*(L*1.8+0.04),uTintAmt);
-  float r=uHasR ? smp(uIR,p,w,uv).r : 0.6; r=clamp(r+uROff,0.0,1.0);
+  float r=uHasR ? smp(uIR,p,w,uv).r : 0.6; if(uRInv) r=1.0-r; r=clamp(r+uROff,0.0,1.0);
   float m=uHasM ? smp(uIM,p,w,uv).r : uMetal; m=max(m,uMetal);
   float h=uHasH ? (smp(uIH,p,w,uv).r-0.5)*uHAmt : 0.0;
   oC=vec4(clamp(col,0.0,1.0),1.0); oM=vec4(r,m,h,1.0); }`;
@@ -1096,12 +1096,13 @@ in vec3 vP; in vec3 vN; in vec2 vUV;
 uniform int uMode; uniform mat4 uVP; uniform vec2 uView; uniform vec3 uEye; uniform sampler2D uGPos; uniform float uTol; uniform bool uThrough;
 uniform vec3 uMir; uniform bool uMirOn;
 uniform int uN; uniform vec4 uSt[64]; uniform vec2 uSt2[64];
-uniform int uShape; uniform float uHard; uniform float uZoom; uniform vec2 uPan;
+uniform int uShape; uniform float uHard; uniform float uZoom; uniform vec2 uPan; uniform float uStitchW;
 uniform sampler2D uAlpha, uStencil; uniform bool uStenOn; uniform mat3 uStenM; uniform vec2 uRegOff;
 out vec4 o;
 float shape(vec2 l, float seed){
   float r=length(l); float h=clamp(uHard,0.0,0.97);
   if(uShape==1){ float q=max(abs(l.x),abs(l.y)); return 1.0-smoothstep(h,1.0,q); }
+  if(uShape==10){ float w=clamp(uStitchW,0.08,0.9); vec2 q=vec2(max(abs(l.x)-(1.0-w),0.0)/w, l.y/w); float d=length(q); float body=1.0-smoothstep(max(h,0.3),1.0,d); float twist=0.85+0.15*sin(l.x*18.0-l.y*6.0); return body*twist; }
   if(r>=1.0) return 0.0;
   float base=1.0-smoothstep(h,1.0,r);
   if(uShape==2) return base*smoothstep(0.38,0.62,n01(vec3(l*2.5,seed*31.0),4));
@@ -1935,10 +1936,12 @@ function fillProg(id) { let p = FILL_PROGS.get(id); if (!p) { p = new Prog(VS_FU
 function genProg(id) { let p = GEN_PROGS.get(id); if (!p) { p = new Prog(VS_FULL, FS_GENC_T(id), 'gen' + id); GEN_PROGS.set(id, p); } return p; }
 /* Pinsel-Material einmal als Textur berechnen */
 function brushMatTex(id) {
-  const mat = MATERIALS[id]; if (!mat || !E.T) return null;
+  const user = id.startsWith('u:');
+  const mat = user ? { fill: { photo: id, scale: 2, proj: 'tri', colA: '#ffffff', tint: 0, hAmt: 0.4, aoAmt: 0.5 } } : MATERIALS[id]; if (!mat || !E.T) return null;
   const key = id + '@' + S.res;
   if (E.bmat && E.bmat.key === key) return E.bmat;
   if (E.bmat) { E.bmat.c.free(); E.bmat.m.free(); }
+  if (user) { E.bmat = { key, c: new Tex(S.res, S.res, 'rgba8'), m: new Tex(S.res, S.res, 'rgba16f') }; gl.disable(gl.BLEND); if (!photoFill(E.T, E.bmat, mat.fill)) E.bmat.key = null; return E.bmat; }
   const f = Object.assign(defaultFill(), mat.fill);
   E.bmat = { key, c: new Tex(S.res, S.res, 'rgba8'), m: new Tex(S.res, S.res, 'rgba16f') };
   bindTargets([E.bmat.c, E.bmat.m]); gl.disable(gl.BLEND);
@@ -2398,7 +2401,7 @@ function insertLayers(list, select = true) {
 
 /* ---------- Malen ---------- */
 const ST = { on: false };
-function strokeBegin(r, op) {
+function strokeBegin(r, op, opts = {}) {
   if (op === true) op = 1; else if (op === false || op == null) op = 0;
   const erase = op === 1;
   const l = curLayer();
@@ -2406,7 +2409,7 @@ function strokeBegin(r, op) {
   const onMask = S.target === 'mask' && l.mask;
   if (!onMask && l.kind !== 'paint') { toast(l.mask ? 'Klick rechts auf „Maske bemalen“.' : 'Hier kann man nicht malen. Nimm eine Mal-Ebene (+ Malen).', 'warn'); return false; }
   if (!l.visible) toast('Die Ebene ist gerade ausgeblendet.');
-  pushUndo(typeof toolById !== 'undefined' ? toolById(S.tool).name : 'Malen');
+  if (!opts.noUndo) pushUndo(typeof toolById !== 'undefined' ? toolById(S.tool).name : 'Malen');
   if (S.brush.chE) E.usedE = true; if (S.brush.chO) E.usedO = true;
   if (onMask) { const old = l.mask.tex; l.mask.tex = trackTex(copyTex(old)); Object.assign(ST, { before: { mask: old } }); }
   else { const o = l.tex; l.tex = copyLT(o); Object.assign(ST, { before: { ...o } }); }
@@ -2470,7 +2473,7 @@ function strokeFlush() {
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   const p = P.stamp.use();
   const shp = ST.pencil ? 1 : (b.shape === 9 && !E.alphaTex ? 0 : b.shape);
-  p.set('uMode', r.type === '2d' ? 1 : 0).set('uView', [r.w, r.h]).set('uShape', shp).set('uHard', ST.pencil ? 1 : b.hard).set('uThrough', !!b.through)
+  p.set('uStitchW', b.stitchW || 0.33).set('uMode', r.type === '2d' ? 1 : 0).set('uView', [r.w, r.h]).set('uShape', shp).set('uHard', ST.pencil ? 1 : b.hard).set('uThrough', !!b.through)
     .set('uZoom', S.uv2d.zoom).set('uPan', S.uv2d.pan).tex('uAlpha', E.alphaTex || null);
   const sten = E.stencil && E.stencil.on && !ST.pencil && r.type === '3d';
   p.set('uStenOn', !!sten).tex('uStencil', sten ? E.stencil.tex : null).set('uRegOff', [r.x || 0, r.y || 0]);
@@ -2535,7 +2538,7 @@ function applyStroke0() {
     bindTargets([l.mask.tex]);
     common(P.applyMask.use().tex('uB', ST.before.mask)).set('uVal', b.maskVal);
   } else {
-    const bm = b.mat && MATERIALS[b.mat] && ST.op === 0 ? brushMatTex(b.mat) : null;
+    const bm = b.mat && (MATERIALS[b.mat] || b.mat.startsWith('u:')) && ST.op === 0 ? brushMatTex(b.mat) : null;
     ltTargets(l.tex);
     const p = common(P.apply.use().tex('uBC', ST.before.c).tex('uBM', ST.before.m).tex('uBK', ST.before.k).tex('uBX', ST.before.x).tex('uPC', bm && bm.c).tex('uPM', bm && bm.m))
       .set('uCol', hex2rgb(b.color)).set('uMat', [b.rough, b.metal, b.height]).set('uEO', [b.emit || 0, b.bop ?? 1]).set('uOn2', [b.chE ? 1 : 0, b.chO ? 1 : 0]).set('uOn', ST.pencil && ST.op === 0 ? [1, b.chR ? 1 : 0, b.chM ? 1 : 0, b.chH ? 1 : 0] : [b.chC ? 1 : 0, b.chR ? 1 : 0, b.chM ? 1 : 0, b.chH ? 1 : 0]);
@@ -3464,6 +3467,74 @@ function partStep() {
 }
 
 'use strict';
+/* ================= Naht-Werkzeug: Nähte und Stiche für Kleidung ================= */
+const SEAM_KINDS = [['straight', 'Gerade Stiche'], ['double', 'Doppelnaht'], ['zigzag', 'Zickzack'], ['cross', 'Kreuzstich'], ['dash', 'Heftnaht (lang)'], ['groove', 'Nur Rille (ohne Faden)']];
+function seamDefaults(b) {
+  if (!b.seam) b.seam = { kind: 'straight', len: 9, gap: 5, width: 3, dist: 9, depth: 0.5, th: 0.6, thread: '#e9e2d2', rough: 0.75, grooveDark: 0.25 };
+  return b.seam;
+}
+/* Pfad gleichmäßig abtasten: Punkte mit Richtung */
+function seamResample(pts, step) {
+  const out = []; if (pts.length < 2) return out;
+  let acc = 0, prev = pts[0];
+  out.push({ x: prev[0], y: prev[1], a: Math.atan2(pts[1][1] - prev[1], pts[1][0] - prev[0]) });
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i]; let dx = p[0] - prev[0], dy = p[1] - prev[1]; let d = Math.hypot(dx, dy);
+    while (acc + d >= step) {
+      const t = (step - acc) / d; const x = prev[0] + dx * t, y = prev[1] + dy * t;
+      out.push({ x, y, a: Math.atan2(dy, dx) });
+      prev = [x, y]; dx = p[0] - x; dy = p[1] - y; d = Math.hypot(dx, dy); acc = 0;
+    }
+    acc += d; prev = p;
+  }
+  return out;
+}
+/* Pfad seitlich versetzen (für Doppelnaht) */
+const seamOffset = (pts, off) => pts.map((p) => ({ x: p.x - Math.sin(p.a) * off, y: p.y + Math.cos(p.a) * off, a: p.a }));
+
+function applySeam(r, pts) {
+  const l = curLayer();
+  if (!l || l.kind !== 'paint') { toast('Nähte gehen auf Mal-Ebenen – leg mit „+ Malen“ eine an.', 'warn'); return; }
+  if (pts.length < 2) return;
+  const dpr = window.devicePixelRatio || 1, b = S.brush, sm = seamDefaults(b);
+  const saved = JSON.parse(JSON.stringify(b));
+  const lines = sm.kind === 'double' ? [-sm.dist * dpr / 2, sm.dist * dpr / 2] : [0];
+  const fine = seamResample(pts, Math.max(1, sm.width * dpr * 0.35));
+  const run = (setup, stamps, first) => {
+    Object.assign(b, { mat: '', mirror: 0, opacity: 1, flow: 1, chE: false, chO: false, sizeSpace: 'screen' }, setup);
+    if (!strokeBegin(r, 0, { noUndo: !first })) return false;
+    ST.pending.push(...stamps); strokeFlush(); strokeEnd(); return true;
+  };
+  try {
+    // 1) Rille: etwas tiefer und dunkler, damit der Stoff wie zusammengenäht wirkt
+    const groove = [];
+    for (const o of lines) for (const p of seamOffset(fine, o)) groove.push({ x: p.x, y: p.y, r: sm.width * dpr * 0.75, a: p.a, s: 1, seed: 0 });
+    const baseCol = hex2rgb(saved.color);
+    if (!run({ shape: 6, hard: 0.3, chC: sm.grooveDark > 0, chR: false, chM: false, chH: true, height: -sm.depth, color: rgb2hex(baseCol.map(() => 0)), opacity: 1, flow: Math.max(0.05, sm.grooveDark) }, groove.map((g) => ({ ...g, s: 1 })), true)) return;
+    // Höhe der Rille unabhängig von der Abdunklung: zweiter Lauf nur Höhe
+    if (sm.grooveDark > 0) run({ shape: 6, hard: 0.3, chC: false, chR: false, chM: false, chH: true, height: -sm.depth }, groove, false);
+    if (sm.kind === 'groove') return;
+    // 2) Fäden
+    const L = sm.len * dpr, G = sm.gap * dpr;
+    const stitches = [];
+    for (const o of lines) {
+      const path = seamOffset(seamResample(pts, (sm.kind === 'dash' ? L * 2.2 : L) + G), o);
+      path.forEach((p, i) => {
+        const len = sm.kind === 'dash' ? L * 2.2 : L;
+        const base = { r: len / 2, s: 1, seed: i };
+        if (sm.kind === 'zigzag') { const side = i % 2 ? 1 : -1; stitches.push({ ...base, x: p.x - Math.sin(p.a) * side * L * 0.25, y: p.y + Math.cos(p.a) * side * L * 0.25, a: p.a + side * 0.9 }); }
+        else if (sm.kind === 'cross') { stitches.push({ ...base, x: p.x, y: p.y, a: p.a + 0.785 }, { ...base, x: p.x, y: p.y, a: p.a - 0.785 }); }
+        else stitches.push({ ...base, x: p.x, y: p.y, a: p.a });
+      });
+    }
+    run({ shape: 10, hard: Math.min(0.95, 0.35 + sm.width * 0.05), chC: true, chR: true, chM: true, chH: true, color: sm.thread, rough: sm.rough, metal: 0, height: sm.th, stitchW: sm.width / Math.max(1, sm.len) }, stitches, false);
+  } finally {
+    Object.assign(b, saved);
+    E.needComp = true; UI.renderInfo && UI.renderInfo(); UI.renderLayersSoon && UI.renderLayersSoon();
+  }
+}
+
+'use strict';
 /* ================= Online-Bibliothek: echte Foto-Materialien von ambientCG (CC0, frei nutzbar) ================= */
 const ACG = { list: null, loading: null, sets: new Map(), pending: new Map(), cat: 'Alle' };
 const ACG_API = 'https://ambientcg.com/api/v2/full_json';
@@ -3512,8 +3583,13 @@ async function acgLoad(id, res = '2K') {
   if (ACG.sets.has(id)) return ACG.sets.get(id);
   if (ACG.pending.has(id)) return ACG.pending.get(id);
   const job = (async () => {
-    let zip = await PDB.get('z:' + id + ':' + res);
-    if (!zip) {
+    let files = null;
+    if (id.startsWith('u:')) {
+      const maps = await PDB.get(id); if (!maps) throw new Error('Eigenes Material nicht gefunden');
+      files = new Map(Object.entries(maps).map(([k, v]) => [{ c: 'x_Color.png', r: 'x_Roughness.png', m: 'x_Metalness.png', h: 'x_Displacement.png', ao: 'x_AmbientOcclusion.png', n: 'x_NormalGL.png', gl: 'x_Gloss.png' }[k], v]));
+    }
+    let zip = files ? null : await PDB.get('z:' + id + ':' + res);
+    if (!files && !zip) {
       const j = await netJSON(`${ACG_API}?id=${encodeURIComponent(id)}&include=downloadData`);
       const a = (j.foundAssets || [])[0]; if (!a) throw new Error('Material nicht gefunden');
       const dl = (((a.downloadFolders || {}).default || {}).downloadFiletypeCategories || {}).zip;
@@ -3523,7 +3599,7 @@ async function acgLoad(id, res = '2K') {
       zip = await netBuf(pick.fullDownloadPath || pick.downloadLink);
       await PDB.put('z:' + id + ':' + res, zip);
     }
-    const files = await readZip(zip);
+    if (!files) files = await readZip(zip);
     const find = (re) => { for (const [n, d] of files) if (re.test(n) && /\.(jpe?g|png)$/i.test(n)) return d; return null; };
     const load = async (bytes, srgb) => {
       if (!bytes) return null;
@@ -3537,7 +3613,8 @@ async function acgLoad(id, res = '2K') {
     };
     const set = {
       c: await load(find(/_(Color|BaseColor|Albedo|Diffuse)\./i)),
-      r: await load(find(/_Roughness\./i)),
+      r: (await load(find(/_Roughness\./i))) || (await load(find(/_Gloss\./i))),
+      rInv: !find(/_Roughness\./i) && !!find(/_Gloss\./i),
       m: await load(find(/_Metal(ness|lic)?\./i)),
       h: await load(find(/_(Displacement|Height)\./i)),
       ao: await load(find(/_AmbientOcclusion\./i)),
@@ -3563,7 +3640,7 @@ function photoFill(T, c, f) {
   bindTargets([c.c, c.m]);
   E.P.photo.use().tex('uPos', T.pos).tex('uNrm', T.nrm).tex('uBake', T.bake)
     .tex('uIC', set.c).tex('uIR', set.r).tex('uIM', set.m).tex('uIH', set.h).tex('uIAO', set.ao)
-    .set('uHasR', !!set.r).set('uHasM', !!set.m).set('uHasH', !!set.h).set('uHasAO', !!set.ao)
+    .set('uHasR', !!set.r).set('uRInv', !!set.rInv).set('uHasM', !!set.m).set('uHasH', !!set.h).set('uHasAO', !!set.ao)
     .set('uScale', f.scale || 2).set('uRot', (f.rot || 0) * Math.PI / 180).set('uTri', f.proj !== 'uv')
     .set('uTint', hex2rgb(f.colA || '#ffffff')).set('uTintAmt', f.tint || 0).set('uHue', f.hue || 0).set('uBright', f.bright || 0)
     .set('uROff', f.rOff || 0).set('uMetal', f.metalA || 0).set('uHAmt', f.hAmt ?? 0.4).set('uAOAmt', f.aoAmt ?? 0.5);
@@ -3575,6 +3652,56 @@ function addPhotoLayer(it, asBrush) {
   pushUndo(); insertLayers([newLayer('fill', { name: it.name, fill })]); UI.refreshAll();
   toast('Lädt „' + it.name + '“ …');
 }
+
+/* ================= Eigene Materialien: Bilder/ZIP reinziehen ================= */
+const UMAT = { list: null };
+const MAPRE = {
+  c: /(base_?colou?r|albedo|diffuse|diff|_col\b|_col[._]|colou?r)/i,
+  r: /(rough)/i, m: /(metal)/i, h: /(height|disp|displacement|bump)/i, ao: /(ambient_?occlusion|occlusion|[_\-. ]ao[_\-. ])/i,
+  n: /(normal|_nor\b|_nor[._]|nrm)/i, gl: /(gloss|smooth)/i,
+};
+const mapKind = (name) => { const n = ' ' + name.toLowerCase().replace(/\.[^.]+$/, '') + ' '; for (const k of ['n', 'r', 'gl', 'm', 'h', 'ao', 'c']) if (MAPRE[k].test(n)) return k; return null; };
+const baseName = (name) => name.replace(/\.[^.]+$/, '').replace(/[_\-. ]?(base_?colou?r|albedo|diffuse|diff|colou?r|col|roughness|rough|metalness|metallic|metal|height|displacement|disp|bump|ambient_?occlusion|occlusion|ao|normal_?(gl|dx)?|nor_?(gl|dx)?|nrm|gloss(iness)?|smoothness|[1248]k|png|jpe?g)\b/gi, '').replace(/[_\-. ]+$/, '').replace(/^[_\-. ]+/, '') || 'Material';
+async function umatList() { if (!UMAT.list) UMAT.list = (await PDB.get('u:list')) || []; return UMAT.list; }
+async function umatThumb(bytes) {
+  const bmp = await createImageBitmap(new Blob([bytes]));
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const s = Math.min(bmp.width, bmp.height); g.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 128, 128);
+  return c.toDataURL('image/jpeg', 0.8);
+}
+/* Dateien → Materialien (gleicher Grundname = ein Material) */
+async function importMaterials(fileList) {
+  const items = [];
+  for (const f of fileList) {
+    if (/\.zip$/i.test(f.name)) { const z = await readZip(await f.arrayBuffer()); for (const [n, d] of z) if (/\.(png|jpe?g|webp)$/i.test(n)) items.push({ name: n.split('/').pop(), bytes: d, group: f.name.replace(/\.zip$/i, '') }); }
+    else if (/^image\//.test(f.type) || /\.(png|jpe?g|webp)$/i.test(f.name)) items.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
+  }
+  if (!items.length) { toast('Keine Bilder gefunden (PNG, JPG oder ZIP).', 'warn'); return 0; }
+  const groups = new Map();
+  for (const it of items) { const g = it.group || baseName(it.name); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(it); }
+  const list = await umatList(); let n = 0;
+  for (const [g, arr] of groups) {
+    const maps = {};
+    for (const it of arr) { const k = mapKind(it.name) || (arr.length === 1 ? 'c' : null); if (k && !maps[k]) maps[k] = it.bytes; }
+    if (!maps.c) { const any = arr.find((it) => !mapKind(it.name)); if (any) maps.c = any.bytes; }
+    if (!maps.c) continue;
+    const id = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    await PDB.put('u:' + id, maps);
+    list.unshift({ id, name: g.replace(/[_-]+/g, ' ').trim(), thumb: await umatThumb(maps.c), maps: Object.keys(maps) });
+    n++;
+  }
+  await PDB.put('u:list', list);
+  if (typeof UI !== 'undefined') { UI.shelfTab = 'umat'; UI.renderShelf(); }
+  toast(n === 1 ? 'Material importiert – Klick legt eine Füll-Ebene an.' : `${n} Materialien importiert`);
+  return n;
+}
+async function deleteUserMat(id) { const list = await umatList(); const i = list.findIndex((x) => x.id === id); if (i >= 0) list.splice(i, 1); await PDB.put('u:list', list); }
+function importDialog() {
+  const inp = el('input', { type: 'file', multiple: true, accept: 'image/*,.zip' });
+  inp.onchange = async () => { if (!inp.files.length) return; UI.busy('Material wird importiert …'); try { await importMaterials([...inp.files]); } catch (e) { console.error(e); toast('Import fehlgeschlagen: ' + e.message, 'err'); } finally { UI.busy(null); } };
+  inp.click();
+}
+const umatInfo = (id) => (UMAT.list || []).find((x) => 'u:' + x.id === id);
 
 'use strict';
 /* ================= Materialien, Smart-Materialien, Masken, Pinsel ================= */
@@ -4148,6 +4275,14 @@ async function buildProject() {
   meshBin.set(new Uint8Array(s.nrm.buffer, s.nrm.byteOffset, s.nrm.byteLength), s.pos.byteLength);
   meshBin.set(new Uint8Array(s.uv.buffer, s.uv.byteOffset, s.uv.byteLength), s.pos.byteLength + s.nrm.byteLength);
   files.push({ name: 'mesh.bin', data: meshBin });
+  // eigene Materialien mitspeichern, damit das Projekt überall gleich aussieht
+  const umats = [];
+  for (const id of new Set(S.layers.filter((l) => l.fill && l.fill.photo && l.fill.photo.startsWith('u:')).map((l) => l.fill.photo))) {
+    const maps = await PDB.get(id); if (!maps) continue;
+    const info = umatInfo(id) || { name: 'Material' };
+    umats.push({ id, name: info.name, thumb: info.thumb, maps: Object.keys(maps) });
+    for (const [k, v] of Object.entries(maps)) files.push({ name: `umat/${id.slice(2)}/${k}.bin`, data: new Uint8Array(v.buffer ? v.buffer.slice(v.byteOffset || 0, (v.byteOffset || 0) + v.byteLength) : v) });
+  }
   const gm = S.mesh.groups.mat; files.push({ name: 'matid.bin', data: new Uint8Array(gm.buffer.slice(gm.byteOffset, gm.byteOffset + gm.byteLength)) });
   const layers = [];
   for (const l of S.layers) {
@@ -4156,7 +4291,7 @@ async function buildProject() {
     if (l.mask && l.mask.tex) { o.mask.tex = `L${l.id}_mask.bin`; files.push({ name: o.mask.tex, data: texToBytes(l.mask.tex) }); }
     layers.push(o);
   }
-  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, mats: S.mesh.mats, edited: !!S.mesh.uvEdited, usedE: !!E.usedE, usedO: !!E.usedO, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
+  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, mats: S.mesh.mats, umats, edited: !!S.mesh.uvEdited, usedE: !!E.usedE, usedO: !!E.usedO, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
   files.unshift({ name: 'projekt.json', data: enc.encode(JSON.stringify(meta)) });
   return makeZip(files);
 }
@@ -4176,6 +4311,16 @@ async function loadProjectBuffer(buf) {
   const files = await readZip(buf);
   const meta = JSON.parse(dec.decode(files.get('projekt.json')));
   if (meta.app !== APP_NAME) throw new Error('Das ist keine Melonentextur-Projektdatei.');
+  if (meta.umats && meta.umats.length) {
+    const list = await umatList();
+    for (const u of meta.umats) {
+      if (await PDB.get(u.id)) continue;
+      const maps = {}; for (const k of u.maps) { const d = files.get(`umat/${u.id.slice(2)}/${k}.bin`); if (d) maps[k] = d; }
+      await PDB.put(u.id, maps);
+      if (!list.find((x) => 'u:' + x.id === u.id)) list.push({ id: u.id.slice(2), name: u.name, thumb: u.thumb, maps: u.maps });
+    }
+    await PDB.put('u:list', list);
+  }
   const mb = files.get('mesh.bin'); const n = meta.nT * 3;
   const f = new Float32Array(mb.buffer.slice(mb.byteOffset, mb.byteOffset + mb.byteLength));
   const pos = f.subarray(0, n * 3), nrm = f.subarray(n * 3, n * 6), uv = f.subarray(n * 6, n * 8);
@@ -4324,6 +4469,7 @@ const TOOLS = [
   { id: 'decal', icon: 'image', name: 'Projektion', key: 'P', desc: 'Ein Bild (z. B. ein Logo) aufs Modell projizieren.' },
   { id: 'fill', icon: 'bucket', name: 'Polygonfüllung', key: 'F', desc: 'Füllt per Klick ganze Dreiecke, Flächen, UV-Inseln, Teile oder Material-Bereiche.' },
   { id: 'particle', icon: 'particle', name: 'Partikel-Pinsel', key: 'N', desc: 'Lässt Tropfen nach unten laufen, Regen-Streifen, Spritzer oder Staub entstehen – richtet sich nach der Schwerkraft.' },
+  { id: 'seam', icon: 'seam', name: 'Naht', key: 'J', desc: 'Zieh eine Linie übers Modell – beim Loslassen wird eine genähte Naht daraus (Rille + Stiche). Für Kleidung, Taschen, Sitze.' },
   { id: 'smudge', icon: 'drop', name: 'Verwischen', key: 'S', desc: 'Zieht Farbe und Material in Malrichtung mit, wie mit dem Finger.' },
   { id: 'clone', icon: 'stamp', name: 'Klonen', key: 'L', desc: 'Kopiert eine Stelle an eine andere. Erst Alt + Klick auf die Quelle, dann malen.' },
   { id: 'pick', icon: 'pipette', name: 'Farbaufnahme', key: 'K', desc: 'Nimmt Farbe, Rauheit und Metall vom Modell auf.' },
@@ -4336,6 +4482,7 @@ const FILL_MODES = [['tri', 'Dreieck'], ['planar', 'Fläche (Polygon)'], ['islan
 
 /* schlichte Linien-Symbole */
 const ICONS = {
+  seam: 'M3 17c3-4 6-6 9-6s6 2 9 6 M5 13.5l2 2 M9 11l1.6 2.4 M13.6 10.6l1 2.6 M18 12l1.4 2.4',
   particle: 'M12 3c2.5 3.2 4 5.6 4 7.6A4 4 0 0 1 8 10.6C8 8.6 9.5 6.2 12 3z M7 16.5a1.3 1.3 0 1 0 0 .01 M12 19a1.5 1.5 0 1 0 0 .01 M17 15.5a1.2 1.2 0 1 0 0 .01',
   folder: 'M3 7.5A1.5 1.5 0 0 1 4.5 6h4.6l2 2h8.4A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z',
   chev: 'M9 6l6 6-6 6',
@@ -4658,6 +4805,13 @@ const UI = {
       c.append(ctlSelect('Art', b, 'ptype', PART_KINDS, { compact: true }), size(), ctlSlider('Menge', b, 'prate', 0.1, 4, 0.05, { compact: true }), ctlSlider('Länge', b, 'plen', 0.1, 4, 0.05, { compact: true }),
         ctlSlider('Schwerkraft', b, 'pgrav', 0, 3, 0.05, { compact: true }), ctlSlider('Zittern', b, 'pwig', 0, 2, 0.05, { compact: true }), ctlSlider('Fluss', b, 'flow', 0.05, 1, 0.01, { compact: true }), opac(),
         hint('Tropfen laufen auf dem Bildschirm nach unten – Modell vorher passend drehen'));
+    } else if (T === 'seam') {
+      const sm = seamDefaults(b);
+      c.append(ctlSelect('Art', sm, 'kind', SEAM_KINDS, { compact: true }), ctlSlider('Stichlänge', sm, 'len', 2, 40, 0.5, { compact: true }), ctlSlider('Abstand', sm, 'gap', 0, 30, 0.5, { compact: true }),
+        ctlSlider('Fadendicke', sm, 'width', 1, 12, 0.1, { compact: true }), sm.kind === 'double' ? ctlSlider('Linienabstand', sm, 'dist', 3, 40, 0.5, { compact: true }) : null,
+        ctlColor('Faden', sm, 'thread', { compact: true }), ctlSlider('Rille', sm, 'depth', 0, 1.5, 0.01, { compact: true, tip: 'Wie tief die Naht in den Stoff gedrückt ist' }),
+        ctlSlider('Abdunkeln', sm, 'grooveDark', 0, 1, 0.01, { compact: true, tip: 'Schatten in der Rille' }), ctlSlider('Fadenhöhe', sm, 'th', 0, 1.5, 0.01, { compact: true }),
+        hint('Linie ziehen und loslassen · Shift + Klick: gerade Naht vom letzten Punkt'));
     } else if (T === 'smudge') {
       c.append(size(), opac('Stärke'), hard(), ctlSelect('Spitze', b, 'shape', SHAPES.map((s2, i) => [i, s2]), { compact: true }), hint('Zieht Farbe und Material in Malrichtung mit'));
     } else if (T === 'clone') {
@@ -4768,7 +4922,7 @@ const UI = {
       const th = el('div', { class: 'th' + (sel && S.target === 'layer' && l.mask ? ' act' : ''), title: 'Ebene' });
       if (l.kind === 'folder') { th.classList.add('fold'); th.append(ico('folder', 16)); }
       else if (l.kind === 'filter') { th.classList.add('filt'); th.append(ico('sun', 15)); }
-      else if (l.kind === 'fill' && l.fill.photo) { const it = ACG.list && ACG.list.find((x) => x.id === l.fill.photo); th.style.background = it ? `center/cover url("${it.thumb}")` : '#555'; }
+      else if (l.kind === 'fill' && l.fill.photo) { const it = umatInfo(l.fill.photo) || (ACG.list && ACG.list.find((x) => x.id === l.fill.photo)); th.style.background = it ? `center/cover url("${it.thumb}")` : '#555'; }
       else if (l.kind === 'fill') th.style.background = PAT_USES_B[l.fill.pat] ? `linear-gradient(135deg,${l.fill.colA} 50%,${l.fill.colB} 50%)` : l.fill.colA;
       else { th.classList.add('paint'); th.append(ico('brush', 15)); }
       let mk = null;
@@ -4891,7 +5045,7 @@ const UI = {
           el('button', { class: b.maskVal >= 0.5 ? 'on' : '', onclick: () => { b.maskVal = 1; this.renderProps(); } }, 'Weiß'),
           el('button', { class: b.maskVal < 0.5 ? 'on' : '', onclick: () => { b.maskVal = 0; this.renderProps(); } }, 'Schwarz')));
       } else {
-        const opts = [['', 'Nur Farbe'], ...matGroups(b.mat)];
+        const opts = [['', 'Nur Farbe'], ...((UMAT.list || []).length ? [el('optgroup', { label: 'Eigene Materialien' }, UMAT.list.map((x) => el('option', { value: 'u:' + x.id, selected: b.mat === 'u:' + x.id }, x.name)))] : []), ...matGroups(b.mat)];
         if (S.tool !== 'decal') kids.push(ctlSelect('Malt mit', b, 'mat', opts, { onchange: () => this.renderProps() }));
         if (S.tool === 'decal') kids.push(el('div', { class: 'note' }, 'Der Aufkleber nimmt die Farben aus dem Bild.'), ctlSlider('Rauheit', b, 'rough', 0, 1, 0.01), ctlSlider('Metall', b, 'metal', 0, 1, 0.01));
         if (S.tool !== 'decal') kids.push(el('div', { class: 'chk', 'data-tip': 'Welche Kanäle der Pinsel malt', 'data-desc': 'Ausgeschaltete Kanäle bleiben beim Malen und Radieren unverändert – z. B. nur Höhe malen für Dellen, nur Rauheit für Fettflecken.' },
@@ -4944,7 +5098,7 @@ const UI = {
     if (l.kind === 'fill' && l.fill.photo) {
       const f = l.fill;
       P.append(sec('Foto-Material',
-        el('div', { class: 'note' }, (ACG.sets.has(f.photo) ? '' : 'Wird geladen … ') + 'Quelle: ambientCG.com – ' + f.photo + ' (CC0)'),
+        el('div', { class: 'note' }, (ACG.sets.has(f.photo) ? '' : 'Wird geladen … ') + (f.photo.startsWith('u:') ? 'Eigenes Material' : 'Quelle: ambientCG.com – ' + f.photo + ' (CC0)')),
         ctlSlider('Größe', f, 'scale', 0.2, 20, 0.05, { undo: true, onchange: recomp, tip: 'Größere Zahl = feineres Muster' }),
         ctlSlider('Drehung', f, 'rot', 0, 360, 1, { undo: true, onchange: recomp }),
         ctlSelect('Projektion', f, 'proj', [['tri', 'Ohne Nähte (von 3 Seiten)'], ['uv', 'Nach UV-Karte']], { undo: true, onchange: recomp }),
@@ -4956,7 +5110,7 @@ const UI = {
         ctlSlider('Metall', f, 'metalA', 0, 1, 0.01, { undo: true, onchange: recomp, tip: 'Mindestwert, falls das Material kein Metall-Bild hat' }),
         ctlSlider('Höhe', f, 'hAmt', 0, 2, 0.01, { undo: true, onchange: recomp }),
         ctlSlider('Schatten in Ritzen', f, 'aoAmt', 0, 1, 0.01, { undo: true, onchange: recomp }),
-        ctlSelect('Auflösung', f, 'res', [['1K', '1K (schnell)'], ['2K', '2K'], ['4K', '4K (sehr scharf, groß)']], { undo: true, onchange: () => { ACG.sets.delete(f.photo); recomp(); } })));
+        f.photo.startsWith('u:') ? null : ctlSelect('Auflösung', f, 'res', [['1K', '1K (schnell)'], ['2K', '2K'], ['4K', '4K (sehr scharf, groß)']], { undo: true, onchange: () => { ACG.sets.delete(f.photo); recomp(); } })));
     }
     if (l.kind === 'fill' && !l.fill.photo) {
       const f = l.fill; const k = [];
@@ -5024,7 +5178,7 @@ const UI = {
   /* ---------- Regal ---------- */
   renderShelf() {
     const cats = $('#shelf .cats'), tabs = $('#shelf .tabs'); cats.innerHTML = ''; tabs.innerHTML = '';
-    const T = [['smart', 'Fertige Looks', Object.keys(SMART).length], ['mat', 'Materialien', Object.keys(MATERIALS).length], ['mask', 'Masken', GENS.length - 1], ['brushp', 'Pinsel', BRUSH_PRESETS.length], ['shape', 'Pinselspitzen', SHAPES.length]];
+    const T = [['umat', 'Eigene Materialien', UMAT.list ? UMAT.list.length : '…'], ['smart', 'Fertige Looks', Object.keys(SMART).length], ['mat', 'Materialien', Object.keys(MATERIALS).length], ['mask', 'Masken', GENS.length - 1], ['brushp', 'Pinsel', BRUSH_PRESETS.length], ['shape', 'Pinselspitzen', SHAPES.length]];
     for (const [k, t, n] of T) {
       cats.append(el('button', { class: this.shelfTab === k && !(k === 'mat' && this.matCat && this.matCat !== 'Alle') && !(k === 'online' && ACG.cat !== 'Alle') ? 'on' : '', onclick: () => { this.shelfTab = k; if (k === 'mat') this.matCat = 'Alle'; if (k === 'online') ACG.cat = 'Alle'; this.renderShelf(); } }, t, el('span', { class: 'cnt' }, n)));
       if (k === 'online' && this.shelfTab === 'online' && ACG.list) {
@@ -5037,7 +5191,7 @@ const UI = {
         for (const [c, n2] of Object.entries(cnt)) cats.append(el('button', { class: 'sub' + (this.matCat === c ? ' on' : ''), onclick: () => { this.matCat = c; this.renderShelf(); } }, c, el('span', { class: 'cnt' }, n2)));
       }
     }
-    const hints = { online: 'Echte Foto-Texturen von ambientCG.com (CC0, frei nutzbar) · Klick: als Füll-Ebene', smart: 'Klick fügt den Look als Ebenen ein', mat: 'Klick: neue Ebene   ·   Rechtsklick: damit malen', mask: 'Klick: Maske für die ausgewählte Ebene', brushp: 'Klick: Pinsel übernehmen', shape: '' };
+    const hints = { umat: 'PNG/JPG oder ZIP hier reinziehen · gleiche Namen (…_Color, …_Roughness, …_Height) werden ein Material · Klick: Füll-Ebene · Rechtsklick: löschen', online: 'Echte Foto-Texturen von ambientCG.com (CC0, frei nutzbar) · Klick: als Füll-Ebene', smart: 'Klick fügt den Look als Ebenen ein', mat: 'Klick: neue Ebene   ·   Rechtsklick: damit malen', mask: 'Klick: Maske für die ausgewählte Ebene', brushp: 'Klick: Pinsel übernehmen', shape: '' };
     const title = (T.find((x) => x[0] === this.shelfTab) || [])[1] + (this.shelfTab === 'mat' && this.matCat && this.matCat !== 'Alle' ? ' · ' + this.matCat : '') + (this.shelfTab === 'online' && ACG.cat !== 'Alle' ? ' · ' + ACG.cat : '');
     tabs.append(el('span', { class: 'ttl' }, title));
     if (this.shelfTab === 'mat' || this.shelfTab === 'smart' || this.shelfTab === 'online') {
@@ -5061,6 +5215,17 @@ const UI = {
       if (oncontext) t.addEventListener('contextmenu', (e) => { e.preventDefault(); oncontext(); });
       return t;
     };
+    if (this.shelfTab === 'umat') {
+      if (!UMAT.list) umatList().then(() => this.renderShelf());
+      else {
+        it.append(el('button', { class: 'tile', title: 'Bilder oder ZIP mit Texturen auswählen', onclick: () => importDialog() }, el('div', { class: 'ph addph' }, '+'), el('span', {}, 'Importieren')));
+        for (const x of UMAT.list) {
+          it.append(el('button', { class: 'tile', title: x.name + ' (' + x.maps.map((k) => ({ c: 'Farbe', r: 'Rauheit', m: 'Metall', h: 'Höhe', ao: 'AO', n: 'Normal', gl: 'Glanz' })[k]).join(', ') + ')', onclick: () => addPhotoLayer({ id: 'u:' + x.id, name: x.name }),
+            oncontextmenu: async (e) => { e.preventDefault(); if (confirm('„' + x.name + '“ aus „Eigene Materialien“ löschen?')) { await deleteUserMat(x.id); this.renderShelf(); } } }, el('img', { src: x.thumb, alt: '' }), el('span', {}, x.name)));
+        }
+        if (!UMAT.list.length) it.append(el('div', { class: 'note', style: 'padding:14px;max-width:420px' }, 'Noch keine eigenen Materialien. Zieh Texturen aus dem Internet (z. B. Stoff_Color.jpg, Stoff_Roughness.jpg, Stoff_Height.jpg) oder eine ZIP-Datei hier rein.'));
+      }
+    }
     if (this.shelfTab === 'online') {
       if (!ACG.list) {
         it.append(el('div', { class: 'note', id: 'onlineSt', style: 'padding:14px' }, 'Lade die Liste der Foto-Materialien …'));
@@ -5845,6 +6010,14 @@ function drawOverlay() {
     return;
   }
   const T = S.tool;
+  if (drag && drag.mode === 'seam') {
+    const r = drag.r, sm = seamDefaults(S.brush);
+    g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
+    const path = () => { g.beginPath(); drag.pts.forEach((p, i) => (i ? g.lineTo(r.x + p[0], ov.height - r.y - p[1]) : g.moveTo(r.x + p[0], ov.height - r.y - p[1]))); };
+    g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = (sm.width + 2) * dpr; path(); g.stroke();
+    g.strokeStyle = sm.thread; g.lineWidth = sm.width * dpr; g.setLineDash([sm.len * dpr, sm.gap * dpr]); path(); g.stroke(); g.restore();
+    return;
+  }
   if (drag && drag.mode === 'tool') {
     const col = isSelTool(S.tool) ? 'rgba(120,170,255,.25)' : hexA(S.brush.color, 0.45);
     drawToolShape(g, drag.r, ovXY, col, false); return;
@@ -5958,6 +6131,13 @@ function setupInput() {
       if (applyCanvas(cvs, h.r, T === 'decal' ? 4 : 0)) UI.renderInfo();
       return;
     }
+    // Naht: Linie sammeln, beim Loslassen nähen
+    if (T === 'seam') {
+      const start = e.shiftKey && E.seamLast && E.seamLast.r === h.r ? [E.seamLast.x, E.seamLast.y] : null;
+      drag = { mode: 'seam', r: h.r, pts: start ? [start, [h.x, h.y]] : [[h.x, h.y]], straight: !!start };
+      if (start) { const d = drag; drag = null; applySeam(d.r, d.pts); E.seamLast = { r: d.r, x: h.x, y: h.y }; drawOverlay(); }
+      return;
+    }
     // Pinsel-artige Werkzeuge
     if (T === 'clone' && e.altKey) {
       const hit = pickAt(h.r, h.x, h.y);
@@ -5986,7 +6166,7 @@ function setupInput() {
   });
   c.addEventListener('pointermove', (e) => {
     const h = hitRegion(e.offsetX, e.offsetY);
-    mouse = { x: e.offsetX, y: e.offsetY, inside: true, nav: !!(drag && !['paint', 'tool', 'uvdrag', 'uvkey', 'mv'].includes(drag.mode)), r: h ? h.r : null, lx: h ? h.x : 0, ly: h ? h.y : 0 };
+    mouse = { x: e.offsetX, y: e.offsetY, inside: true, nav: !!(drag && !['paint', 'tool', 'uvdrag', 'uvkey', 'mv', 'seam'].includes(drag.mode)), r: h ? h.r : null, lx: h ? h.x : 0, ly: h ? h.y : 0 };
     if (MOD.op) { if (h && h.r === MOD.op.r) modUpdate(h.x, h.y, e.ctrlKey); drawOverlay(); return; }
     if (drag && drag.mode === 'adjb') { adjDragUpdate(drag, e.clientX - drag.x, e.clientY - drag.y); UI.renderCtx(); mouse = { ...drag.m, nav: false }; drawOverlay(); return; }
     if (drag && drag.mode === 'sten') {
@@ -5997,6 +6177,10 @@ function setupInput() {
     if (drag && drag.mode === 'uvkey') {
       if (h && h.r.type === '2d') uvUpdate(regionUV(h.r, h.x, h.y), { snap: e.ctrlKey });
       drawOverlay(); return;
+    }
+    if (drag && drag.mode === 'seam') {
+      if (h && h.r === drag.r) { const lp = drag.pts[drag.pts.length - 1]; if (Math.hypot(h.x - lp[0], h.y - lp[1]) > 1.5 * dpr) drag.pts.push([h.x, h.y]); }
+      E.ovDirty = true; return;
     }
     if (drag && drag.mode === 'tool') {
       const r = drag.r, rect = c.getBoundingClientRect();
@@ -6040,6 +6224,7 @@ function setupInput() {
     if (!drag || drag.mode === 'uvkey') return;
     const d = drag; drag = null;
     if (d.mode === 'adjb') { UI.modHint(''); UI.renderCtx(); UI.renderProps(); }
+    if (d.mode === 'seam') { if (d.pts.length > 1) { applySeam(d.r, d.pts); const lp = d.pts[d.pts.length - 1]; E.seamLast = { r: d.r, x: lp[0], y: lp[1] }; } }
     if (d.mode === 'paint' && S.tool === 'particle' && PART.list.length) { PART.waitEnd = true; }
     else if (d.mode === 'paint') {
       if (S.tool === 'particle') PART.list = [];
@@ -6154,6 +6339,9 @@ function setupInput() {
   window.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); });
   window.addEventListener('drop', (e) => {
     const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return; e.preventDefault();
+    const all = [...e.dataTransfer.files];
+    const onShelf = e.target && e.target.closest && e.target.closest('#shelf');
+    if (/\.zip$/i.test(f.name) || (onShelf && all.some((x) => /^image\//.test(x.type))) || (all.length > 1 && all.every((x) => /^image\//.test(x.type)))) { UI.busy('Material wird importiert …'); importMaterials(all).catch((er) => toast('Import fehlgeschlagen: ' + er.message, 'err')).finally(() => UI.busy(null)); return; }
     if (/^image\//.test(f.type) && S.mesh) { if (S.tool === 'decal') { createImageBitmap(f).then((img) => { E.decalImg = img; E.decalName = f.name; UI.renderCtx(); }); } else { UI.busy('Bild wird geladen …'); imageLayer(f).then(() => UI.refreshAll()).finally(() => UI.busy(null)); } return; }
     handleFile(f);
   });
