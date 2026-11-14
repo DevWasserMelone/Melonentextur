@@ -1,5 +1,5 @@
 {
-  "version": "2.5.0",
-  "notes": "2.5.0\n- Vorschau der Materialien und Looks als Kugeln (größer, schärfer, Unebenheiten besser sichtbar)\n- Bilder direkt ins 2D-Fenster (UV-Karte) ziehen – liegen dann wie in Blender auf der UV-Karte\n- UV-Karte: Rechteck aufziehen wählt mehrere Teile (Shift = dazu, Strg = weg)",
+  "version": "2.6.0",
+  "notes": "2.6.0\n- Neue Formate: FBX (mit Position/Drehung/Größe, Materialien, eingebetteten Texturen), DAE, STL, PLY\n- Hinweise beim Öffnen von .spp und .blend, wie man sie stattdessen rüberholt\n- UV-Bearbeitung ohne Hänger: Übernahme sofort, Hilfskarten im Hintergrund\n- UV: X/Y sperrt die Achse beim Verschieben/Skalieren, Live-Anzeige der Werte\n- UV: neue Knöpfe „Einpassen“, „Anordnen“ und „Bild auf UV …“",
   "date": "2026-11-14"
 }
