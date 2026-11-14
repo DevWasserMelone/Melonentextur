@@ -1,5 +1,5 @@
 {
-  "version": "2.8.1",
-  "notes": "2.8.1\n- Neu: Substance-Smart-Materials (.spsm) direkt reinziehen – enthaltene Texturen werden als eigenes Material übernommen",
+  "version": "2.9.0",
+  "notes": "2.9.0\n- Neu: Substance-Dateien (.sbsar, .spsm, .spmsk, .sppr, .sbs) und TGA-Texturen reinziehen",
   "date": "2026-11-14"
 }
