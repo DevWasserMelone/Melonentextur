@@ -352,7 +352,7 @@ html.pro #status{background:#1a1b1d}
     <div id="targetBadge"></div>
     <div id="vbar"></div>
     <div id="modHint"></div>
-    <div id="uvHint" style="display:none"></div>
+    <div id="uvHint"><b>UV-Karte:</b> Klick = Teil wählen · Shift + Klick = mehrere · <b>A</b> = alles · <b>G</b> bewegen · <b>R</b> drehen · <b>S</b> skalieren · Mittlere/rechte Maus = Ansicht verschieben · Linksklick bestätigt, Esc bricht ab</div>
   </main>
   <section id="shelf"><div class="split" id="splitShelf" title="Ziehen = Höhe ändern"></div><div class="cats"></div><div class="smain"><div class="tabs"></div><div class="items"></div></div></section>
   <aside id="side">
@@ -373,7 +373,7 @@ html.pro #status{background:#1a1b1d}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.4.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -545,6 +545,7 @@ class Tex {
     gl.generateMipmap(gl.TEXTURE_2D);
     if (!this.mip) {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      if (E_ANISO) gl.texParameterf(gl.TEXTURE_2D, E_ANISO.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(E_ANISO.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
       const an = gl.getExtension('EXT_texture_filter_anisotropic');
       if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, 8);
       this.mip = true;
@@ -673,9 +674,11 @@ function readF32(tex, x = 0, y = 0, w = tex.w, h = tex.h) {
   return out;
 }
 
+let E_ANISO = null;
 function initGL(canvas) {
   gl = canvas.getContext('webgl2', { antialias: true, alpha: false, premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
   if (!gl) throw new Error('Dein Grafiktreiber unterstützt kein WebGL2.');
+  E_ANISO = gl.getExtension('EXT_texture_filter_anisotropic');
   if (!gl.getExtension('EXT_color_buffer_float')) throw new Error('Deine Grafikkarte unterstützt keine Gleitkomma-Texturen (EXT_color_buffer_float).');
   gl.getExtension('EXT_float_blend');
   gl.getExtension('OES_texture_float_linear');
@@ -1076,7 +1079,7 @@ void main(){ SZ=textureSize(uAccC,0); ivec2 ip=ivec2(gl_FragCoord.xy);
   oM=vec4(mix(am.r,m.r,k*uCh.y), mix(am.g,m.g,k*uCh.z), mix(am.b,m.b,k*uCh.w), am.a); }`;
 
 const FS_FINAL = G_HEAD + `
-uniform sampler2D uAccC,uAccM,uIsl,uBake; uniform float uHS;
+uniform sampler2D uAccC,uAccM,uIsl,uBake,uBaseN; uniform float uHS,uBNStr; uniform bool uHasBN;
 layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oN;
 ivec2 SZ;
 ivec2 nearT(ivec2 p){ p=clamp(p,ivec2(0),SZ-1); vec4 s=texelFetch(uIsl,p,0); return s.z>0.5 ? ivec2(s.xy) : p; }
@@ -1085,9 +1088,21 @@ void main(){ SZ=textureSize(uAccC,0); ivec2 ip=ivec2(gl_FragCoord.xy); ivec2 q=n
   vec4 c=texelFetch(uAccC,q,0), m=texelFetch(uAccM,q,0); float ao=texelFetch(uBake,q,0).a;
   float dx=H(q-ivec2(1,0))-H(q+ivec2(1,0)), dy=H(q-ivec2(0,1))-H(q+ivec2(0,1));
   vec3 n=normalize(vec3(dx*uHS,dy*uHS,1.0));
+  if(uHasBN){ vec3 b=texelFetch(uBaseN,q,0).xyz*2.0-1.0; b.xy*=uBNStr; n=normalize(vec3(n.xy+b.xy,n.z*max(b.z,0.05))); }
   oC=vec4(clamp(c.rgb,0.0,1.0),clamp(c.a,0.0,1.0));
   oM=vec4(clamp(m.r,0.0,1.0),clamp(m.g,0.0,1.0),clamp(m.b*0.5+0.5,0.0,1.0),clamp(ao,0.0,1.0));
   oN=vec4(n*0.5+0.5,clamp(m.a,0.0,1.0)); }`;
+
+/* Texturen aus Blender in eine Ebene übernehmen (pro Material) */
+const FS_IMPORT = G_HEAD + `
+in vec2 vUV; uniform sampler2D uIC,uIMR,uIE; uniform bool uHasC,uHasMR,uHasE,uAlpha; uniform vec4 uBaseF; uniform float uMetalF,uRoughF; uniform vec3 uEmisF;
+layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK; layout(location=3) out vec4 oX;
+void main(){ vec4 c=uBaseF; if(uHasC) c*=texture(uIC,vUV);
+  float r=uRoughF, m=uMetalF; if(uHasMR){ vec4 t=texture(uIMR,vUV); r*=t.g; m*=t.b; }
+  vec3 e=uEmisF; if(uHasE) e*=texture(uIE,vUV).rgb; float E=clamp(max(e.r,max(e.g,e.b)),0.0,1.0);
+  float ca=uAlpha?1.0:0.0;
+  oC=vec4(c.rgb,1.0); oM=vec4(r,m,0.0,1.0); oK=vec4(1.0,1.0,0.0,1.0); oX=vec4(E,E>0.0?1.0:0.0,c.a*ca,ca); }`;
+const FS_IMPORTN = G_HEAD + `in vec2 vUV; uniform sampler2D uIN; out vec4 o; void main(){ o=vec4(texture(uIN,vUV).rgb,1.0); }`;
 
 const FS_COPY = G_HEAD + `in vec2 vUV; uniform sampler2D uSrc; out vec4 o; void main(){ o=texture(uSrc,vUV); }`;
 
@@ -1562,11 +1577,12 @@ function parseOBJ(text) {
   const pos = [], nrm = [], uv = [], idx = [];
   const map = new Map();
   let hasT = true, hasN = true, faces = 0;
-  const mid = [], mats = []; let curMat = 0;
+  const mid = [], mats = [], mtllib = []; let curMat = 0;
   const lines = text.split(/\r?\n/);
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const c0 = line.charCodeAt(0);
+    if (c0 === 109 && line.startsWith('mtllib')) { mtllib.push(line.slice(6).trim()); continue; }
     if (c0 === 117 && line.startsWith('usemtl')) { const n = line.slice(6).trim() || 'Material'; let i = mats.indexOf(n); if (i < 0) { i = mats.length; mats.push(n); } curMat = i; continue; }
     if (c0 !== 118 && c0 !== 102) continue; // v / f
     const parts = line.trim().split(/\s+/);
@@ -1598,7 +1614,7 @@ function parseOBJ(text) {
     }
   }
   if (!faces) throw new Error('In der OBJ-Datei wurden keine Flächen gefunden.');
-  return { pos: new Float32Array(pos), nrm: hasN && vn.length ? new Float32Array(nrm) : null, uv: hasT && vt.length ? new Float32Array(uv) : null, idx: new Uint32Array(idx), mid: mats.length > 1 ? new Int32Array(mid) : null, mats: mats.length > 1 ? mats : null };
+  return { pos: new Float32Array(pos), nrm: hasN && vn.length ? new Float32Array(nrm) : null, uv: hasT && vt.length ? new Float32Array(uv) : null, idx: new Uint32Array(idx), mid: mats.length >= 1 ? new Int32Array(mid) : null, mats: mats.length >= 1 ? mats : null, mtllib };
 }
 
 function parseGLB(buf) {
@@ -1682,7 +1698,22 @@ function parseGLTF(json, bin) {
   roots.forEach((r) => visit(r, M4.ident()));
   if (!idx.length) throw new Error('In der Datei wurde kein Modell gefunden.');
   const mats = matIds.map((i) => (i >= 0 && json.materials && json.materials[i] && json.materials[i].name) || ('Material ' + (i + 1)));
-  return { pos: new Float32Array(pos), nrm: hasN ? new Float32Array(nrm) : null, uv: hasT ? new Float32Array(uv) : null, idx: new Uint32Array(idx), mid: matIds.length > 1 ? new Int32Array(mid) : null, mats: matIds.length > 1 ? mats : null };
+  // Texturen der Materialien (aus Blender) mitnehmen
+  const imgBytes = (ti) => {
+    if (ti === undefined || !json.textures || !json.textures[ti]) return null;
+    const im = json.images && json.images[json.textures[ti].source]; if (!im) return null;
+    if (im.bufferView !== undefined) { const bv = json.bufferViews[im.bufferView]; const B = buffers[bv.buffer]; return new Uint8Array(B.buffer, B.byteOffset + (bv.byteOffset || 0), bv.byteLength).slice(); }
+    if (im.uri && im.uri.startsWith('data:')) { const raw = atob(im.uri.split(',')[1]); const u = new Uint8Array(raw.length); for (let k = 0; k < raw.length; k++) u[k] = raw.charCodeAt(k); return u; }
+    return null;
+  };
+  const matInfo = matIds.map((i) => {
+    const m = (i >= 0 && json.materials && json.materials[i]) || {}; const pb = m.pbrMetallicRoughness || {};
+    return { name: m.name || 'Material', baseF: pb.baseColorFactor || [1, 1, 1, 1], metalF: m.pbrMetallicRoughness ? (pb.metallicFactor ?? 1) : 0, roughF: pb.roughnessFactor ?? 1,
+      emisF: m.emissiveFactor || [0, 0, 0], alpha: m.alphaMode && m.alphaMode !== 'OPAQUE',
+      base: imgBytes(pb.baseColorTexture && pb.baseColorTexture.index), mr: imgBytes(pb.metallicRoughnessTexture && pb.metallicRoughnessTexture.index),
+      normal: imgBytes(m.normalTexture && m.normalTexture.index), emis: imgBytes(m.emissiveTexture && m.emissiveTexture.index), has: !!m.pbrMetallicRoughness || !!m.normalTexture };
+  });
+  return { pos: new Float32Array(pos), nrm: hasN ? new Float32Array(nrm) : null, uv: hasT ? new Float32Array(uv) : null, idx: new Uint32Array(idx), mid: matIds.length >= 1 ? new Int32Array(mid) : null, mats: matIds.length >= 1 ? mats : null, matInfo };
 }
 
 /* ---------- Aufbereitung: Normalen, UVs, Kanten, Krümmung, Gruppen ---------- */
@@ -1901,6 +1932,8 @@ function compilePrograms() {
   P.comp = new Prog(VS_FULL, FS_COMPOSITE, 'comp');
   P.filtl = new Prog(VS_FULL, FS_FILTL, 'filtl');
   P.photo = new Prog(VS_FULL, FS_PHOTO, 'photo');
+  P.imp = new Prog(VS_UV, FS_IMPORT, 'imp');
+  P.impn = new Prog(VS_UV, FS_IMPORTN, 'impn');
   P.final = new Prog(VS_FULL, FS_FINAL, 'final');
   P.copy = new Prog(VS_FULL, FS_COPY, 'copy');
   P.stamp = new Prog(VS_UV, FS_STAMP, 'stamp');
@@ -2208,7 +2241,8 @@ function compositeMain() {
   let acc;
   try { acc = compositeTarget(E.T, S.layers); } finally { E.compClip = null; }
   bindTargets([E.fin.c, E.fin.m, E.fin.n]);
-  E.P.final.use().tex('uAccC', acc.c).tex('uAccM', acc.m).tex('uIsl', E.isl).tex('uBake', E.T.bake).set('uHS', S.hdepth * S.res / 8);
+  E.P.final.use().tex('uAccC', acc.c).tex('uAccM', acc.m).tex('uIsl', E.isl).tex('uBake', E.T.bake).set('uHS', S.hdepth * S.res / 8)
+    .tex('uBaseN', E.baseN || null).set('uHasBN', !!(E.baseN && S.view.baseN !== false)).set('uBNStr', S.view.baseNStr ?? 1);
   scissorUV(rc, 24); drawFull(); gl.disable(gl.SCISSOR_TEST);
   // während des Malens keine Verkleinerungsstufen neu rechnen (passiert am Strich-Ende)
   if (!(E.stroke_active && ST.on)) { E.fin.c.mipmap(); E.fin.m.mipmap(); E.fin.n.mipmap(); }
@@ -2600,6 +2634,7 @@ function changeResolution(res) {
   const old = S.res; if (res === old) return;
   S.res = res;
   const scale = (t) => { const n = trackTex(copyTex(t, res, res)); return n; };
+  if (E.baseN) { const o = E.baseN; E.baseN = copyTex(o, res, res); o.free(); }
   for (const l of S.layers) {
     if (l.tex) l.tex = { c: scale(l.tex.c), m: scale(l.tex.m), k: scale(l.tex.k), x: scale(l.tex.x) };
     if (l.mask && l.mask.tex) l.mask.tex = scale(l.mask.tex);
@@ -4275,6 +4310,7 @@ async function buildProject() {
   meshBin.set(new Uint8Array(s.nrm.buffer, s.nrm.byteOffset, s.nrm.byteLength), s.pos.byteLength);
   meshBin.set(new Uint8Array(s.uv.buffer, s.uv.byteOffset, s.uv.byteLength), s.pos.byteLength + s.nrm.byteLength);
   files.push({ name: 'mesh.bin', data: meshBin });
+  if (E.baseN) files.push({ name: 'basenormal.bin', data: texToBytes(E.baseN) });
   // eigene Materialien mitspeichern, damit das Projekt überall gleich aussieht
   const umats = [];
   for (const id of new Set(S.layers.filter((l) => l.fill && l.fill.photo && l.fill.photo.startsWith('u:')).map((l) => l.fill.photo))) {
@@ -4330,6 +4366,7 @@ async function loadProjectBuffer(buf) {
   if (meta.ctr) { mesh.ctr = meta.ctr; mesh.rad = meta.rad; }
   if (meta.edited) mesh.uvEdited = true;
   E.usedE = !!meta.usedE; E.usedO = !!meta.usedO;
+  E._pendingBN = files.get('basenormal.bin') ? bytesToTex(files.get('basenormal.bin'), 'rgba8', meta.res) : null;
   await startProject(mesh, meta.res, meta.name, () => {
     S.hdepth = meta.hdepth ?? S.hdepth;
     let maxId = 0;
@@ -4461,6 +4498,200 @@ async function openFromLibrary(id) {
 }
 
 'use strict';
+/* ================= Blender: Texturen mit reinholen, GLB mit Texturen raus ================= */
+
+async function bytesTex(bytes) {
+  const bmp = await createImageBitmap(new Blob([bytes]), { imageOrientation: 'flipY', colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+  const t = new Tex(bmp.width, bmp.height, 'rgba8'); gl.bindTexture(gl.TEXTURE_2D, t.t);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  const sz = Math.max(bmp.width, bmp.height); bmp.close && bmp.close();
+  return { t, sz };
+}
+async function imageSize(bytes) { try { const b = await createImageBitmap(new Blob([bytes])); const s = Math.max(b.width, b.height); b.close && b.close(); return s; } catch (e) { return 0; } }
+
+/* höchste Bildgröße der Modell-Texturen → passende Projekt-Auflösung (max. 4096) */
+async function texResFor(matInfo, chosen) {
+  let mx = 0;
+  for (const m of matInfo || []) for (const k of ['base', 'mr', 'normal', 'emis']) if (m[k]) mx = Math.max(mx, await imageSize(m[k]));
+  if (!mx) return chosen;
+  const p2 = Math.pow(2, Math.ceil(Math.log2(mx)));
+  return Math.max(chosen, Math.min(4096, p2));
+}
+
+/* .mtl lesen und Bilder zuordnen (OBJ aus Blender + Texturen zusammen reingezogen) */
+function parseMTL(text, images) {
+  const out = new Map(); let cur = null;
+  const find = (p) => { if (!p) return null; const n = p.replace(/\\/g, '/').split('/').pop().toLowerCase(); return images.get(n) || null; };
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim(); if (!line || line[0] === '#') continue;
+    const sp = line.indexOf(' '); const key = (sp < 0 ? line : line.slice(0, sp)).toLowerCase(); const rest = sp < 0 ? '' : line.slice(sp + 1).trim();
+    const file = () => rest.split(/\s+/).filter((t, i, a) => !(t.startsWith('-') || (i > 0 && a[i - 1].startsWith('-') && !/\.(png|jpe?g|tga|bmp|webp)$/i.test(t)))).pop();
+    if (key === 'newmtl') { cur = { name: rest, baseF: [1, 1, 1, 1], metalF: 0, roughF: 1, emisF: [0, 0, 0], alpha: false, has: true }; out.set(rest, cur); }
+    else if (!cur) continue;
+    else if (key === 'kd') { const v = rest.split(/\s+/).map(Number); cur.baseF = [v[0], v[1], v[2], cur.baseF[3]]; }
+    else if (key === 'd') { cur.baseF[3] = +rest; if (+rest < 1) cur.alpha = true; }
+    else if (key === 'pr') cur.roughF = +rest;
+    else if (key === 'pm') cur.metalF = +rest;
+    else if (key === 'ke') cur.emisF = rest.split(/\s+/).map(Number);
+    else if (key === 'map_kd') { cur.base = find(file()); if (cur.base) cur.baseF = [1, 1, 1, cur.baseF[3]]; }
+    else if (key === 'map_pr') { cur.roughMap = find(file()); if (cur.roughMap) cur.roughF = 1; }
+    else if (key === 'map_pm') { cur.metalMap = find(file()); if (cur.metalMap) cur.metalF = 1; }
+    else if (key === 'map_ke') { cur.emis = find(file()); if (cur.emis) cur.emisF = [1, 1, 1]; }
+    else if (key === 'map_d') cur.alpha = true;
+    else if (key === 'norm' || key === 'map_bump' || key === 'bump') { const f = file(); const b = find(f); if (b) { if (/norm|nrm|_n\./i.test(f) || key === 'norm') cur.normal = b; else cur.bumpMap = b; } }
+  }
+  return out;
+}
+/* einzelne Graustufen-Karten (Rauheit/Metall) zu einer glTF-artigen Karte zusammenbauen: G=Rauheit, B=Metall */
+async function combineMR(rough, metal) {
+  if (!rough && !metal) return null;
+  const load = async (b) => (b ? await createImageBitmap(new Blob([b])) : null);
+  const R = await load(rough), M = await load(metal); const w = (R || M).width, h = (R || M).height;
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d', { willReadFrequently: true });
+  const px = (img) => { if (!img) return null; g.clearRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h); return g.getImageData(0, 0, w, h).data; };
+  const r = px(R), m = px(M); const out = g.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { out.data[i * 4] = 0; out.data[i * 4 + 1] = r ? r[i * 4] : 255; out.data[i * 4 + 2] = m ? m[i * 4] : 255; out.data[i * 4 + 3] = 255; }
+  g.putImageData(out, 0, 0);
+  return new Uint8Array(await (await new Promise((ok) => cv.toBlob(ok, 'image/png'))).arrayBuffer());
+}
+async function matInfoFromOBJ(src, extra) {
+  if (!src.mats || !extra || !extra.length) return null;
+  const images = new Map(); let mtlText = '';
+  for (const f of extra) {
+    if (/\.mtl$/i.test(f.name)) mtlText += '\n' + (await f.text());
+    else if (/\.(png|jpe?g|webp|bmp)$/i.test(f.name)) images.set(f.name.toLowerCase(), new Uint8Array(await f.arrayBuffer()));
+  }
+  if (!mtlText) return null;
+  const mtl = parseMTL(mtlText, images);
+  const list = [];
+  for (const name of src.mats) {
+    const m = mtl.get(name) || { name, baseF: [1, 1, 1, 1], metalF: 0, roughF: 1, emisF: [0, 0, 0], has: false };
+    if (m.roughMap || m.metalMap) { m.mr = await combineMR(m.roughMap, m.metalMap); if (!m.roughMap) m.roughF = 1; if (!m.metalMap) m.metalF = 0; if (m.metalMap && !m.roughMap) m.roughF = 0.5; }
+    list.push(m);
+  }
+  return list;
+}
+
+/* Materialien des Modells als Mal-Ebene „Aus Blender“ (+ Normal-Map) anlegen */
+async function importModelTextures(matInfo) {
+  if (!matInfo || !matInfo.some((m) => m.has || m.base || m.mr || m.normal)) return false;
+  const g = S.mesh.groups.mat, nT = S.mesh.nT;
+  const l = newLayer('paint', { name: 'Aus Blender' });
+  for (const t of [l.tex.c, l.tex.m, l.tex.k, l.tex.x]) clearTex(t, [0, 0, 0, 0]);
+  let hasN = false, usedE = false, usedO = false;
+  const P = E.P; gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+  for (let mi = 0; mi < matInfo.length; mi++) {
+    const m = matInfo[mi];
+    const tris = []; for (let t = 0; t < nT; t++) if (g[t] === mi) tris.push(t * 3, t * 3 + 1, t * 3 + 2);
+    if (!tris.length) continue;
+    const texs = {};
+    for (const k of ['base', 'mr', 'emis', 'normal']) if (m[k]) { try { texs[k] = (await bytesTex(m[k])).t; } catch (e) { console.error('Textur', m.name, k, e); } }
+    const draw = () => { gl.bindVertexArray(E.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, E.idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(tris), gl.STREAM_DRAW); gl.drawElements(gl.TRIANGLES, tris.length, gl.UNSIGNED_INT, 0); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null); gl.bindVertexArray(null); };
+    ltTargets(l.tex);
+    P.imp.use().tex('uIC', texs.base || null).tex('uIMR', texs.mr || null).tex('uIE', texs.emis || null)
+      .set('uHasC', !!texs.base).set('uHasMR', !!texs.mr).set('uHasE', !!texs.emis).set('uAlpha', !!m.alpha)
+      .set('uBaseF', m.baseF).set('uMetalF', m.metalF).set('uRoughF', m.roughF).set('uEmisF', m.emisF || [0, 0, 0]);
+    draw();
+    if ((m.emisF || []).some((v) => v > 0)) usedE = true; if (m.alpha) usedO = true;
+    if (texs.normal) {
+      if (!E.baseN) { E.baseN = new Tex(S.res, S.res, 'rgba8'); clearTex(E.baseN, [0.5, 0.5, 1, 1]); }
+      bindTargets([E.baseN]); P.impn.use().tex('uIN', texs.normal); draw(); hasN = true;
+    }
+    for (const t of Object.values(texs)) t.free();
+  }
+  if (E.baseN) { gl.bindTexture(gl.TEXTURE_2D, E.baseN.t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); }
+  E.usedE = E.usedE || usedE; E.usedO = E.usedO || usedO;
+  S.layers.push(l); const top = newLayer('paint'); S.layers.push(top); S.sel = top.id;
+  E.needComp = true;
+  toast(`Texturen aus Blender übernommen (${matInfo.length} ${matInfo.length === 1 ? 'Material' : 'Materialien'}${hasN ? ', mit Normal-Map' : ''}).`);
+  return true;
+}
+
+/* ---------- GLB mit allen Texturen für Blender ---------- */
+async function texPNG(kind, sz, alpha) {
+  const t = new Tex(sz, sz, 'rgba8');
+  bindTargets([t]); gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST);
+  E.P.export.use().tex('uC', E.fin.c).tex('uM', E.fin.m).tex('uN', E.fin.n).set('uKind', kind).set('uAOB', 0); drawFull();
+  const px = readRGBA8(t); t.free();
+  const ch = alpha ? 4 : 3, rows = new Uint8Array(sz * sz * ch);
+  for (let y = 0; y < sz; y++) { const s0 = (sz - 1 - y) * sz * 4, d0 = y * sz * ch; for (let x = 0; x < sz; x++) for (let c = 0; c < ch; c++) rows[d0 + x * ch + c] = px[s0 + x * 4 + c]; }
+  return encodePNG(sz, sz, rows, ch, 8);
+}
+async function buildGLB(name, size) {
+  if (E.needComp) compositeMain();
+  const sz = size || S.res;
+  const s = S.mesh.soup, n = S.mesh.nT * 3, ctr = S.mesh.ctr || [0, 0, 0], rad = S.mesh.rad || 1;
+  // gleiche Ecken zusammenfassen
+  const map = new Map(), P = [], N = [], T = [], I = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    const px = s.pos[i * 3] * rad + ctr[0], py = s.pos[i * 3 + 1] * rad + ctr[1], pz = s.pos[i * 3 + 2] * rad + ctr[2];
+    const u = s.uv[i * 2], v = 1 - s.uv[i * 2 + 1];
+    const key = `${px.toFixed(5)},${py.toFixed(5)},${pz.toFixed(5)},${u.toFixed(5)},${v.toFixed(5)},${s.nrm[i * 3].toFixed(3)},${s.nrm[i * 3 + 1].toFixed(3)},${s.nrm[i * 3 + 2].toFixed(3)}`;
+    let id = map.get(key);
+    if (id === undefined) { id = P.length / 3; map.set(key, id); P.push(px, py, pz); N.push(s.nrm[i * 3], s.nrm[i * 3 + 1], s.nrm[i * 3 + 2]); T.push(u, v); }
+    I[i] = id;
+  }
+  const useE = E.usedE || S.layers.some((l) => l.visible && l.fill && l.fill.emit > 0);
+  const useO = E.usedO || S.layers.some((l) => l.visible && l.fill && l.fill.opac < 1);
+  const imgs = [['BaseColor', useO ? 13 : 0, useO], ['ORM', 7, false], ['Normal', 5, false]]; if (useE) imgs.push(['Emission', 11, false]);
+  const pngs = []; for (const [nm, k, a] of imgs) pngs.push({ nm, data: await texPNG(k, sz, a) });
+  // Binärdaten zusammenbauen
+  const parts = []; let off = 0; const views = [];
+  const add = (u8, target) => { const pad = (4 - (off % 4)) % 4; if (pad) { parts.push(new Uint8Array(pad)); off += pad; } views.push({ buffer: 0, byteOffset: off, byteLength: u8.byteLength, ...(target ? { target } : {}) }); parts.push(u8); off += u8.byteLength; return views.length - 1; };
+  const f32 = (a) => new Uint8Array(new Float32Array(a).buffer);
+  const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < P.length; i += 3) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], P[i + k]); mx[k] = Math.max(mx[k], P[i + k]); }
+  const vP = add(f32(P), 34962), vN = add(f32(N), 34962), vT = add(f32(T), 34962), vI = add(new Uint8Array(I.buffer), 34963);
+  const imgViews = pngs.map((p) => add(p.data));
+  const nV = P.length / 3;
+  const idx = (nm) => imgs.findIndex((x) => x[0] === nm);
+  const json = {
+    asset: { version: '2.0', generator: APP_NAME + ' ' + APP_VERSION },
+    scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0, name }],
+    meshes: [{ name, primitives: [{ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, indices: 3, material: 0 }] }],
+    accessors: [
+      { bufferView: vP, componentType: 5126, count: nV, type: 'VEC3', min: mn, max: mx },
+      { bufferView: vN, componentType: 5126, count: nV, type: 'VEC3' },
+      { bufferView: vT, componentType: 5126, count: nV, type: 'VEC2' },
+      { bufferView: vI, componentType: 5125, count: n, type: 'SCALAR' },
+    ],
+    bufferViews: views,
+    buffers: [{ byteLength: off }],
+    images: pngs.map((p, i) => ({ bufferView: imgViews[i], mimeType: 'image/png', name: `${name}_${p.nm}` })),
+    samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }],
+    textures: pngs.map((_, i) => ({ sampler: 0, source: i })),
+    materials: [{
+      name: name + '_Material',
+      pbrMetallicRoughness: { baseColorTexture: { index: idx('BaseColor') }, metallicRoughnessTexture: { index: idx('ORM') }, metallicFactor: 1, roughnessFactor: 1 },
+      occlusionTexture: { index: idx('ORM') }, normalTexture: { index: idx('Normal') },
+      ...(useE ? { emissiveTexture: { index: idx('Emission') }, emissiveFactor: [1, 1, 1] } : {}),
+      ...(useO ? { alphaMode: 'BLEND' } : {}),
+    }],
+  };
+  let js = enc.encode(JSON.stringify(json)); const jpad = (4 - (js.length % 4)) % 4; if (jpad) { const t = new Uint8Array(js.length + jpad); t.set(js); t.fill(32, js.length); js = t; }
+  const bin = new Uint8Array(off); let p = 0; for (const u of parts) { bin.set(u, p); p += u.byteLength; }
+  const total = 12 + 8 + js.length + 8 + bin.length; const out = new Uint8Array(total); const dv = new DataView(out.buffer);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true);
+  dv.setUint32(12, js.length, true); dv.setUint32(16, 0x4E4F534A, true); out.set(js, 20);
+  const o2 = 20 + js.length; dv.setUint32(o2, bin.length, true); dv.setUint32(o2 + 4, 0x004E4942, true); out.set(bin, o2 + 8);
+  cleanFBOs && cleanFBOs();
+  return out;
+}
+async function exportGLB(name, size) {
+  UI.busy('GLB für Blender wird gebaut …'); await sleep(40);
+  try {
+    const data = await buildGLB(name, size);
+    const p = await saveBlob(name + '.glb', new Blob([data], { type: 'model/gltf-binary' }), 'glb');
+    if (p) toast('Gespeichert. In Blender: Datei → Importieren → glTF 2.0 (.glb) – Material und Texturen sind schon fertig verbunden.');
+  } catch (e) { console.error(e); toast('Export fehlgeschlagen: ' + e.message, 'err'); }
+  finally { UI.busy(null); }
+}
+
+'use strict';
 /* ================= Oberfläche ================= */
 const CHANNELS = ['Fertiges Material', 'Nur Farbe', 'Rauheit', 'Metall', 'Höhe', 'Normal-Map', 'Schatten in Ecken (AO)', 'Kanten', 'Maske der Ebene', 'UV-Prüfmuster', 'Leuchten', 'Transparenz'];
 const TOOLS = [
@@ -4472,6 +4703,7 @@ const TOOLS = [
   { id: 'seam', icon: 'seam', name: 'Naht', key: 'J', desc: 'Zieh eine Linie übers Modell – beim Loslassen wird eine genähte Naht daraus (Rille + Stiche). Für Kleidung, Taschen, Sitze.' },
   { id: 'smudge', icon: 'drop', name: 'Verwischen', key: 'S', desc: 'Zieht Farbe und Material in Malrichtung mit, wie mit dem Finger.' },
   { id: 'clone', icon: 'stamp', name: 'Klonen', key: 'L', desc: 'Kopiert eine Stelle an eine andere. Erst Alt + Klick auf die Quelle, dann malen.' },
+  { id: 'uvmove', icon: 'move', name: 'UV bearbeiten', key: 'V', desc: 'UV-Teile im 2D-Fenster anklicken und verschieben, wie in Blender: Klick wählt ein Teil, Shift + Klick mehrere, A = alles, G = bewegen, R = drehen, S = skalieren, X/Y = Achse.' },
   { id: 'pick', icon: 'pipette', name: 'Farbaufnahme', key: 'K', desc: 'Nimmt Farbe, Rauheit und Metall vom Modell auf.' },
 ];
 const toolById = (id) => TOOLS.find((t) => t.id === id) || TOOLS[0];
@@ -4607,14 +4839,17 @@ const UI = {
     const menus = [
       ['Datei', [
         ['Neu …', 'Strg+N', () => this.welcome()],
-        ['Öffnen …', 'Strg+O', () => this.openFile('.mtex,.obj,.glb,.gltf')],
+        ['Öffnen …', 'Strg+O', () => this.openFile('.mtex,.obj,.glb,.gltf,.mtl,.png,.jpg,.jpeg')],
         ['Meine Projekte …', '', () => this.welcome()],
         '-',
         ['Speichern', 'Strg+S', () => saveToLibrary()],
         ['Speichern unter (Datei) …', 'Strg+Umschalt+S', () => saveProject()],
         '-',
         ['Bild als Ebene importieren …', '', () => this.pickImageLayer()],
+        ['Eigenes Material importieren …', '', () => importDialog()],
+        '-',
         ['Texturen exportieren …', 'Strg+Umschalt+E', () => this.exportDialog()],
+        ['Für Blender exportieren (GLB mit Texturen) …', 'Strg+Umschalt+B', () => this.blenderExport()],
         '-',
         ['Launcher öffnen', '', () => NATIVE && NATIVE.openLauncher ? NATIVE.openLauncher() : toast('Nur im installierten Programm')],
         ['Beenden', 'Strg+Q', () => window.close()],
@@ -5324,7 +5559,8 @@ const UI = {
   busy(msg) { $('#busy').classList.toggle('on', !!msg); $('#busyMsg').textContent = msg || ''; },
   openFile(accept) {
     const f = $('#fileIn'); f.value = ''; f.accept = accept || '.obj,.glb,.gltf,.mtex';
-    f.onchange = () => { if (f.files[0]) handleFile(f.files[0]); };
+    f.multiple = true;
+    f.onchange = () => { const all = [...f.files]; const m = all.find((x) => /\.(obj|glb|gltf|mtex)$/i.test(x.name)) || all[0]; if (m) handleFile(m, null, all.filter((x) => x !== m)); };
     f.click();
   },
   welcome() {
@@ -5363,6 +5599,17 @@ const UI = {
         S.mesh ? el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Abbrechen') : null));
     this.modal(box, !!S.mesh);
     this._welcomeRes = st;
+  },
+  blenderExport() {
+    if (!S.mesh) return;
+    const st = { size: 0, name: (S.projectName || 'Modell').replace(/[\\/:*?"<>|\s]+/g, '_') };
+    const nameIn = el('input', { type: 'text', value: st.name }); nameIn.oninput = () => { st.name = nameIn.value.replace(/[\\/:*?"<>|]+/g, '_'); };
+    this.modal(el('div', { class: 'mbox', style: 'width:520px' }, el('h2', {}, 'Für Blender exportieren'),
+      el('div', { class: 'note' }, 'Speichert eine einzige .glb-Datei mit Modell, Material und allen Texturen (Farbe, Rauheit/Metall/AO, Normal' + (E.usedE ? ', Leuchten' : '') + '). In Blender: Datei → Importieren → glTF 2.0 – alles ist fertig verbunden.'),
+      el('div', { class: 'row two' }, el('label', {}, 'Dateiname'), nameIn),
+      ctlSelect('Textur-Größe', st, 'size', [[0, `Wie im Projekt (${S.res})`], [1024, '1024'], [2048, '2048'], [4096, '4096']]),
+      el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Abbrechen'),
+        el('button', { class: 'btn pri', onclick: () => { this.closeModal(); exportGLB(st.name, st.size); } }, 'Exportieren'))));
   },
   exportDialog() {
     if (!S.mesh) return;
@@ -5929,7 +6176,7 @@ function resize() {
   E.gbDirty = true; E.needDraw = true;
   drawOverlay();
   const r2 = E.regions.find((x) => x.type === '2d'); const hint = $('#uvHint');
-  if (hint) hint.style.display = 'none';
+  if (hint) { hint.style.display = r2 ? '' : 'none'; if (r2) hint.style.left = (r2.x / dpr + 10) + 'px'; }
 }
 /* Maus (CSS-Pixel) -> Region + lokale Gerätepixel (Ursprung unten links) */
 function hitRegion(cx, cy) {
@@ -6281,6 +6528,7 @@ function setupInput() {
       else if (k === 'o') { e.preventDefault(); UI.openFile('.mtex,.obj,.glb,.gltf'); }
       else if (k === 'n' && !e.shiftKey) { e.preventDefault(); UI.welcome(); }
       else if (k === 'e' && e.shiftKey) { e.preventDefault(); UI.exportDialog(); }
+      else if (k === 'b' && e.shiftKey) { e.preventDefault(); UI.blenderExport(); }
       else if (k === 'd' && e.shiftKey) { e.preventDefault(); UI.dupLayer(); }
       else if (k === 'm') { e.preventDefault(); mergeDown(); UI.refreshAll(); }
       else if (k === 'f' && e.shiftKey) { e.preventDefault(); flattenAll(); UI.refreshAll(); }
@@ -6312,6 +6560,17 @@ function setupInput() {
     }
     // Blender-Tasten: Maus über dem 2D-Fenster
     const over2d = mouse && mouse.inside && mouse.r && mouse.r.type === '2d';
+    if (over2d && ['g', 'r', 's'].includes(k) && !e.altKey) {
+      if (S.tool !== 'uvmove') setTool('uvmove');
+      if (!UVE.sel.size) uvSelectAll();
+      if (uvBegin(k, regionUV(mouse.r, mouse.lx, mouse.ly))) drag = { mode: 'uvkey', r: mouse.r };
+      return;
+    }
+    if ((over2d || S.tool === 'uvmove') && k === 'a' && !e.altKey) {
+      if (S.tool !== 'uvmove') setTool('uvmove');
+      if (UVE.sel.size && UVE.sel.size === islandTris().size) { UVE.sel.clear(); uvSelChanged(); } else uvSelectAll();
+      return;
+    }
     const same = TOOLS.filter((t) => t !== '-' && t.key.toLowerCase() === k);
     if (same.length && !e.altKey) { const i = same.findIndex((t) => t.id === S.tool); setTool(same[(i + 1) % same.length].id); return; }
     switch (e.key) {
@@ -6340,6 +6599,8 @@ function setupInput() {
   window.addEventListener('drop', (e) => {
     const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return; e.preventDefault();
     const all = [...e.dataTransfer.files];
+    const model = all.find((x) => /\.(obj|glb|gltf|mtex)$/i.test(x.name));
+    if (model) { handleFile(model, null, all.filter((x) => x !== model)); return; }
     const onShelf = e.target && e.target.closest && e.target.closest('#shelf');
     if (/\.zip$/i.test(f.name) || (onShelf && all.some((x) => /^image\//.test(x.type))) || (all.length > 1 && all.every((x) => /^image\//.test(x.type)))) { UI.busy('Material wird importiert …'); importMaterials(all).catch((er) => toast('Import fehlgeschlagen: ' + er.message, 'err')).finally(() => UI.busy(null)); return; }
     if (/^image\//.test(f.type) && S.mesh) { if (S.tool === 'decal') { createImageBitmap(f).then((img) => { E.decalImg = img; E.decalName = f.name; UI.renderCtx(); }); } else { UI.busy('Bild wird geladen …'); imageLayer(f).then(() => UI.refreshAll()).finally(() => UI.busy(null)); } return; }
@@ -6348,7 +6609,7 @@ function setupInput() {
 }
 
 /* ---------- Dateien öffnen ---------- */
-async function handleFile(file, res) {
+async function handleFile(file, res, extra) {
   const name = file.name.replace(/\.[^.]+$/, '');
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   if (!['obj', 'glb', 'gltf', 'mtex'].includes(ext)) { toast('Diese Datei kann Melonentextur nicht öffnen. Geht: .obj, .glb, .mtex', 'err'); return; }
@@ -6360,7 +6621,13 @@ async function handleFile(file, res) {
     const src = ext === 'obj' ? parseOBJ(await file.text()) : parseGLB(await file.arrayBuffer());
     UI.busy('Modell wird vorbereitet …'); await sleep(20);
     const mesh = finalizeMesh(src, name);
-    await startProject(mesh, res || (UI._welcomeRes && UI._welcomeRes.res) || S.res || 2048, name);
+    // Texturen aus Blender: bei GLB eingebettet, bei OBJ die mitgezogenen .mtl/.png
+    let matInfo = src.matInfo || null;
+    if (ext === 'obj') { matInfo = await matInfoFromOBJ(src, extra); if (src.mtllib && src.mtllib.length && !matInfo && extra !== undefined) toast('Tipp: Zieh die .obj zusammen mit der .mtl und den Texturbildern rein, dann kommen die Texturen mit.', 'warn'); }
+    const want = res || (UI._welcomeRes && UI._welcomeRes.res) || S.res || 2048;
+    const useRes = matInfo ? await texResFor(matInfo, want) : want;
+    await startProject(mesh, useRes, name, matInfo && matInfo.some((m) => m.base || m.mr || m.normal || m.has) ? null : undefined);
+    if (matInfo) { UI.busy('Texturen werden übernommen …'); await sleep(20); const ok = await importModelTextures(matInfo); if (ok) { S.layers = S.layers.filter((l, i) => !(i === 0 && l.kind === 'paint' && l.name.startsWith('Mal-Ebene') && S.layers.length > 2)); resetUndo(); UI.refreshAll(); } }
   } catch (e) {
     console.error('Datei konnte nicht geladen werden', e);
     UI.busy(null);
@@ -6373,6 +6640,8 @@ async function startProject(mesh, res, name, setup) {
   UI.busy('Modell wird vorbereitet …'); await sleep(40);
   if (mesh.nT > 2000000) toast('Sehr großes Modell, das kann langsam werden.', 'warn');
   S.layers = []; S.sel = null; S.target = 'layer'; resetUndo();
+  if (E.baseN) { E.baseN.free(); E.baseN = null; }
+  if (E._pendingBN) { E.baseN = E._pendingBN; E._pendingBN = null; }
   S.mesh = mesh; S.res = res; S.projectName = name || mesh.name; S.projectId = null;
   uploadMesh(mesh);
   bakeMesh((m) => UI.busy(m));
