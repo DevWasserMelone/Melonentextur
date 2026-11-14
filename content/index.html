@@ -243,6 +243,11 @@ details.adv summary:hover{color:var(--tx)}
 #tools .sep{grid-column:span 1;width:auto;height:calc(1px*var(--u));margin:calc(4px*var(--u)) 0;align-self:center}
 
 .menu .dd{max-height:calc(100vh - calc(60px*var(--u)));overflow-y:auto;min-width:calc(290px*var(--u))}
+
+#shelf .tabs{align-items:center}
+.catsel{margin-left:calc(10px*var(--u));padding:calc(2px*var(--u)) calc(6px*var(--u))}
+.shelfq{margin-left:calc(8px*var(--u));width:calc(170px*var(--u));background:var(--p2);border:calc(1px*var(--u)) solid var(--line);border-radius:calc(5px*var(--u));padding:calc(3px*var(--u)) calc(8px*var(--u));color:var(--tx)}
+.shelfq:focus{outline:none;border-color:var(--ac)}
 </style>
 </head>
 <body>
@@ -282,7 +287,7 @@ details.adv summary:hover{color:var(--tx)}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -644,8 +649,34 @@ vec2 pat2(int id, vec2 q){
     float x = dir ? f.y : f.x; float along = dir ? f.x : f.y;
     float sh = sin(x*3.14159); float fib = 0.5+0.5*sin(along*6.2832*6.0+x);
     return vec2(clamp(sh*0.8+fib*0.15,0.0,1.0), sh*0.6-0.3); }
+  if(id==13){ vec2 g=q*30.0; float d=fract(g.x*0.5+g.y*0.5); float tw=sin(d*6.2832)*0.5+0.5; float nn=rnd1(vec3(floor(g*vec2(4.0,1.0)),1.0));
+    return vec2(clamp(tw*0.55+nn*0.35*(0.4+uVar),0.0,1.0), tw-0.5); }
+  if(id==14){ vec2 g=q*vec2(14.0,10.0); vec2 f=fract(g); float lx=abs(f.x-0.5)*2.0; float v=abs(lx-(0.25+0.55*f.y)); float st=1.0-smoothstep(0.0,0.32,v);
+    return vec2(1.0-st*0.75, st*0.8-0.4-pow(abs(f.y-0.5),2.0)); }
+  if(id==15){ vec2 g=q*3.0; float sx=smoothstep(0.47,0.53,fract(g.x))*smoothstep(0.97,0.91,fract(g.x)); float sy=smoothstep(0.47,0.53,fract(g.y))*smoothstep(0.97,0.91,fract(g.y));
+    float lx=1.0-smoothstep(0.015,0.03,abs(fract(g.x*4.0)-0.5)), ly=1.0-smoothstep(0.015,0.03,abs(fract(g.y*4.0)-0.5));
+    float wv=sin((q.x+q.y)*120.0)*0.5+0.5; return vec2(clamp((sx+sy)*0.45+max(lx,ly)*0.2,0.0,1.0), wv*0.3-0.15); }
+  if(id==17){ vec2 g=q*6.0; vec2 c=floor(g); vec2 f=fract(g)-0.5; bool alt=mod(c.x+c.y,2.0)<1.0;
+    vec2 r=(alt?vec2(f.x+f.y,f.x-f.y):vec2(f.x-f.y,f.x+f.y))*0.7071; float d=max(abs(r.x)/0.3,abs(r.y)/0.07); float ridge=1.0-smoothstep(0.75,1.0,d);
+    return vec2(ridge*0.35, ridge-0.2); }
+  if(id==18){ float w=sin(q.x*12.0); return vec2(0.5+0.25*w, w); }
+  if(id==19){ vec2 g=q*8.0; float row=floor(g.y); vec2 f=vec2(fract(g.x+mod(row,2.0)*0.5),fract(g.y))-0.5; float hole=1.0-smoothstep(0.24,0.28,length(f)); return vec2(hole,-hole); }
+  if(id==20){ vec2 g=q*3.0; vec2 c=floor(g); vec2 f=fract(g); float d=min(min(f.x,1.0-f.x),min(f.y,1.0-f.y)); float grout=1.0-smoothstep(0.02,0.035,d); float r=rnd1(vec3(c,3.0));
+    return vec2(max(grout,r*0.25*(0.3+uVar)), grout>0.5?-1.0:smoothstep(0.03,0.09,d)*0.3); }
+  if(id==21){ vec2 g=q*vec2(0.8,5.0); float row=floor(g.y); g.x+=rnd1(vec3(row,4.0,0.0))*3.0; vec2 c=floor(g); vec2 f=fract(g);
+    float gap=1.0-smoothstep(0.0,0.035,min(min(f.y,1.0-f.y),min(f.x,1.0-f.x)*0.16)); float r=rnd1(vec3(c,5.0));
+    float grain=0.5+0.5*sin((f.y*9.0+fbm(vec3(g.x*1.5,c.y,c.x),3)*3.0)*3.1416);
+    return vec2(clamp(gap+r*0.35*(0.4+uVar)+grain*0.3,0.0,1.0), -gap+grain*0.15); }
+  if(id==22){ vec2 w=worley(vec3(q*4.0,0.5)); float cell=w.y-w.x; float gap=1.0-smoothstep(0.02,0.1,cell); float dome=smoothstep(0.0,0.45,cell); float nn=n01(vec3(q*4.0,1.0),3);
+    return vec2(max(gap,nn*0.45*(0.4+uVar)), dome*0.8-gap); }
+  if(id==25){ vec2 g=q*6.0; const vec2 sz=vec2(1.0,1.732); vec2 a=mod(g,sz)-sz*0.5, b=mod(g-sz*0.5,sz)-sz*0.5; vec2 gv=dot(a,a)<dot(b,b)?a:b;
+    vec2 ap=abs(gv); float hd=max(dot(ap,normalize(vec2(1.0,1.732))),ap.x); float wall=1.0-smoothstep(0.03,0.06,0.5-hd); return vec2(wall,wall-0.5); }
+  if(id==26){ vec2 g=q*vec2(8.0,10.0); float row=floor(g.y); g.x+=mod(row,2.0)*0.5; vec2 f=fract(g); float d=length((f-vec2(0.5,0.0))*vec2(1.0,1.15));
+    float edge=smoothstep(0.42,0.56,d); return vec2(clamp(edge*0.8+rnd1(vec3(floor(g),6.0))*0.2,0.0,1.0), 0.6-d); }
+  if(id==30){ vec2 f=fract(q*10.0)-0.5; float bump=1.0-smoothstep(0.24,0.3,length(f)); return vec2(bump*0.25, bump-0.3); }
   return vec2(0.0);
 }
+bool triP(int id){ return (id>=6&&id<=8)||id==13||id==14||id==15||id==17||id==18||id==19||id==20||id==21||id==22||id==25||id==26||id==30; }
 Mat pattern(vec3 p, vec3 n){
   vec3 q = p*uScale + uSeed*vec3(17.3,9.1,4.7);
   float t=0.0, h=0.0;
@@ -660,7 +691,7 @@ Mat pattern(vec3 p, vec3 n){
     t=clamp(0.5+fine*1.1+big*0.8*uVar,0.0,1.0); h=fine*0.6-(1.0-smoothstep(0.0,0.35,pits))*0.6+big*0.3; }
   else if(uPat==5){ vec2 w=worley(q*6.0); float cell=w.y-w.x; h=smoothstep(0.0,0.25,cell)-0.5;
     t=clamp(1.0-smoothstep(0.0,0.2,cell)+fbm(q*20.0,3)*0.25*(0.5+uVar),0.0,1.0); }
-  else if(uPat>=6 && uPat<=8){ vec3 wt=pow(abs(n),vec3(4.0)); wt/=(wt.x+wt.y+wt.z);
+  else if(triP(uPat)){ vec3 wt=pow(abs(n),vec3(4.0)); wt/=(wt.x+wt.y+wt.z);
     vec2 a=pat2(uPat,q.zy)*wt.x+pat2(uPat,q.xz)*wt.y+pat2(uPat,q.xy)*wt.z; t=a.x; h=a.y; }
   else if(uPat==9){ float f=fbm(q*1.5,6); float pores=1.0-smoothstep(0.02,0.08,worley(q*14.0).x);
     t=clamp(0.5+f*(0.7+uVar*2.0),0.0,1.0); h=f*0.7-pores*0.7; }
@@ -673,6 +704,12 @@ Mat pattern(vec3 p, vec3 n){
       float grain=n01(vec3(st*7.3+f*2.0,p.y*1.4,uSeed)*vec3(1.0,2.5,1.0)+vec3(0.0,fbm(vec3(f*3.0,p.y*8.0,st),3)*0.3,0.0),4);
       t=clamp(rr*0.45*(0.4+uVar)+grain*0.45+groove,0.0,1.0); h=-groove+grain*0.25; } }
   else if(uPat==11){ float sp=n01(q*90.0,2); t=smoothstep(0.62-uVar*0.15,0.8,sp)+fbm(q*3.0,3)*0.1; t=clamp(t,0.0,1.0); h=0.0; }
+  else if(uPat==16){ float a=fbm(q*1.2,4), b=fbm(q*1.2+vec3(5.3,1.7,9.1),4); t=smoothstep(0.05,0.12,a)*0.5+smoothstep(-0.03,0.04,b)*0.5; h=0.0; }
+  else if(uPat==23){ float f=fbm(q*6.0,4); float sp=step(0.92,rnd1(floor(q*140.0))); t=clamp(0.5+f*0.6*(0.5+uVar)+sp*0.7,0.0,1.0); h=f*0.5+sp*0.3; }
+  else if(uPat==24){ float v=abs(sin(q.x*3.0+fbm(q*1.5,6)*6.0)); float vein=1.0-smoothstep(0.0,0.06+uVar*0.12,v); t=clamp(vein+fbm(q*3.0,4)*0.12,0.0,1.0); h=0.0; }
+  else if(uPat==27){ float f=fbm(q*2.0,5); float bl=n01(q*vec3(60.0,8.0,60.0),2); t=smoothstep(-0.25,0.25,f+uVar*0.2-0.1); h=f*0.4+bl*0.25; }
+  else if(uPat==28){ vec2 w=worley(q*vec3(3.0,0.6,3.0)); float crack=1.0-smoothstep(0.0,0.15,w.y-w.x); float nn=n01(q*4.0,3); t=max(crack,nn*0.4); h=-crack+nn*0.3; }
+  else if(uPat==29){ vec2 w=worley(q*10.0); float dm=smoothstep(0.0,0.6,w.x); t=dm*0.5; h=dm-0.5; }
   Mat m; m.col=mix(uColA,uColB,t); m.rough=mix(uRoughA,uRoughB,t); m.metal=mix(uMetalA,uMetalB,t); m.h=h*uHAmt; return m;
 }
 `;
@@ -696,6 +733,9 @@ float genMask(vec3 p, vec3 n, vec4 bk){
     float l=max(max(1.0-smoothstep(0.0,0.06,s1),1.0-smoothstep(0.0,0.06,s2)),1.0-smoothstep(0.0,0.06,s3));
     v=l*smoothstep(0.35,0.6,n01(q*0.8,3)); }
   else if(uGen==8){ v=1.0-smoothstep(0.0,0.9,worley(q*2.0).x)+(nz-0.5)*0.4; }
+  else if(uGen==10){ float st=n01(vec3(q.x*10.0,q.y*0.35,q.z*10.0),4); float top=smoothstep(-0.6,0.9,p.y); v=st*mix(0.55,1.15,top); }
+  else if(uGen==11){ v=n01(q*5.0,6)*0.7+(1.0-smoothstep(0.0,0.5,worley(q*7.0).x))*0.45; }
+  else if(uGen==12){ v=clamp(dot(n,normalize(vec3(0.5,0.8,0.4)))*0.5+0.5,0.0,1.0); }
   else if(uGen==9){ float N=max(1.0,floor(uGScale+0.5)); float y=(p.y*0.5+0.5)*N; float d=abs(fract(y+0.5)-0.5)*2.0; v=1.0-smoothstep(uGWidth*4.0,uGWidth*4.0+0.03,d); }
   if(uGen!=4 && uGen!=7 && uGen!=9) v += (nz-0.5)*uGRough*1.6;
   if(uGen==9) v += (nz-0.5)*uGRough*1.2;
@@ -2604,40 +2644,82 @@ function zoomView(f) {
 
 'use strict';
 /* ================= Materialien, Smart-Materialien, Masken, Pinsel ================= */
-const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack', 'Holzbretter (Fass)'];
-const PAT_USES_B = [false, true, true, true, true, true, true, true, true, true, true, true, true];
-const GENS = ['Aus', 'Kanten', 'Ecken und Ritzen', 'Schattige Stellen', 'Wolkig', 'Von oben', 'Von unten', 'Kratzer', 'Flecken', 'Ringe (Bänder)'];
+const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack', 'Holzbretter (Fass)', 'Jeans', 'Strick', 'Karo', 'Tarnmuster', 'Riffelblech', 'Wellblech', 'Lochblech', 'Fliesen', 'Holzdielen', 'Kopfsteinpflaster', 'Asphalt', 'Marmor', 'Waben', 'Schuppen', 'Erde / Gras', 'Rinde', 'Hammerschlag', 'Noppen'];
+const PAT_USES_B = [false, ...Array(30).fill(true)];
+const GENS = ['Aus', 'Kanten', 'Ecken und Ritzen', 'Schattige Stellen', 'Wolkig', 'Von oben', 'Von unten', 'Kratzer', 'Flecken', 'Ringe (Bänder)', 'Laufspuren', 'Grunge', 'Lichtseite'];
 const SHAPES = ['Rund', 'Quadrat', 'Kreide', 'Spritzer', 'Kratzer', 'Ring'];
 const BLEND_NAMES = { normal: 'Normal', multiply: 'Multiplizieren', screen: 'Aufhellen (Screen)', overlay: 'Überlagern', add: 'Addieren', subtract: 'Subtrahieren', darken: 'Abdunkeln', lighten: 'Aufhellen', softlight: 'Weiches Licht' };
 
 const MATERIALS = {
-  eisen: { name: 'Eisen', fill: { pat: 1, colA: '#8c8f93', colB: '#6d7074', roughA: 0.42, roughB: 0.62, metalA: 1, metalB: 1, hAmt: 0.06, scale: 3, vari: 0.5 } },
-  stahl: { name: 'Gebürsteter Stahl', fill: { pat: 3, colA: '#c3c6ca', colB: '#9b9fa4', roughA: 0.28, roughB: 0.45, metalA: 1, metalB: 1, hAmt: 0.03, scale: 2, vari: 0.4 } },
-  chrom: { name: 'Chrom', fill: { pat: 0, colA: '#ececee', colB: '#ececee', roughA: 0.05, roughB: 0.05, metalA: 1, metalB: 1, hAmt: 0, scale: 2, vari: 0 } },
-  gold: { name: 'Gold', fill: { pat: 1, colA: '#ffcf5c', colB: '#e3ad3d', roughA: 0.22, roughB: 0.34, metalA: 1, metalB: 1, hAmt: 0.02, scale: 4, vari: 0.3 } },
-  kupfer: { name: 'Kupfer', fill: { pat: 1, colA: '#dc8f5f', colB: '#b46a42', roughA: 0.28, roughB: 0.45, metalA: 1, metalB: 1, hAmt: 0.03, scale: 4, vari: 0.4 } },
-  alu: { name: 'Aluminium', fill: { pat: 1, colA: '#d6d8db', colB: '#c2c5c9', roughA: 0.32, roughB: 0.42, metalA: 1, metalB: 1, hAmt: 0.02, scale: 5, vari: 0.3 } },
-  rost: { name: 'Rost', fill: { pat: 4, colA: '#8f4320', colB: '#4a2311', roughA: 0.82, roughB: 0.95, metalA: 0.1, metalB: 0, hAmt: 0.35, scale: 3, vari: 0.6 } },
-  holz: { name: 'Holz hell', fill: { pat: 2, colA: '#c89d6b', colB: '#8a5c35', roughA: 0.55, roughB: 0.7, metalA: 0, metalB: 0, hAmt: 0.18, scale: 2.2, vari: 0.5 } },
-  holz2: { name: 'Holz dunkel', fill: { pat: 2, colA: '#6c4529', colB: '#352012', roughA: 0.5, roughB: 0.65, metalA: 0, metalB: 0, hAmt: 0.18, scale: 2.2, vari: 0.5 } },
-  lack: { name: 'Lack rot', fill: { pat: 1, colA: '#c41f2b', colB: '#b01a25', roughA: 0.28, roughB: 0.34, metalA: 0, metalB: 0, hAmt: 0.01, scale: 6, vari: 0.1 } },
-  plastik: { name: 'Plastik glänzend', fill: { pat: 0, colA: '#2f7de1', colB: '#2f7de1', roughA: 0.2, roughB: 0.2, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
-  plastik2: { name: 'Plastik matt', fill: { pat: 1, colA: '#3b3b40', colB: '#323236', roughA: 0.62, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.02, scale: 8, vari: 0.2 } },
-  gummi: { name: 'Gummi', fill: { pat: 1, colA: '#1e1e20', colB: '#29292b', roughA: 0.85, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.06, scale: 10, vari: 0.3 } },
-  leder: { name: 'Leder', fill: { pat: 5, colA: '#6d3c22', colB: '#3f1f10', roughA: 0.5, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.3, scale: 3, vari: 0.5 } },
-  stoff: { name: 'Stoff', fill: { pat: 6, colA: '#41598a', colB: '#22355a', roughA: 0.88, roughB: 0.96, metalA: 0, metalB: 0, hAmt: 0.35, scale: 3, vari: 0.5 } },
-  beton: { name: 'Beton', fill: { pat: 9, colA: '#9c9a94', colB: '#76746e', roughA: 0.88, roughB: 0.96, metalA: 0, metalB: 0, hAmt: 0.25, scale: 3, vari: 0.4 } },
-  ziegel: { name: 'Ziegel', fill: { pat: 7, colA: '#9e4b33', colB: '#cdc4b4', roughA: 0.82, roughB: 0.95, metalA: 0, metalB: 0, hAmt: 0.5, scale: 2, vari: 0.6 } },
-  karbon: { name: 'Karbon', fill: { pat: 8, colA: '#141416', colB: '#46474c', roughA: 0.22, roughB: 0.3, metalA: 0, metalB: 0.1, hAmt: 0.12, scale: 3, vari: 0.5 } },
-  stein: { name: 'Stein', fill: { pat: 9, colA: '#837f76', colB: '#57544d', roughA: 0.8, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.45, scale: 2, vari: 0.8 } },
-  autolack: { name: 'Autolack Metallic', fill: { pat: 11, colA: '#1d4bcc', colB: '#a9c0ff', roughA: 0.24, roughB: 0.12, metalA: 0.55, metalB: 1, hAmt: 0, scale: 6, vari: 0.4 } },
-  schale: { name: 'Melonenschale', fill: { pat: 10, colA: '#2b6e2d', colB: '#9ccf63', roughA: 0.38, roughB: 0.48, metalA: 0, metalB: 0, hAmt: 0.05, scale: 1.2, vari: 0.4 } },
-  fleisch: { name: 'Melonen-Fruchtfleisch', fill: { pat: 1, colA: '#ff4f64', colB: '#ff8592', roughA: 0.5, roughB: 0.35, metalA: 0, metalB: 0, hAmt: 0.1, scale: 5, vari: 0.4 } },
-  bretter: { name: 'Holzbretter', fill: { pat: 12, colA: '#a8743f', colB: '#5e3a1c', roughA: 0.6, roughB: 0.75, metalA: 0, metalB: 0, hAmt: 0.3, scale: 2.2, vari: 0.6 } },
-  stahl_dunkel: { name: 'Dunkler Stahl', fill: { pat: 1, colA: '#4a4c50', colB: '#2e3033', roughA: 0.45, roughB: 0.65, metalA: 1, metalB: 1, hAmt: 0.05, scale: 4, vari: 0.6 } },
-  schmutz: { name: 'Schmutz', fill: { pat: 1, colA: '#3b3026', colB: '#251d16', roughA: 0.92, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.05, scale: 4, vari: 0.5 } },
-  staub: { name: 'Staub', fill: { pat: 1, colA: '#bdb5a6', colB: '#a39b8c', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.02, scale: 6, vari: 0.4 } },
-  moos: { name: 'Moos', fill: { pat: 1, colA: '#506e22', colB: '#2d4612', roughA: 0.92, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.22, scale: 6, vari: 0.6 } },
+  eisen: { name: 'Eisen', cat: 'Metall', fill: { pat: 1, colA: '#8c8f93', colB: '#6d7074', roughA: 0.42, roughB: 0.62, metalA: 1, metalB: 1, hAmt: 0.06, scale: 3, vari: 0.5 } },
+  stahl: { name: 'Gebürsteter Stahl', cat: 'Metall', fill: { pat: 3, colA: '#c3c6ca', colB: '#9b9fa4', roughA: 0.28, roughB: 0.45, metalA: 1, metalB: 1, hAmt: 0.03, scale: 2, vari: 0.4 } },
+  chrom: { name: 'Chrom', cat: 'Metall', fill: { pat: 0, colA: '#ececee', colB: '#ececee', roughA: 0.05, roughB: 0.05, metalA: 1, metalB: 1, hAmt: 0, scale: 2, vari: 0 } },
+  gold: { name: 'Gold', cat: 'Metall', fill: { pat: 1, colA: '#ffcf5c', colB: '#e3ad3d', roughA: 0.22, roughB: 0.34, metalA: 1, metalB: 1, hAmt: 0.02, scale: 4, vari: 0.3 } },
+  kupfer: { name: 'Kupfer', cat: 'Metall', fill: { pat: 1, colA: '#dc8f5f', colB: '#b46a42', roughA: 0.28, roughB: 0.45, metalA: 1, metalB: 1, hAmt: 0.03, scale: 4, vari: 0.4 } },
+  alu: { name: 'Aluminium', cat: 'Metall', fill: { pat: 1, colA: '#d6d8db', colB: '#c2c5c9', roughA: 0.32, roughB: 0.42, metalA: 1, metalB: 1, hAmt: 0.02, scale: 5, vari: 0.3 } },
+  rost: { name: 'Rost', cat: 'Metall', fill: { pat: 4, colA: '#8f4320', colB: '#4a2311', roughA: 0.82, roughB: 0.95, metalA: 0.1, metalB: 0, hAmt: 0.35, scale: 3, vari: 0.6 } },
+  holz: { name: 'Holz hell', cat: 'Holz', fill: { pat: 2, colA: '#c89d6b', colB: '#8a5c35', roughA: 0.55, roughB: 0.7, metalA: 0, metalB: 0, hAmt: 0.18, scale: 2.2, vari: 0.5 } },
+  holz2: { name: 'Holz dunkel', cat: 'Holz', fill: { pat: 2, colA: '#6c4529', colB: '#352012', roughA: 0.5, roughB: 0.65, metalA: 0, metalB: 0, hAmt: 0.18, scale: 2.2, vari: 0.5 } },
+  lack: { name: 'Lack rot', cat: 'Kunststoff & Lack', fill: { pat: 1, colA: '#c41f2b', colB: '#b01a25', roughA: 0.28, roughB: 0.34, metalA: 0, metalB: 0, hAmt: 0.01, scale: 6, vari: 0.1 } },
+  plastik: { name: 'Plastik glänzend', cat: 'Kunststoff & Lack', fill: { pat: 0, colA: '#2f7de1', colB: '#2f7de1', roughA: 0.2, roughB: 0.2, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
+  plastik2: { name: 'Plastik matt', cat: 'Kunststoff & Lack', fill: { pat: 1, colA: '#3b3b40', colB: '#323236', roughA: 0.62, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.02, scale: 8, vari: 0.2 } },
+  gummi: { name: 'Gummi', cat: 'Kunststoff & Lack', fill: { pat: 1, colA: '#1e1e20', colB: '#29292b', roughA: 0.85, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.06, scale: 10, vari: 0.3 } },
+  leder: { name: 'Leder', cat: 'Stoff & Leder', fill: { pat: 5, colA: '#6d3c22', colB: '#3f1f10', roughA: 0.5, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.3, scale: 3, vari: 0.5 } },
+  stoff: { name: 'Stoff', cat: 'Stoff & Leder', fill: { pat: 6, colA: '#41598a', colB: '#22355a', roughA: 0.88, roughB: 0.96, metalA: 0, metalB: 0, hAmt: 0.35, scale: 3, vari: 0.5 } },
+  beton: { name: 'Beton', cat: 'Stein & Boden', fill: { pat: 9, colA: '#9c9a94', colB: '#76746e', roughA: 0.88, roughB: 0.96, metalA: 0, metalB: 0, hAmt: 0.25, scale: 3, vari: 0.4 } },
+  ziegel: { name: 'Ziegel', cat: 'Stein & Boden', fill: { pat: 7, colA: '#9e4b33', colB: '#cdc4b4', roughA: 0.82, roughB: 0.95, metalA: 0, metalB: 0, hAmt: 0.5, scale: 2, vari: 0.6 } },
+  karbon: { name: 'Karbon', cat: 'Kunststoff & Lack', fill: { pat: 8, colA: '#141416', colB: '#46474c', roughA: 0.22, roughB: 0.3, metalA: 0, metalB: 0.1, hAmt: 0.12, scale: 3, vari: 0.5 } },
+  stein: { name: 'Stein', cat: 'Stein & Boden', fill: { pat: 9, colA: '#837f76', colB: '#57544d', roughA: 0.8, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.45, scale: 2, vari: 0.8 } },
+  autolack: { name: 'Autolack Metallic', cat: 'Kunststoff & Lack', fill: { pat: 11, colA: '#1d4bcc', colB: '#a9c0ff', roughA: 0.24, roughB: 0.12, metalA: 0.55, metalB: 1, hAmt: 0, scale: 6, vari: 0.4 } },
+  schale: { name: 'Melonenschale', cat: 'Natur', fill: { pat: 10, colA: '#2b6e2d', colB: '#9ccf63', roughA: 0.38, roughB: 0.48, metalA: 0, metalB: 0, hAmt: 0.05, scale: 1.2, vari: 0.4 } },
+  fleisch: { name: 'Melonen-Fruchtfleisch', cat: 'Natur', fill: { pat: 1, colA: '#ff4f64', colB: '#ff8592', roughA: 0.5, roughB: 0.35, metalA: 0, metalB: 0, hAmt: 0.1, scale: 5, vari: 0.4 } },
+  bretter: { name: 'Holzbretter', cat: 'Holz', fill: { pat: 12, colA: '#a8743f', colB: '#5e3a1c', roughA: 0.6, roughB: 0.75, metalA: 0, metalB: 0, hAmt: 0.3, scale: 2.2, vari: 0.6 } },
+  stahl_dunkel: { name: 'Dunkler Stahl', cat: 'Metall', fill: { pat: 1, colA: '#4a4c50', colB: '#2e3033', roughA: 0.45, roughB: 0.65, metalA: 1, metalB: 1, hAmt: 0.05, scale: 4, vari: 0.6 } },
+  jeans: { name: 'Jeans', cat: 'Stoff & Leder', fill: { pat: 13, colA: '#2b3f66', colB: '#7d93b8', roughA: 0.9, roughB: 0.95, metalA: 0, metalB: 0, hAmt: 0.25, scale: 3, vari: 0.5 } },
+  jeans2: { name: 'Jeans hell', cat: 'Stoff & Leder', fill: { pat: 13, colA: '#5d7aa6', colB: '#c3d0e3', roughA: 0.9, roughB: 0.95, metalA: 0, metalB: 0, hAmt: 0.25, scale: 3, vari: 0.6 } },
+  strick: { name: 'Strick (Wolle)', cat: 'Stoff & Leder', fill: { pat: 14, colA: '#8c2f2f', colB: '#5a1a1a', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.5, scale: 3, vari: 0.4 } },
+  karo: { name: 'Karohemd', cat: 'Stoff & Leder', fill: { pat: 15, colA: '#b8262b', colB: '#1a1a1d', roughA: 0.9, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.15, scale: 2, vari: 0.4 } },
+  leinen: { name: 'Leinen', cat: 'Stoff & Leder', fill: { pat: 6, colA: '#d8cdb4', colB: '#b4a684', roughA: 0.92, roughB: 0.97, metalA: 0, metalB: 0, hAmt: 0.25, scale: 6, vari: 0.4 } },
+  samt: { name: 'Samt', cat: 'Stoff & Leder', fill: { pat: 1, colA: '#6a1236', colB: '#3c0a1f', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.03, scale: 12, vari: 0.3 } },
+  leder2: { name: 'Leder schwarz', cat: 'Stoff & Leder', fill: { pat: 5, colA: '#232224', colB: '#111012', roughA: 0.42, roughB: 0.6, metalA: 0, metalB: 0, hAmt: 0.3, scale: 3.5, vari: 0.4 } },
+  tarn: { name: 'Tarnmuster Wald', cat: 'Stoff & Leder', fill: { pat: 16, colA: '#4d5a2c', colB: '#2b2a1b', roughA: 0.9, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.05, scale: 2, vari: 0.5 } },
+  tarn2: { name: 'Tarnmuster Wüste', cat: 'Stoff & Leder', fill: { pat: 16, colA: '#c2a878', colB: '#7d6644', roughA: 0.9, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.05, scale: 2, vari: 0.5 } },
+  riffel: { name: 'Riffelblech', cat: 'Metall', fill: { pat: 17, colA: '#9a9ea3', colB: '#c9ccd0', roughA: 0.42, roughB: 0.3, metalA: 1, metalB: 1, hAmt: 0.6, scale: 2, vari: 0.4 } },
+  well: { name: 'Wellblech', cat: 'Metall', fill: { pat: 18, colA: '#8b9095', colB: '#b5babf', roughA: 0.45, roughB: 0.35, metalA: 1, metalB: 1, hAmt: 0.6, scale: 2, vari: 0.4 } },
+  loch: { name: 'Lochblech', cat: 'Metall', fill: { pat: 19, colA: '#a7abb0', colB: '#151516', roughA: 0.4, roughB: 0.9, metalA: 1, metalB: 0, hAmt: 0.6, scale: 2, vari: 0.4 } },
+  hammer: { name: 'Hammerschlaglack', cat: 'Metall', fill: { pat: 29, colA: '#3c4c5c', colB: '#5f7486', roughA: 0.35, roughB: 0.3, metalA: 0.6, metalB: 0.7, hAmt: 0.3, scale: 2, vari: 0.4 } },
+  messing: { name: 'Messing', cat: 'Metall', fill: { pat: 1, colA: '#d9b25a', colB: '#b58e3c', roughA: 0.25, roughB: 0.4, metalA: 1, metalB: 1, hAmt: 0.02, scale: 4, vari: 0.4 } },
+  bronze: { name: 'Bronze', cat: 'Metall', fill: { pat: 1, colA: '#a8743e', colB: '#7a5128', roughA: 0.35, roughB: 0.5, metalA: 1, metalB: 1, hAmt: 0.03, scale: 4, vari: 0.5 } },
+  titan: { name: 'Titan', cat: 'Metall', fill: { pat: 3, colA: '#8f9299', colB: '#6f7280', roughA: 0.3, roughB: 0.42, metalA: 1, metalB: 1, hAmt: 0.02, scale: 2, vari: 0.3 } },
+  edelstahl: { name: 'Edelstahl poliert', cat: 'Metall', fill: { pat: 0, colA: '#d3d5d8', colB: '#d3d5d8', roughA: 0.12, roughB: 0.12, metalA: 1, metalB: 1, hAmt: 0, scale: 2, vari: 0 } },
+  dielen: { name: 'Holzdielen', cat: 'Holz', fill: { pat: 21, colA: '#a4744a', colB: '#5f3d22', roughA: 0.55, roughB: 0.7, metalA: 0, metalB: 0, hAmt: 0.3, scale: 2, vari: 0.6 } },
+  rinde: { name: 'Baumrinde', cat: 'Holz', fill: { pat: 28, colA: '#2e241c', colB: '#6b5a48', roughA: 0.95, roughB: 0.9, metalA: 0, metalB: 0, hAmt: 0.7, scale: 2, vari: 0.5 } },
+  kork: { name: 'Kork', cat: 'Holz', fill: { pat: 23, colA: '#b0895a', colB: '#6b4b2c', roughA: 0.9, roughB: 0.95, metalA: 0, metalB: 0, hAmt: 0.3, scale: 2, vari: 0.6 } },
+  fliesen: { name: 'Fliesen weiß', cat: 'Stein & Boden', fill: { pat: 20, colA: '#eeeeec', colB: '#9a9a96', roughA: 0.15, roughB: 0.85, metalA: 0, metalB: 0, hAmt: 0.4, scale: 2, vari: 0.3 } },
+  fliesen2: { name: 'Fliesen blau', cat: 'Stein & Boden', fill: { pat: 20, colA: '#2f6f9e', colB: '#d8d6cf', roughA: 0.15, roughB: 0.85, metalA: 0, metalB: 0, hAmt: 0.4, scale: 2, vari: 0.5 } },
+  pflaster: { name: 'Kopfsteinpflaster', cat: 'Stein & Boden', fill: { pat: 22, colA: '#7c7870', colB: '#2d2b28', roughA: 0.8, roughB: 0.95, metalA: 0, metalB: 0, hAmt: 0.7, scale: 2, vari: 0.6 } },
+  asphalt: { name: 'Asphalt', cat: 'Stein & Boden', fill: { pat: 23, colA: '#2c2c2e', colB: '#8a8a88', roughA: 0.9, roughB: 0.8, metalA: 0, metalB: 0, hAmt: 0.3, scale: 2, vari: 0.4 } },
+  marmor: { name: 'Marmor weiß', cat: 'Stein & Boden', fill: { pat: 24, colA: '#ecebe7', colB: '#7c7a78', roughA: 0.15, roughB: 0.2, metalA: 0, metalB: 0, hAmt: 0, scale: 1.5, vari: 0.3 } },
+  marmor2: { name: 'Marmor schwarz', cat: 'Stein & Boden', fill: { pat: 24, colA: '#161617', colB: '#c9c4b8', roughA: 0.12, roughB: 0.18, metalA: 0, metalB: 0, hAmt: 0, scale: 1.5, vari: 0.2 } },
+  beton2: { name: 'Beton glatt', cat: 'Stein & Boden', fill: { pat: 1, colA: '#a3a19c', colB: '#8b8984', roughA: 0.75, roughB: 0.85, metalA: 0, metalB: 0, hAmt: 0.05, scale: 3, vari: 0.3 } },
+  ziegel2: { name: 'Ziegel dunkel', cat: 'Stein & Boden', fill: { pat: 7, colA: '#5a2a1d', colB: '#3a3633', roughA: 0.85, roughB: 0.95, metalA: 0, metalB: 0, hAmt: 0.5, scale: 2, vari: 0.7 } },
+  sand: { name: 'Sand', cat: 'Natur', fill: { pat: 23, colA: '#d8c08c', colB: '#a88f5c', roughA: 0.95, roughB: 0.9, metalA: 0, metalB: 0, hAmt: 0.2, scale: 3, vari: 0.3 } },
+  erde: { name: 'Erde', cat: 'Natur', fill: { pat: 27, colA: '#3d2c1e', colB: '#5c4330', roughA: 0.95, roughB: 0.9, metalA: 0, metalB: 0, hAmt: 0.4, scale: 3, vari: 0.5 } },
+  gras: { name: 'Gras', cat: 'Natur', fill: { pat: 27, colA: '#3c6a22', colB: '#5f8c32', roughA: 0.9, roughB: 0.85, metalA: 0, metalB: 0, hAmt: 0.3, scale: 3, vari: 0.6 } },
+  schuppen: { name: 'Schlangenhaut', cat: 'Natur', fill: { pat: 26, colA: '#5b6b2f', colB: '#20250f', roughA: 0.4, roughB: 0.6, metalA: 0, metalB: 0, hAmt: 0.4, scale: 2, vari: 0.5 } },
+  eis: { name: 'Eis', cat: 'Natur', fill: { pat: 24, colA: '#bfe3f2', colB: '#ffffff', roughA: 0.08, roughB: 0.25, metalA: 0, metalB: 0, hAmt: 0.05, scale: 1.5, vari: 0.6 } },
+  lava: { name: 'Lava-Gestein', cat: 'Natur', fill: { pat: 28, colA: '#ff5a14', colB: '#1a1414', roughA: 0.6, roughB: 0.9, metalA: 0, metalB: 0, hAmt: 0.6, scale: 2, vari: 0.5 } },
+  waben: { name: 'Waben (Karbon)', cat: 'Kunststoff & Lack', fill: { pat: 25, colA: '#1b1c1f', colB: '#3c3f45', roughA: 0.3, roughB: 0.4, metalA: 0.2, metalB: 0.3, hAmt: 0.4, scale: 2, vari: 0.4 } },
+  noppen: { name: 'Gummi-Noppen', cat: 'Kunststoff & Lack', fill: { pat: 30, colA: '#1c1c1d', colB: '#2a2a2b', roughA: 0.85, roughB: 0.8, metalA: 0, metalB: 0, hAmt: 0.5, scale: 2, vari: 0.3 } },
+  lack_schwarz: { name: 'Lack schwarz glänzend', cat: 'Kunststoff & Lack', fill: { pat: 0, colA: '#0e0e10', colB: '#0e0e10', roughA: 0.08, roughB: 0.08, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
+  lack_weiss: { name: 'Lack weiß', cat: 'Kunststoff & Lack', fill: { pat: 0, colA: '#f1f1ef', colB: '#f1f1ef', roughA: 0.25, roughB: 0.25, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
+  polizei: { name: 'Lack Polizei-Blau', cat: 'Kunststoff & Lack', fill: { pat: 11, colA: '#16326e', colB: '#5b7fd1', roughA: 0.22, roughB: 0.12, metalA: 0.4, metalB: 0.9, hAmt: 0, scale: 6, vari: 0.3 } },
+  papier: { name: 'Pappe', cat: 'Sonstiges', fill: { pat: 1, colA: '#b8946a', colB: '#a5815a', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.05, scale: 10, vari: 0.4 } },
+  ruß: { name: 'Ruß', cat: 'Schmutz & Effekte', fill: { pat: 1, colA: '#0f0e0d', colB: '#1f1c1a', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0, scale: 5, vari: 0.4 } },
+  wasser: { name: 'Nässe', cat: 'Schmutz & Effekte', fill: { pat: 1, colA: '#2a2a2c', colB: '#3a3a3c', roughA: 0.05, roughB: 0.1, metalA: 0, metalB: 0, hAmt: 0, scale: 4, vari: 0.3 } },
+  schmutz: { name: 'Schmutz', cat: 'Schmutz & Effekte', fill: { pat: 1, colA: '#3b3026', colB: '#251d16', roughA: 0.92, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.05, scale: 4, vari: 0.5 } },
+  staub: { name: 'Staub', cat: 'Schmutz & Effekte', fill: { pat: 1, colA: '#bdb5a6', colB: '#a39b8c', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.02, scale: 6, vari: 0.4 } },
+  moos: { name: 'Moos', cat: 'Natur', fill: { pat: 1, colA: '#506e22', colB: '#2d4612', roughA: 0.92, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.22, scale: 6, vari: 0.6 } },
 };
 
 const M = (id, extra = {}) => ({ name: MATERIALS[id].name, ...extra, fill: { ...MATERIALS[id].fill, ...(extra.fill || {}) } });
@@ -2692,6 +2774,42 @@ const SMART = {
     { ...M('rost'), name: 'Rost an den Ringen', opacity: 0.7, mask: { gen: 9, scale: 3, width: 0.065, rough: 1, soft: 0.05, level: 0.03 } },
     { ...M('schmutz'), name: 'Dreck in Ritzen', mask: { gen: 2, level: 0.55, width: 0.05, rough: 0.6, soft: 0.12, scale: 3 } },
     { ...M('schmutz'), name: 'Dreck unten', opacity: 0.7, mask: { gen: 6, level: 0.35, rough: 0.7, soft: 0.15, scale: 2 } },
+  ] },
+  alteJeans: { name: 'Alte Jeans', layers: [
+    M('jeans'),
+    { ...M('jeans2'), name: 'Ausgeblichen', ch: { h: false }, mask: { gen: 1, level: 0.55, width: 0.05, rough: 0.8, soft: 0.1, scale: 4 } },
+    { ...M('staub'), name: 'Staub', opacity: 0.5, mask: { gen: 2, level: 0.45, width: 0.06, rough: 0.6, soft: 0.15, scale: 3 } },
+  ] },
+  uniform: { name: 'Uniform (Tarn)', layers: [
+    M('tarn'),
+    { ...M('erde'), name: 'Dreck unten', opacity: 0.8, mask: { gen: 6, level: 0.3, rough: 0.7, soft: 0.12, scale: 2 } },
+    { ...M('staub'), name: 'Staub', opacity: 0.5, mask: { gen: 11, level: 0.35, soft: 0.1, scale: 2 } },
+  ] },
+  wellRost: { name: 'Rostiges Wellblech', layers: [
+    M('well'),
+    { ...M('rost'), name: 'Rostflecken', mask: { gen: 11, level: 0.4, soft: 0.06, scale: 2 } },
+    { ...M('rost'), name: 'Rost-Laufspuren', opacity: 0.85, ch: { h: false }, mask: { gen: 10, level: 0.35, rough: 0.3, soft: 0.08, scale: 2 } },
+  ] },
+  industrie: { name: 'Industrieboden', layers: [
+    M('riffel'),
+    { ...M('schmutz'), name: 'Dreck', mask: { gen: 2, level: 0.55, width: 0.05, rough: 0.6, soft: 0.12, scale: 3 } },
+    { ...M('alu'), name: 'Kratzer', ch: { h: false }, mask: { gen: 7, level: 0.45, soft: 0.1, scale: 2 } },
+  ] },
+  pflasterMoos: { name: 'Alter Pflasterweg', layers: [
+    M('pflaster'),
+    { ...M('moos'), name: 'Moos in Fugen', mask: { gen: 2, level: 0.6, width: 0.06, rough: 0.8, soft: 0.1, scale: 3 } },
+    { ...M('wasser'), name: 'Nasse Stellen', opacity: 0.6, ch: { c: false, h: false }, mask: { gen: 8, level: 0.35, soft: 0.1, scale: 1.5 } },
+  ] },
+  lederjacke: { name: 'Abgenutztes Leder', layers: [
+    M('leder2'),
+    { name: 'Helle Kanten', fill: { pat: 1, colA: '#5a5655', colB: '#45403e', roughA: 0.7, roughB: 0.8, metalA: 0, metalB: 0, hAmt: 0, scale: 4, vari: 0.3 }, ch: { h: false }, mask: { gen: 1, level: 0.5, width: 0.04, rough: 0.7, soft: 0.08, scale: 4 } },
+    { ...M('staub'), name: 'Staub', opacity: 0.4, mask: { gen: 2, level: 0.4, width: 0.05, rough: 0.6, soft: 0.15, scale: 3 } },
+  ] },
+  marmorEdel: { name: 'Edler Marmor', layers: [M('marmor'), { ...M('gold'), name: 'Goldkanten', mask: { gen: 1, level: 0.45, width: 0.025, rough: 0.1, soft: 0.03, scale: 3 } }] },
+  verbrannterLack: { name: 'Verbranntes Auto', layers: [
+    M('autolack'),
+    { ...M('ruß'), name: 'Ruß', mask: { gen: 11, level: 0.55, soft: 0.1, scale: 1.5 } },
+    { ...M('rost'), name: 'Rost', mask: { gen: 11, level: 0.3, soft: 0.06, scale: 3, seed: 7 } },
   ] },
   melone: { name: 'Melone', layers: [M('schale')] },
 };
@@ -3582,16 +3700,29 @@ const UI = {
     const T = [['smart', 'Fertige Looks'], ['mat', 'Materialien'], ['mask', 'Masken'], ['shape', 'Pinselspitzen']];
     for (const [k, t] of T) tabs.append(el('button', { class: this.shelfTab === k ? 'on' : '', onclick: () => { this.shelfTab = k; this.renderShelf(); } }, t));
     const hints = { smart: 'Klick fügt den Look als Ebenen ein', mat: 'Klick: neue Ebene   ·   Rechtsklick: damit malen', mask: 'Klick: Maske für die ausgewählte Ebene', shape: '' };
+    if (this.shelfTab === 'mat') {
+      const cats = ['Alle', ...new Set(Object.values(MATERIALS).map((m) => m.cat || 'Sonstiges'))];
+      const cs = el('select', { class: 'catsel', title: 'Kategorie' }, cats.map((c) => el('option', { value: c, selected: (this.matCat || 'Alle') === c }, c)));
+      cs.onchange = () => { this.matCat = cs.value; this.renderShelf(); };
+      tabs.append(cs);
+    }
+    if (this.shelfTab === 'mat' || this.shelfTab === 'smart') {
+      const q = el('input', { type: 'search', class: 'shelfq', placeholder: 'Suchen …', value: this.q || '' });
+      q.addEventListener('input', () => { this.q = q.value; const pos = q.selectionStart; this.renderShelf(); const n = $('.shelfq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } });
+      q.addEventListener('keydown', (e) => e.stopPropagation());
+      tabs.append(q);
+    }
     tabs.append(el('span', { class: 'hint' }, hints[this.shelfTab]));
     const it = $('#shelf .items'); it.innerHTML = '';
+    const match = (name) => !this.q || name.toLowerCase().includes(this.q.toLowerCase());
     const tile = (key, name, onclick, oncontext, on) => {
       const img = this.previews.get(key);
       const t = el('button', { class: 'tile' + (on ? ' on' : ''), title: name, onclick }, img ? el('img', { src: img, alt: '' }) : el('div', { class: 'ph' }), el('span', {}, name));
       if (oncontext) t.addEventListener('contextmenu', (e) => { e.preventDefault(); oncontext(); });
       return t;
     };
-    if (this.shelfTab === 'smart') for (const [k, s] of Object.entries(SMART)) it.append(tile('s:' + k, s.name, () => this.applySmart(k)));
-    if (this.shelfTab === 'mat') for (const [k, m] of Object.entries(MATERIALS)) it.append(tile('m:' + k, m.name, () => this.applyMat(k), () => { S.brush.mat = k; if (S.tool !== 'paint' && S.tool !== 'fill') setTool('paint'); this.renderProps(); this.renderShelf(); toast('Pinsel malt jetzt mit ' + m.name); }, S.brush.mat === k));
+    if (this.shelfTab === 'smart') for (const [k, s] of Object.entries(SMART)) if (match(s.name)) it.append(tile('s:' + k, s.name, () => this.applySmart(k)));
+    if (this.shelfTab === 'mat') for (const [k, m] of Object.entries(MATERIALS)) if (match(m.name) && (!this.matCat || this.matCat === 'Alle' || (m.cat || 'Sonstiges') === this.matCat)) it.append(tile('m:' + k, m.name, () => this.applyMat(k), () => { S.brush.mat = k; if (S.tool !== 'paint' && S.tool !== 'fill') setTool('paint'); this.renderProps(); this.renderShelf(); toast('Pinsel malt jetzt mit ' + m.name); }, S.brush.mat === k));
     if (this.shelfTab === 'mask') GENS.forEach((g, i) => { if (i) it.append(tile('g:' + i, g, () => this.addMask(1, i))); });
     if (this.shelfTab === 'shape') SHAPES.forEach((s, i) => { if (!this.previews.has('b:' + i)) this.previews.set('b:' + i, shapeIcon(i)); it.append(tile('b:' + i, s, () => { S.brush.shape = i; this.renderCtx(); this.renderShelf(); if (S.tool !== 'paint' && S.tool !== 'erase') setTool('paint'); }, null, S.brush.shape === i)); });
   },
@@ -4035,6 +4166,13 @@ const AI_WORDS = [
   [/auto|lack|polizei|sportwagen/, () => ({ aktion: 'look', id: 'kratzLack' })],
   [/verbrannt|feuer|ruß|russ/, () => ({ aktion: 'look', id: 'verbrannt' })],
   [/melone/, () => ({ aktion: 'look', id: 'melone' })],
+  [/jeans/, () => ({ aktion: 'look', id: 'alteJeans' })],
+  [/uniform|tarn|camo/, () => ({ aktion: 'look', id: 'uniform' })],
+  [/wellblech/, () => ({ aktion: 'look', id: 'wellRost' })],
+  [/industrie|fabrik|riffel/, () => ({ aktion: 'look', id: 'industrie' })],
+  [/pflaster|weg\b|straße/, () => ({ aktion: 'look', id: 'pflasterMoos' })],
+  [/leder|jacke/, () => ({ aktion: 'look', id: 'lederjacke' })],
+  [/marmor/, () => ({ aktion: 'look', id: 'marmorEdel' })],
 ];
 const AI_EXTRA = [
   [/(metall|eisen|stahl).{0,25}(ring|band|bänder|reif|teile? drum|streifen)|(ring|band|bänder|reif).{0,25}(metall|eisen|stahl)/, () => [{ aktion: 'fill', name: 'Metallringe', material: 'stahl_dunkel', height: 0.4 }, { aktion: 'mask', generator: 'Ringe (Bänder)', width: 0.06, scale: 3 }], 'Metallringe'],
