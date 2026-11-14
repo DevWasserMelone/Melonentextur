@@ -373,7 +373,7 @@ html.pro #status{background:#1a1b1d}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.6.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1905,6 +1905,256 @@ function makeAutoUV(P, I, fn, fa, pid, nP, nT) {
 }
 
 'use strict';
+/* ================= Weitere 3D-Formate: FBX, STL, PLY, DAE ================= */
+const MODEL_EXT = ['obj', 'glb', 'gltf', 'fbx', 'stl', 'ply', 'dae'];
+
+/* gemeinsames Ergebnis: jede Dreiecks-Ecke einzeln (pos/nrm/uv pro Ecke) */
+function cornerMesh() {
+  const P = [], N = [], T = [], M = []; let hasN = true, hasT = true;
+  return {
+    push(p, n, t) { P.push(p[0], p[1], p[2]); if (n) N.push(n[0], n[1], n[2]); else { hasN = false; N.push(0, 1, 0); } if (t) T.push(t[0], t[1]); else { hasT = false; T.push(0, 0); } },
+    mat(m) { M.push(m); },
+    done(mats) {
+      const n = P.length / 3; const idx = new Uint32Array(n); for (let i = 0; i < n; i++) idx[i] = i;
+      if (!n) throw new Error('In der Datei wurde kein Modell gefunden.');
+      return { pos: new Float32Array(P), nrm: hasN ? new Float32Array(N) : null, uv: hasT ? new Float32Array(T) : null, idx, mid: M.length ? new Int32Array(M) : null, mats: mats && mats.length ? mats : null };
+    },
+  };
+}
+
+/* ---------- STL ---------- */
+function parseSTL(buf) {
+  const u8 = new Uint8Array(buf); const dv = new DataView(buf);
+  const out = cornerMesh();
+  const nb = buf.byteLength >= 84 ? dv.getUint32(80, true) : 0;
+  if (buf.byteLength === 84 + nb * 50 && nb > 0) {
+    for (let i = 0; i < nb; i++) {
+      const o = 84 + i * 50; const n = [dv.getFloat32(o, true), dv.getFloat32(o + 4, true), dv.getFloat32(o + 8, true)];
+      const nn = Math.hypot(...n) > 0.5 ? n : null;
+      for (let k = 0; k < 3; k++) { const q = o + 12 + k * 12; out.push([dv.getFloat32(q, true), dv.getFloat32(q + 4, true), dv.getFloat32(q + 8, true)], nn, null); }
+    }
+  } else {
+    const txt = new TextDecoder().decode(u8); const re = /vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g; let m;
+    while ((m = re.exec(txt))) out.push([+m[1], +m[2], +m[3]], null, null);
+  }
+  return out.done();
+}
+
+/* ---------- PLY ---------- */
+function parsePLY(buf) {
+  const u8 = new Uint8Array(buf); let hEnd = 0;
+  const head = new TextDecoder().decode(u8.subarray(0, Math.min(u8.length, 65536)));
+  const he = head.indexOf('end_header'); if (he < 0) throw new Error('Kaputte PLY-Datei'); hEnd = head.indexOf('\n', he) + 1;
+  const lines = head.slice(0, he).split(/\r?\n/);
+  const fmt = (lines.find((l) => l.startsWith('format')) || '').split(/\s+/)[1];
+  const elems = []; let cur = null;
+  for (const l of lines) { const t = l.trim().split(/\s+/); if (t[0] === 'element') { cur = { name: t[1], count: +t[2], props: [] }; elems.push(cur); } else if (t[0] === 'property' && cur) cur.props.push(t[1] === 'list' ? { list: true, ct: t[2], it: t[3], name: t[4] } : { type: t[1], name: t[2] }); }
+  const SZ = { char: 1, uchar: 1, int8: 1, uint8: 1, short: 2, ushort: 2, int16: 2, uint16: 2, int: 4, uint: 4, int32: 4, uint32: 4, float: 4, float32: 4, double: 8, float64: 8 };
+  const dv = new DataView(buf); let off = hEnd; const le = fmt !== 'binary_big_endian';
+  const rd = (t) => { let v; switch (t) { case 'char': case 'int8': v = dv.getInt8(off); break; case 'uchar': case 'uint8': v = dv.getUint8(off); break; case 'short': case 'int16': v = dv.getInt16(off, le); break; case 'ushort': case 'uint16': v = dv.getUint16(off, le); break; case 'int': case 'int32': v = dv.getInt32(off, le); break; case 'uint': case 'uint32': v = dv.getUint32(off, le); break; case 'double': case 'float64': v = dv.getFloat64(off, le); break; default: v = dv.getFloat32(off, le); } off += SZ[t] || 4; return v; };
+  let tok = null, ti = 0;
+  if (fmt === 'ascii') { tok = new TextDecoder().decode(u8.subarray(hEnd)).trim().split(/\s+/); }
+  const next = (t) => (tok ? +tok[ti++] : rd(t));
+  const V = [], F = [];
+  for (const e of elems) for (let i = 0; i < e.count; i++) {
+    const rec = {};
+    for (const p of e.props) { if (p.list) { const n = next(p.ct); const a = []; for (let k = 0; k < n; k++) a.push(next(p.it)); rec[p.name] = a; } else rec[p.name] = next(p.type); }
+    if (e.name === 'vertex') V.push(rec); else if (e.name === 'face') F.push(rec.vertex_indices || rec.vertex_index || []);
+  }
+  const out = cornerMesh();
+  const vp = (v) => [v.x, v.y, v.z], vn = (v) => (v.nx !== undefined ? [v.nx, v.ny, v.nz] : null), vt = (v) => (v.s !== undefined ? [v.s, v.t] : v.u !== undefined ? [v.u, v.v] : v.texture_u !== undefined ? [v.texture_u, v.texture_v] : null);
+  for (const f of F) for (let k = 1; k + 1 < f.length; k++) for (const j of [f[0], f[k], f[k + 1]]) { const v = V[j]; if (v) out.push(vp(v), vn(v), vt(v)); }
+  return out.done();
+}
+
+/* ---------- Collada (.dae) ---------- */
+function parseDAE(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const byId = (id) => doc.getElementById(id) || doc.querySelector(`[id="${id}"]`);
+  const floats = (el) => el.textContent.trim().split(/\s+/).map(Number);
+  const up = (doc.querySelector('asset > up_axis') || {}).textContent;
+  const out = cornerMesh(); const mats = [];
+  const matIdx = (name) => { let i = mats.indexOf(name); if (i < 0) { i = mats.length; mats.push(name); } return i; };
+  const geomMesh = (geom, M) => {
+    const mesh = geom.querySelector('mesh'); if (!mesh) return;
+    const src = (id) => { const s = byId(id.replace('#', '')); if (!s) return null; const fa = s.querySelector('float_array'); const acc = s.querySelector('accessor'); return { a: floats(fa), stride: +(acc && acc.getAttribute('stride')) || 3 }; };
+    const vertsEl = mesh.querySelector('vertices'); const posSrc = vertsEl ? src(vertsEl.querySelector('input[semantic="POSITION"]').getAttribute('source')) : null;
+    const nm = M4.invert(M);
+    for (const prim of mesh.querySelectorAll('triangles, polylist, polygons')) {
+      const inputs = [...prim.querySelectorAll(':scope > input')].map((i) => ({ sem: i.getAttribute('semantic'), off: +i.getAttribute('offset'), src: i.getAttribute('semantic') === 'VERTEX' ? posSrc : src(i.getAttribute('source')) }));
+      const stride = Math.max(...inputs.map((i) => i.off)) + 1;
+      const mi = matIdx(prim.getAttribute('material') || 'Material');
+      const pEls = [...prim.querySelectorAll(':scope > p')]; const p = pEls.flatMap((e) => floats(e));
+      const vc = prim.tagName === 'polylist' ? floats(prim.querySelector('vcount')) : prim.tagName === 'polygons' ? pEls.map((e) => floats(e).length / stride) : null;
+      const corner = (k) => {
+        let pos, n = null, t = null;
+        for (const inp of inputs) { const i = p[k * stride + inp.off]; const s = inp.src; if (!s) continue;
+          if (inp.sem === 'VERTEX') pos = [s.a[i * s.stride], s.a[i * s.stride + 1], s.a[i * s.stride + 2]];
+          else if (inp.sem === 'NORMAL') n = [s.a[i * s.stride], s.a[i * s.stride + 1], s.a[i * s.stride + 2]];
+          else if (inp.sem === 'TEXCOORD' && !t) t = [s.a[i * s.stride], s.a[i * s.stride + 1]]; }
+        const w = [M[0] * pos[0] + M[4] * pos[1] + M[8] * pos[2] + M[12], M[1] * pos[0] + M[5] * pos[1] + M[9] * pos[2] + M[13], M[2] * pos[0] + M[6] * pos[1] + M[10] * pos[2] + M[14]];
+        if (n) n = V3.norm([nm[0] * n[0] + nm[1] * n[1] + nm[2] * n[2], nm[4] * n[0] + nm[5] * n[1] + nm[6] * n[2], nm[8] * n[0] + nm[9] * n[1] + nm[10] * n[2]]);
+        if (up === 'Z_UP') { const yz = (v) => (v ? [v[0], v[2], -v[1]] : v); return [yz(w), yz(n), t]; }
+        return [w, n, t];
+      };
+      let k = 0; const polys = vc || Array(p.length / stride / 3).fill(3);
+      for (const c of polys) { for (let j = 1; j + 1 < c; j++) { for (const q of [k, k + j, k + j + 1]) out.push(...corner(q)); out.mat(mi); } k += c; }
+    }
+  };
+  const nodes = doc.querySelectorAll('visual_scene node');
+  const done = new Set();
+  const nodeMatrix = (node) => {
+    let M = M4.ident();
+    for (let n = node; n && n.tagName === 'node'; n = n.parentElement) {
+      let L = M4.ident();
+      for (const c of n.children) {
+        if (c.tagName === 'matrix') { const a = floats(c); L = M4.mul(L, new Float32Array([a[0], a[4], a[8], a[12], a[1], a[5], a[9], a[13], a[2], a[6], a[10], a[14], a[3], a[7], a[11], a[15]])); }
+        else if (c.tagName === 'translate') { const a = floats(c); L = M4.mul(L, M4.trs(a, undefined, undefined)); }
+        else if (c.tagName === 'scale') { const a = floats(c); L = M4.mul(L, M4.trs(undefined, undefined, a)); }
+        else if (c.tagName === 'rotate') { const a = floats(c); const h = a[3] * Math.PI / 360, s = Math.sin(h); const ax = V3.norm([a[0], a[1], a[2]]); L = M4.mul(L, M4.trs(undefined, [ax[0] * s, ax[1] * s, ax[2] * s, Math.cos(h)], undefined)); }
+      }
+      M = M4.mul(L, M);
+    }
+    return M;
+  };
+  for (const node of nodes) for (const ig of node.querySelectorAll(':scope > instance_geometry')) { const g = byId(ig.getAttribute('url').replace('#', '')); if (g) { geomMesh(g, nodeMatrix(node)); done.add(g); } }
+  if (!done.size) for (const g of doc.querySelectorAll('library_geometries > geometry')) geomMesh(g, M4.ident());
+  return out.done(mats);
+}
+
+/* ---------- FBX (binär, wie aus Blender/Maya/3ds Max) ---------- */
+async function inflate(u8) {
+  const ds = new DecompressionStream('deflate'); const s = new Blob([u8]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+async function parseFBX(buf) {
+  const u8 = new Uint8Array(buf); const dv = new DataView(buf);
+  const magic = new TextDecoder().decode(u8.subarray(0, 18));
+  if (magic !== 'Kaydara FBX Binary') throw new Error('Nur binäre FBX-Dateien gehen. In Blender: Exportieren → FBX (Standard ist binär).');
+  const ver = dv.getUint32(23, true); const big = ver >= 7500;
+  const rdU = (o) => (big ? Number(dv.getBigUint64(o, true)) : dv.getUint32(o, true));
+  const pending = [];
+  function readNode(off) {
+    const end = rdU(off); const np = rdU(off + (big ? 8 : 4)); const hl = big ? 24 : 12;
+    const nl = u8[off + hl]; if (end === 0) return [null, off + hl + 1 + nl];
+    const name = new TextDecoder().decode(u8.subarray(off + hl + 1, off + hl + 1 + nl));
+    let p = off + hl + 1 + nl; const props = [];
+    for (let i = 0; i < np; i++) {
+      const t = String.fromCharCode(u8[p]); p++;
+      switch (t) {
+        case 'Y': props.push(dv.getInt16(p, true)); p += 2; break;
+        case 'C': props.push(!!u8[p]); p += 1; break;
+        case 'I': props.push(dv.getInt32(p, true)); p += 4; break;
+        case 'F': props.push(dv.getFloat32(p, true)); p += 4; break;
+        case 'D': props.push(dv.getFloat64(p, true)); p += 8; break;
+        case 'L': props.push(Number(dv.getBigInt64(p, true))); p += 8; break;
+        case 'S': case 'R': { const l = dv.getUint32(p, true); p += 4; const b = u8.subarray(p, p + l); props.push(t === 'S' ? new TextDecoder().decode(b) : b.slice()); p += l; break; }
+        case 'f': case 'd': case 'l': case 'i': case 'b': {
+          const n = dv.getUint32(p, true), enc = dv.getUint32(p + 4, true), cl = dv.getUint32(p + 8, true); p += 12;
+          const raw = u8.slice(p, p + cl); p += cl;
+          const holder = { t, n, enc, raw, v: null }; props.push(holder); if (enc === 1) pending.push(holder);
+          break;
+        }
+        default: throw new Error('Unbekannter FBX-Eintrag ' + t);
+      }
+    }
+    const node = { name, props, kids: [] };
+    while (p < end) { const [k, np2] = readNode(p); if (!k) { p = np2; break; } node.kids.push(k); p = np2; }
+    return [node, end];
+  }
+  const root = { name: '', props: [], kids: [] }; let off = 27;
+  while (off < u8.length - 13) { const [n, no] = readNode(off); if (!n) break; root.kids.push(n); off = no; }
+  // gepackte Listen auspacken
+  await Promise.all(pending.map(async (h) => { h.raw = await inflate(h.raw); }));
+  const arr = (h) => {
+    if (!h || h.v) return h ? h.v : null;
+    const b = h.raw.buffer.slice(h.raw.byteOffset, h.raw.byteOffset + h.raw.byteLength);
+    h.v = h.t === 'f' ? new Float32Array(b, 0, h.n) : h.t === 'd' ? new Float64Array(b, 0, h.n) : h.t === 'i' ? new Int32Array(b, 0, h.n) : h.t === 'l' ? Array.from(new BigInt64Array(b, 0, h.n), Number) : new Uint8Array(b, 0, h.n);
+    return h.v;
+  };
+  const child = (n, name) => n && n.kids.find((k) => k.name === name);
+  const objects = child(root, 'Objects'); if (!objects) throw new Error('In der FBX wurde kein Modell gefunden.');
+  const conns = (child(root, 'Connections') || { kids: [] }).kids.map((c) => ({ type: c.props[0], from: c.props[1], to: c.props[2], prop: c.props[3] }));
+  const byId = new Map(); for (const o of objects.kids) byId.set(o.props[0], o);
+  const parentsOf = (id) => conns.filter((c) => c.from === id).map((c) => byId.get(c.to)).filter(Boolean);
+  const childrenOf = (id) => conns.filter((c) => c.to === id).map((c) => ({ node: byId.get(c.from), prop: c.prop })).filter((x) => x.node);
+  const p70 = (n, key) => { const P = child(n, 'Properties70'); if (!P) return null; const k = P.kids.find((q) => q.props[0] === key); return k ? k.props.slice(4) : null; };
+  const deg = Math.PI / 180;
+  const eulerQ = (r) => { const [x, y, z] = r.map((a) => a * deg); const cx = Math.cos(x / 2), sx = Math.sin(x / 2), cy = Math.cos(y / 2), sy = Math.sin(y / 2), cz = Math.cos(z / 2), sz = Math.sin(z / 2);
+    return [sx * cy * cz - cx * sy * sz, cx * sy * cz + sx * cy * sz, cx * cy * sz - sx * sy * cz, cx * cy * cz + sx * sy * sz]; }; // Reihenfolge XYZ
+  const modelMatrix = (m) => {
+    let M = M4.ident();
+    for (let n = m, guard = 0; n && n.name === 'Model' && guard < 64; guard++) {
+      const t = p70(n, 'Lcl Translation') || [0, 0, 0], r = p70(n, 'Lcl Rotation') || [0, 0, 0], s = p70(n, 'Lcl Scaling') || [1, 1, 1], pre = p70(n, 'PreRotation') || [0, 0, 0];
+      const L = M4.mul(M4.trs(t, undefined, undefined), M4.mul(M4.trs(undefined, eulerQ(pre), undefined), M4.mul(M4.trs(undefined, eulerQ(r), undefined), M4.trs(undefined, undefined, s))));
+      M = M4.mul(L, M);
+      n = parentsOf(n.props[0]).find((q) => q.name === 'Model');
+    }
+    return M;
+  };
+  // Einheiten / Achsen aus den Einstellungen
+  const gs = child(root, 'GlobalSettings'); const upAxis = gs ? (p70(gs, 'UpAxis') || [1])[0] : 1, upSign = gs ? (p70(gs, 'UpAxisSign') || [1])[0] : 1;
+  const out = cornerMesh(); const mats = []; const matInfo = [];
+  const videos = new Map(); for (const o of objects.kids) if (o.name === 'Video') { const c = child(o, 'Content'); if (c && c.props[0] && c.props[0].length) videos.set(o.props[0], c.props[0]); }
+  const texBytes = (texNode) => { for (const v of childrenOf(texNode.props[0])) if (videos.has(v.node.props[0])) return videos.get(v.node.props[0]); return null; };
+  const matIndex = (mn) => {
+    const name = String(mn.props[1]).split('\u0000')[0] || 'Material';
+    let i = mats.indexOf(name); if (i >= 0) return i;
+    i = mats.length; mats.push(name);
+    const dc = p70(mn, 'DiffuseColor') || p70(mn, 'Diffuse') || [0.8, 0.8, 0.8];
+    const info = { name, baseF: [dc[0], dc[1], dc[2], 1], metalF: 0, roughF: 0.6, emisF: [0, 0, 0], has: true };
+    for (const c of childrenOf(mn.props[0])) if (c.node.name === 'Texture') { const by = texBytes(c.node); if (!by) continue; const pr = String(c.prop || ''); if (/Diffuse/i.test(pr)) { info.base = by; info.baseF = [1, 1, 1, 1]; } else if (/Normal|Bump/i.test(pr)) info.normal = by; else if (/Emissive/i.test(pr)) { info.emis = by; info.emisF = [1, 1, 1]; } }
+    matInfo.push(info); return i;
+  };
+  for (const g of objects.kids) {
+    if (g.name !== 'Geometry') continue;
+    const V = arr((child(g, 'Vertices') || {}).props?.[0]); const PI = arr((child(g, 'PolygonVertexIndex') || {}).props?.[0]);
+    if (!V || !PI) continue;
+    const model = parentsOf(g.props[0]).find((q) => q.name === 'Model');
+    const M = model ? modelMatrix(model) : M4.ident(); const nmx = M4.invert(M);
+    const layer = (name, dataKey, idxKey) => { const L = child(g, name); if (!L) return null; return { map: (child(L, 'MappingInformationType') || {}).props?.[0], ref: (child(L, 'ReferenceInformationType') || {}).props?.[0], data: arr((child(L, dataKey) || {}).props?.[0]), idx: arr((child(L, idxKey) || {}).props?.[0]) }; };
+    const LN = layer('LayerElementNormal', 'Normals', 'NormalsIndex'), LU = layer('LayerElementUV', 'UV', 'UVIndex'), LM = layer('LayerElementMaterial', 'Materials', null);
+    const modelMats = model ? childrenOf(model.props[0]).filter((c) => c.node.name === 'Material').map((c) => matIndex(c.node)) : [];
+    const get = (L, comp, pvi, vi, poly) => {
+      if (!L || !L.data) return null;
+      let i = L.map === 'ByVertice' || L.map === 'ByVertex' ? vi : L.map === 'ByPolygon' ? poly : L.map === 'AllSame' ? 0 : pvi;
+      if (L.ref === 'IndexToDirect' && L.idx) i = L.idx[i];
+      return Array.from(L.data.subarray ? L.data.subarray(i * comp, i * comp + comp) : L.data.slice(i * comp, i * comp + comp));
+    };
+    let poly = [], pIdx = 0, start = 0;
+    for (let k = 0; k < PI.length; k++) {
+      let vi = PI[k]; const last = vi < 0; if (last) vi = ~vi; poly.push([vi, k]);
+      if (!last) continue;
+      const matLocal = LM && LM.data ? (LM.map === 'AllSame' ? LM.data[0] : LM.data[pIdx]) : 0;
+      const mi = modelMats.length ? modelMats[Math.min(matLocal, modelMats.length - 1)] : -1;
+      const corner = ([v, pvi]) => {
+        const x = V[v * 3], y = V[v * 3 + 1], z = V[v * 3 + 2];
+        let p = [M[0] * x + M[4] * y + M[8] * z + M[12], M[1] * x + M[5] * y + M[9] * z + M[13], M[2] * x + M[6] * y + M[10] * z + M[14]];
+        let n = get(LN, 3, pvi, v, pIdx); if (n) n = V3.norm([nmx[0] * n[0] + nmx[1] * n[1] + nmx[2] * n[2], nmx[4] * n[0] + nmx[5] * n[1] + nmx[6] * n[2], nmx[8] * n[0] + nmx[9] * n[1] + nmx[10] * n[2]]);
+        if (upAxis === 2) { const f = (q) => (q ? [q[0], q[2] * upSign, -q[1] * upSign] : q); p = f(p); n = f(n); }
+        return [p, n, get(LU, 2, pvi, v, pIdx)];
+      };
+      for (let j = 1; j + 1 < poly.length; j++) { for (const c of [poly[0], poly[j], poly[j + 1]]) out.push(...corner(c)); out.mat(Math.max(0, mi)); }
+      poly = []; pIdx++; start = k + 1;
+    }
+  }
+  const res = out.done(mats.length ? mats : null);
+  if (!mats.length) res.mid = null;
+  res.matInfo = matInfo.length ? matInfo : null;
+  return res;
+}
+
+async function parseModelFile(file, ext) {
+  if (ext === 'obj') return parseOBJ(await file.text());
+  if (ext === 'glb' || ext === 'gltf') return parseGLB(await file.arrayBuffer());
+  if (ext === 'fbx') return parseFBX(await file.arrayBuffer());
+  if (ext === 'stl') return parseSTL(await file.arrayBuffer());
+  if (ext === 'ply') return parsePLY(await file.arrayBuffer());
+  if (ext === 'dae') return parseDAE(await file.text());
+  throw new Error('Unbekanntes Format');
+}
+
+'use strict';
 /* ================= Textur-Engine ================= */
 const BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'add', 'subtract', 'darken', 'lighten', 'softlight'];
 const BASE_C = [0.55, 0.55, 0.55, 0], BASE_M = [0.5, 0, 0, 1];
@@ -2816,7 +3066,7 @@ function uvCenter(tris, uv) {
 }
 function uvBegin(mode, startUV) {
   if (!UVE.sel.size) return false;
-  pushUndo();
+  pushUndo('UV bearbeiten');
   const orig = S.mesh.soup.uv;
   const tris = uvSelTris();
   UVE.op = { mode, start: startUV, orig, origMesh: S.mesh, tris, center: uvCenter(tris, orig) };
@@ -2831,13 +3081,16 @@ function uvUpdate(cur, opts = {}) {
   let sc = Math.hypot(cur[0] - c[0], cur[1] - c[1]) / Math.max(1e-6, Math.hypot(o.start[0] - c[0], o.start[1] - c[1]));
   if (opts.snap) { ang = Math.round(ang / (Math.PI / 12)) * Math.PI / 12; sc = Math.round(sc * 10) / 10; dx = Math.round(dx * 64) / 64; dy = Math.round(dy * 64) / 64; }
   if (opts.angle != null) ang = opts.angle;
+  if (o.axis === 0) dy = 0; else if (o.axis === 1) dx = 0;
+  o.last = cur;
+  if (typeof UI !== 'undefined' && UI.modHint) UI.modHint((o.mode === 'g' ? `Verschieben ${dx.toFixed(3)} / ${dy.toFixed(3)}` : o.mode === 'r' ? `Drehen ${(ang * 180 / Math.PI).toFixed(0)}°` : o.mode === 's' ? `Skalieren ${sc.toFixed(2)}` : '') + (o.axis != null ? '  ·  nur ' + 'UV'[o.axis] : '') + '  ·  X/Y = Achse · Strg = einrasten · Klick/Enter = fertig · Esc = abbrechen');
   if (opts.flip) { /* spiegeln */ }
   const cs = Math.cos(ang), sn = Math.sin(ang);
   for (const t of o.tris) for (let k = 0; k < 3; k++) {
     const i = t * 6 + k * 2; const u = src[i], v = src[i + 1];
     if (o.mode === 'g') { uv[i] = u + dx; uv[i + 1] = v + dy; }
     else if (o.mode === 'r') { const x = u - c[0], y = v - c[1]; uv[i] = c[0] + x * cs - y * sn; uv[i + 1] = c[1] + x * sn + y * cs; }
-    else if (o.mode === 's') { uv[i] = c[0] + (u - c[0]) * sc; uv[i + 1] = c[1] + (v - c[1]) * sc; }
+    else if (o.mode === 's') { uv[i] = o.axis === 1 ? u : c[0] + (u - c[0]) * sc; uv[i + 1] = o.axis === 0 ? v : c[1] + (v - c[1]) * sc; }
     else if (o.mode === 'fu') { uv[i] = 2 * c[0] - u; uv[i + 1] = v; }
     else if (o.mode === 'fv') { uv[i] = u; uv[i + 1] = 2 * c[1] - v; }
   }
@@ -2845,14 +3098,50 @@ function uvUpdate(cur, opts = {}) {
 }
 async function uvConfirm() {
   if (!UVE.op) return;
-  UVE.op = null;
-  UI.busy('UVs werden übernommen …'); await sleep(30);
-  try { bakeMesh(); warmUp(); } finally { UI.busy(null); }
-  S.mesh.uvEdited = true; S.dirty = true; E.needComp = true;
+  UVE.op = null; if (UI.modHint) UI.modHint('');
+  S.mesh.islandMap = null; S.mesh.uvEdited = true; S.dirty = true; E.needComp = true; ST.grid = null; if (typeof SG !== 'undefined') SG.last = null;
+  uvRebakeSoon();
+}
+/* Hilfskarten (Schatten, Kanten, Insel-Ränder) erst neu rechnen, wenn man kurz nichts mehr an den UVs macht */
+function uvRebakeSoon() {
+  clearTimeout(E._uvBake);
+  E._uvBake = setTimeout(() => { if (UVE.op || E.stroke_active) { uvRebakeSoon(); return; } try { const d = E.bakeCfg && E.bakeCfg.dirs; E.bakeCfg = { ...(E.bakeCfg || {}), dirs: 24 }; bakeMesh(); E.bakeCfg.dirs = d; warmUp(); E.needComp = true; } catch (e) { console.error(e); } }, 900);
+}
+function uvAxis(a) { if (!UVE.op) return; UVE.op.axis = UVE.op.axis === a ? null : a; if (UVE.op.last) uvUpdate(UVE.op.last, {}); }
+/* Inseln einfach ändern (Undo + Neuberechnen) */
+function uvApply(label, fn) {
+  pushUndo(label);
+  const uv = new Float32Array(S.mesh.soup.uv);
+  fn(uv);
+  S.mesh = { ...S.mesh, soup: { ...S.mesh.soup, uv } };
+  uploadUV(); S.mesh.islandMap = null; S.mesh.uvEdited = true; S.dirty = true; E.needComp = true; ST.grid = null; if (typeof SG !== 'undefined') SG.last = null;
+  uvSelChanged(); uvRebakeSoon();
+}
+const islBox = (tris, uv) => { let a = [Infinity, Infinity], b = [-Infinity, -Infinity]; for (const t of tris) for (let k = 0; k < 3; k++) { const u = uv[t * 6 + k * 2], v = uv[t * 6 + k * 2 + 1]; a = [Math.min(a[0], u), Math.min(a[1], v)]; b = [Math.max(b[0], u), Math.max(b[1], v)]; } return [a[0], a[1], b[0], b[1]]; };
+/* ausgewählte (oder alle) Inseln in den UV-Raum 0–1 einpassen */
+function uvFit() {
+  const tris = UVE.sel.size ? uvSelTris() : [...Array(S.mesh.nT).keys()];
+  uvApply('UV einpassen', (uv) => {
+    const [x0, y0, x1, y1] = islBox(tris, uv); const s = 0.98 / Math.max(x1 - x0, y1 - y0, 1e-6);
+    for (const t of tris) for (let k = 0; k < 3; k++) { const i = t * 6 + k * 2; uv[i] = 0.01 + (uv[i] - x0) * s; uv[i + 1] = 0.01 + (uv[i + 1] - y0) * s; }
+  });
+}
+/* Inseln ohne Überlappung nebeneinander anordnen (einfaches Packen) */
+function uvPack() {
+  const map = islandTris(); const ids = UVE.sel.size ? [...UVE.sel] : [...map.keys()];
+  uvApply('UV anordnen', (uv) => {
+    const items = ids.map((id) => { const tris = map.get(id) || []; const b = islBox(tris, uv); return { tris, b, w: b[2] - b[0], h: b[3] - b[1] }; }).filter((it) => it.tris.length);
+    const area = items.reduce((s, it) => s + it.w * it.h, 0); const side = Math.sqrt(area) * 1.2; const pad = side * 0.012;
+    items.sort((a, b) => b.h - a.h);
+    let x = 0, y = 0, row = 0, W = 0;
+    for (const it of items) { if (x > 0 && x + it.w > side) { x = 0; y += row + pad; row = 0; } it.x = x; it.y = y; x += it.w + pad; row = Math.max(row, it.h); W = Math.max(W, x); }
+    const H = y + row; const s = 0.98 / Math.max(W, H, 1e-6);
+    for (const it of items) for (const t of it.tris) for (let k = 0; k < 3; k++) { const i = t * 6 + k * 2; uv[i] = 0.01 + (it.x + uv[i] - it.b[0]) * s; uv[i + 1] = 0.01 + (it.y + uv[i + 1] - it.b[1]) * s; }
+  });
 }
 function uvCancel() {
   if (!UVE.op) return;
-  S.mesh = UVE.op.origMesh; UVE.op = null; uploadUV(); U.stack.pop();
+  S.mesh = UVE.op.origMesh; UVE.op = null; uploadUV(); U.stack.pop(); if (UI.modHint) UI.modHint('');
 }
 async function uvQuick(mode, angle) {
   if (!uvBegin(mode, [0, 0])) { toast('Wähl zuerst ein Teil aus (anklicken).'); return; }
@@ -4855,7 +5144,7 @@ const UI = {
     const menus = [
       ['Datei', [
         ['Neu …', 'Strg+N', () => this.welcome()],
-        ['Öffnen …', 'Strg+O', () => this.openFile('.mtex,.obj,.glb,.gltf,.mtl,.png,.jpg,.jpeg')],
+        ['Öffnen …', 'Strg+O', () => this.openFile('.mtex,.glb,.gltf,.fbx,.obj,.dae,.stl,.ply,.mtl,.png,.jpg,.jpeg')],
         ['Meine Projekte …', '', () => this.welcome()],
         '-',
         ['Speichern', 'Strg+S', () => saveToLibrary()],
@@ -5106,7 +5395,9 @@ const UI = {
     } else if (T === 'uvmove') {
       c.append(btn('Alle Teile', () => uvSelectAll(), 'A'), btn('Nichts', () => { UVE.sel.clear(); uvSelChanged(); }),
         btn('90° drehen', () => uvQuick('r', Math.PI / 2)), btn('Spiegeln ↔', () => uvQuick('fu')), btn('Spiegeln ↕', () => uvQuick('fv')),
-        hint('Klick wählt ein Teil · Ziehen verschiebt · G / R / S wie in Blender · Strg = einrasten'));
+        btn('Einpassen', () => uvFit(), 'Ausgewählte Teile (oder alle) in das Quadrat 0–1 einpassen'), btn('Anordnen', () => uvPack(), 'Teile ohne Überlappung nebeneinander anordnen'),
+        btn('Bild auf UV …', () => this.pickImageLayer(), 'Ein Bild über die ganze UV-Karte legen – dann die Teile darauf schieben'),
+        hint('Klick = Teil · Shift = mehrere · Rechteck aufziehen · G / R / S, dann X / Y für eine Achse · Strg = einrasten'));
     } else if (T === 'pick') {
       c.append(hint('Klick aufs Modell nimmt Farbe, Rauheit und Metall auf.'));
     } else if (T === 'hand') {
@@ -5574,9 +5865,9 @@ const UI = {
   modHint(t) { const h = $('#modHint'); if (!h) return; h.textContent = t || ''; h.classList.toggle('on', !!t); },
   busy(msg) { $('#busy').classList.toggle('on', !!msg); $('#busyMsg').textContent = msg || ''; },
   openFile(accept) {
-    const f = $('#fileIn'); f.value = ''; f.accept = accept || '.obj,.glb,.gltf,.mtex';
+    const f = $('#fileIn'); f.value = ''; f.accept = accept || '.glb,.gltf,.fbx,.obj,.dae,.stl,.ply,.mtex';
     f.multiple = true;
-    f.onchange = () => { const all = [...f.files]; const m = all.find((x) => /\.(obj|glb|gltf|mtex)$/i.test(x.name)) || all[0]; if (m) handleFile(m, null, all.filter((x) => x !== m)); };
+    f.onchange = () => { const all = [...f.files]; const m = all.find((x) => /\.(obj|glb|gltf|fbx|stl|ply|dae|mtex)$/i.test(x.name)) || all[0]; if (m) handleFile(m, null, all.filter((x) => x !== m)); };
     f.click();
   },
   welcome() {
@@ -5584,7 +5875,7 @@ const UI = {
     const st = { res: S.res || 2048 };
     const prims = el('div', { class: 'prims' });
     for (const [k, p] of Object.entries(PRIMS)) prims.append(el('button', { class: 'prim', onclick: async () => { this.closeModal(); const m = finalizeMesh(p.make(), p.name); await startProject(m, st.res, p.name); } }, primIcon(k), el('span', {}, p.name)));
-    const drop = el('div', { class: 'drop', onclick: () => this.openFile('.obj,.glb,.gltf') }, el('b', {}, 'Modell öffnen'), el('span', {}, '.obj oder .glb – reinziehen oder klicken'));
+    const drop = el('div', { class: 'drop', onclick: () => this.openFile('.glb,.gltf,.fbx,.obj,.dae,.stl,.ply,.mtl,.png,.jpg') }, el('b', {}, 'Modell öffnen'), el('span', {}, '.glb, .fbx, .obj, .dae, .stl, .ply – reinziehen oder klicken'));
     drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('over'));
     drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0], st.res); });
@@ -6544,6 +6835,7 @@ function setupInput() {
     if (!$('#modal').classList.contains('hidden')) return;
     const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
     if (UVE.op && drag && drag.mode === 'uvkey' && e.key === 'Enter') { uvConfirm(); drag = null; return; }
+    if (UVE.op && (k === 'x' || k === 'y')) { uvAxis(k === 'x' ? 0 : 1); return; }
     if (MOD.op && e.key === 'Enter') { modConfirm(); return; }
     if (ctrl) {
       if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
@@ -6623,7 +6915,7 @@ function setupInput() {
   window.addEventListener('drop', (e) => {
     const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return; e.preventDefault();
     const all = [...e.dataTransfer.files];
-    const model = all.find((x) => /\.(obj|glb|gltf|mtex)$/i.test(x.name));
+    const model = all.find((x) => /\.(obj|glb|gltf|fbx|stl|ply|dae|mtex|spp|blend)$/i.test(x.name));
     if (model) { handleFile(model, null, all.filter((x) => x !== model)); return; }
     const onShelf = e.target && e.target.closest && e.target.closest('#shelf');
     if (/\.zip$/i.test(f.name) || (onShelf && all.some((x) => /^image\//.test(x.type))) || (all.length > 1 && all.every((x) => /^image\//.test(x.type)))) { UI.busy('Material wird importiert …'); importMaterials(all).catch((er) => toast('Import fehlgeschlagen: ' + er.message, 'err')).finally(() => UI.busy(null)); return; }
@@ -6643,13 +6935,15 @@ function setupInput() {
 async function handleFile(file, res, extra) {
   const name = file.name.replace(/\.[^.]+$/, '');
   const ext = (file.name.split('.').pop() || '').toLowerCase();
-  if (!['obj', 'glb', 'gltf', 'mtex'].includes(ext)) { toast('Diese Datei kann Melonentextur nicht öffnen. Geht: .obj, .glb, .mtex', 'err'); return; }
+  if (ext === 'spp') { toast('.spp ist das geschlossene Projektformat von Substance Painter und kann nicht gelesen werden. Exportiere dort das Modell (FBX/OBJ/GLB) und die Texturen (PNG) – beides kannst du hier reinziehen.', 'err'); return; }
+  if (ext === 'blend') { toast('.blend kann nicht direkt geöffnet werden. In Blender: Datei → Exportieren → glTF 2.0 (.glb) oder FBX – das hier reinziehen.', 'err'); return; }
+  if (![...MODEL_EXT, 'mtex'].includes(ext)) { toast('Diese Datei kann Melonentextur nicht öffnen. Geht: .glb, .gltf, .fbx, .obj, .dae, .stl, .ply und .mtex', 'err'); return; }
   if (S.mesh && S.dirty && $('#modal').classList.contains('hidden') && !confirm('Ungespeicherte Änderungen gehen verloren. Trotzdem öffnen?')) return;
   UI.closeModal();
   UI.busy('Datei wird geladen …'); await sleep(40);
   try {
     if (ext === 'mtex') { await loadProjectBuffer(await file.arrayBuffer()); toast('Projekt geöffnet'); return; }
-    const src = ext === 'obj' ? parseOBJ(await file.text()) : parseGLB(await file.arrayBuffer());
+    const src = await parseModelFile(file, ext);
     UI.busy('Modell wird vorbereitet …'); await sleep(20);
     const mesh = finalizeMesh(src, name);
     // Texturen aus Blender: bei GLB eingebettet, bei OBJ die mitgezogenen .mtl/.png
