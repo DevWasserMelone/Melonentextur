@@ -1,5 +1,5 @@
 {
-  "version": "1.0.9",
-  "notes": "🍉 Melonentextur 1.0.9\n\n🛠 Verbessert\n• Viel schnellerer Start\n• Modelle laden schneller\n\n🐞 Behoben\n• Lange Ladezeiten und Grafikfehler seit 1.0.8\n• Muster von unteren Ebenen scheinen nicht mehr durch neue Materialien durch",
+  "version": "1.1.0",
+  "notes": "1.1.0\n- Neue Textur-Bibliothek: 462 Materialien und 93 fertige Looks (Metalle, Holzarten, Lacke, Stoffe, Leder, Stein, Fliesen, Natur, Industrie, Pixel, Effekte)\n- 10 neue Muster: Fischgrät, Nietenplatten, Filz, Pixel, Sackleinen, Steppung, Natursteinmauer, Punkte, Warnstreifen, Schachbrett\n- Vorschaubilder laden erst beim Hinscrollen, dadurch startet das Programm schneller\n- Neu: Modus „Modell bearbeiten“ (Tab) – Teile auswählen, bewegen, drehen, skalieren (G/R/S), duplizieren, spiegeln, löschen, glatt/kantig\n- Bearbeitete Modelle werden im Projekt gespeichert und beim Export mitgeliefert\n- Fehler behoben: Im Hinweisfenster stand manchmal „null“",
   "date": "2026-11-14"
 }
