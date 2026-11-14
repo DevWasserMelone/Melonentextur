@@ -373,7 +373,7 @@ html.pro #status{background:#1a1b1d}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1016,8 +1016,8 @@ void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
   o=vec4(genMask(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz),texelFetch(uBake,ip,0))); }`;
 
 const FS_COMPOSITE = G_HEAD + `
-uniform sampler2D uAccC,uAccM,uSrcC,uSrcM,uSrcK,uMaskP,uMaskG,uFMP,uFMG;
-uniform bool uHasMP,uHasMG,uHasK,uHasFMP,uHasFMG; uniform float uOpacity; uniform int uBlend,uHBlend; uniform vec4 uCh; uniform vec2 uMLev;
+uniform sampler2D uAccC,uAccM,uSrcC,uSrcM,uSrcK,uSrcX,uMaskP,uMaskG,uFMP,uFMG;
+uniform bool uHasMP,uHasMG,uHasK,uHasX,uHasFMP,uHasFMG; uniform vec2 uFillEO,uChEO; uniform float uOpacity; uniform int uBlend,uHBlend; uniform vec4 uCh; uniform vec2 uMLev;
 layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
 vec3 blendC(int m, vec3 a, vec3 b){
   if(m==1) return a*b;
@@ -1039,10 +1039,13 @@ void main(){ ivec2 ip=ivec2(gl_FragCoord.xy);
   if(uHasFMP) mk*=texelFetch(uFMP,ip,0).r; if(uHasFMG) mk*=texelFetch(uFMG,ip,0).r;
   a=clamp(a*mk*uOpacity,0.0,1.0); vec3 ak=clamp(kk*mk*uOpacity,0.0,1.0);
   vec3 bc=clamp(blendC(uBlend,ac.rgb,clamp(col,0.0,1.0)),0.0,1.0);
-  oC=vec4(mix(ac.rgb,bc,a*uCh.x),1.0);
+  float cE=sm.a, cO=sm.a, vE=uFillEO.x, vO=uFillEO.y;
+  if(uHasX){ vec4 x=texelFetch(uSrcX,ip,0); cE=x.g; cO=x.a; vE=x.r/max(x.g,1e-4); vO=x.b/max(x.a,1e-4); }
+  float aE=clamp(cE*mk*uOpacity,0.0,1.0)*uChEO.x, aO=clamp(cO*mk*uOpacity,0.0,1.0)*uChEO.y;
+  oC=vec4(mix(ac.rgb,bc,a*uCh.x),mix(ac.a,vE,aE));
   float r=mix(am.r,mat.r,ak.x*uCh.y), me=mix(am.g,mat.g,ak.y*uCh.z);
   float h = uHBlend==1 ? am.b+mat.b*ak.z*uCh.w : mix(am.b,mat.b,ak.z*uCh.w);
-  oM=vec4(r,me,h,1.0); }`;
+  oM=vec4(r,me,h,mix(am.a,vO,aO)); }`;
 
 /* Filter-Ebene: verändert alles, was darunter liegt */
 const FS_FILTL = G_HEAD + `
@@ -1069,8 +1072,8 @@ void main(){ SZ=textureSize(uAccC,0); ivec2 ip=ivec2(gl_FragCoord.xy);
   c=clamp(c,0.0,1.0); m.rg=clamp(m.rg,0.0,1.0);
   float k=uOpacity; if(uHasMP) k*=texelFetch(uMaskP,ip,0).r; if(uHasMG) k*=texelFetch(uMaskG,ip,0).r;
   if(uHasFMP) k*=texelFetch(uFMP,ip,0).r; if(uHasFMG) k*=texelFetch(uFMG,ip,0).r;
-  oC=vec4(mix(ac.rgb,c,k*uCh.x),1.0);
-  oM=vec4(mix(am.r,m.r,k*uCh.y), mix(am.g,m.g,k*uCh.z), mix(am.b,m.b,k*uCh.w), 1.0); }`;
+  oC=vec4(mix(ac.rgb,c,k*uCh.x),ac.a);
+  oM=vec4(mix(am.r,m.r,k*uCh.y), mix(am.g,m.g,k*uCh.z), mix(am.b,m.b,k*uCh.w), am.a); }`;
 
 const FS_FINAL = G_HEAD + `
 uniform sampler2D uAccC,uAccM,uIsl,uBake; uniform float uHS;
@@ -1082,9 +1085,9 @@ void main(){ SZ=textureSize(uAccC,0); ivec2 ip=ivec2(gl_FragCoord.xy); ivec2 q=n
   vec4 c=texelFetch(uAccC,q,0), m=texelFetch(uAccM,q,0); float ao=texelFetch(uBake,q,0).a;
   float dx=H(q-ivec2(1,0))-H(q+ivec2(1,0)), dy=H(q-ivec2(0,1))-H(q+ivec2(0,1));
   vec3 n=normalize(vec3(dx*uHS,dy*uHS,1.0));
-  oC=vec4(clamp(c.rgb,0.0,1.0),1.0);
+  oC=vec4(clamp(c.rgb,0.0,1.0),clamp(c.a,0.0,1.0));
   oM=vec4(clamp(m.r,0.0,1.0),clamp(m.g,0.0,1.0),clamp(m.b*0.5+0.5,0.0,1.0),clamp(ao,0.0,1.0));
-  oN=vec4(n*0.5+0.5,1.0); }`;
+  oN=vec4(n*0.5+0.5,clamp(m.a,0.0,1.0)); }`;
 
 const FS_COPY = G_HEAD + `in vec2 vUV; uniform sampler2D uSrc; out vec4 o; void main(){ o=texture(uSrc,vUV); }`;
 
@@ -1134,25 +1137,27 @@ void main(){ float a=0.0;
 const FS_ONE = G_HEAD + `out vec4 o; void main(){ o=vec4(1.0); }`;
 
 const FS_APPLY = G_HEAD + `
-uniform sampler2D uBC,uBM,uBK,uStroke,uSC,uSel,uPC,uPM; uniform float uOpac; uniform int uOp,uSrc; uniform vec3 uCol; uniform vec3 uMat; uniform bool uUsePat,uHasSel;
+uniform sampler2D uBC,uBM,uBK,uBX,uStroke,uSC,uSel,uPC,uPM; uniform vec2 uEO,uOn2; uniform float uOpac; uniform int uOp,uSrc; uniform vec3 uCol; uniform vec3 uMat; uniform bool uUsePat,uHasSel;
 uniform ivec2 uOff; uniform float uBlurR; uniform vec3 uTgt; uniform float uTolR; uniform vec4 uOn;
-layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK;
+layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK; layout(location=3) out vec4 oX;
 ivec2 SZ;
+vec4 fX(ivec2 p){ return texelFetch(uBX,clamp(p,ivec2(0),SZ-1),0); }
 vec4 fC(ivec2 p){ return texelFetch(uBC,clamp(p,ivec2(0),SZ-1),0); }
 vec4 fM(ivec2 p){ return texelFetch(uBM,clamp(p,ivec2(0),SZ-1),0); }
 vec4 fK(ivec2 p){ return texelFetch(uBK,clamp(p,ivec2(0),SZ-1),0); }
-void main(){ SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=fC(ip), bm=fM(ip), bk=fK(ip); oK=bk;
+void main(){ SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=fC(ip), bm=fM(ip), bk=fK(ip), bx=fX(ip); oK=bk; oX=bx;
   vec4 sc=texelFetch(uSC,ip,0);
   float a=(uSrc==1 ? sc.a : texelFetch(uStroke,ip,0).r)*uOpac;
   if(uHasSel) a*=texelFetch(uSel,ip,0).r;
   a=clamp(a,0.0,1.0);
   if(a<=0.0){ oC=bc; oM=bm; return; }
-  vec4 av=a*uOn; vec3 am3=av.yzw;
-  if(uOp==1){ oC=bc*(1.0-av.x); oM=vec4(bm.rgb*(1.0-am3),bm.a*(1.0-a)); oK=vec4(bk.rgb*(1.0-am3),1.0); return; }
+  vec4 av=a*uOn; vec3 am3=av.yzw; vec4 ax=vec4(a*uOn2.x,a*uOn2.x,a*uOn2.y,a*uOn2.y);
+  if(uOp==1){ oX=bx*(1.0-ax); oC=bc*(1.0-av.x); oM=vec4(bm.rgb*(1.0-am3),bm.a*(1.0-a)); oK=vec4(bk.rgb*(1.0-am3),1.0); return; }
   if(uOp==2){ int r=max(1,int(uBlurR)); vec4 c=vec4(0.0), m=vec4(0.0); float n=0.0;
-    vec4 k=vec4(0.0); for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){ ivec2 q=ip+ivec2(x,y)*r; float w=1.0/(1.0+float(x*x+y*y)); c+=fC(q)*w; m+=fM(q)*w; k+=fK(q)*w; n+=w; }
+    vec4 k=vec4(0.0), xx=vec4(0.0); for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){ ivec2 q=ip+ivec2(x,y)*r; float w=1.0/(1.0+float(x*x+y*y)); c+=fC(q)*w; m+=fM(q)*w; k+=fK(q)*w; xx+=fX(q)*w; n+=w; }
+    oX=mix(bx,xx/n,ax);
     oC=mix(bc,c/n,av.x); oM=vec4(mix(bm.rgb,m.rgb/n,am3),mix(bm.a,m.a/n,a)); oK=vec4(mix(bk.rgb,k.rgb/n,am3),1.0); return; }
-  if(uOp==3){ oC=mix(bc,fC(ip+uOff),av.x); vec4 sm=fM(ip+uOff), sk=fK(ip+uOff); oM=vec4(mix(bm.rgb,sm.rgb,am3),mix(bm.a,sm.a,a)); oK=vec4(mix(bk.rgb,sk.rgb,am3),1.0); return; }
+  if(uOp==3){ oX=mix(bx,fX(ip+uOff),ax); oC=mix(bc,fC(ip+uOff),av.x); vec4 sm=fM(ip+uOff), sk=fK(ip+uOff); oM=vec4(mix(bm.rgb,sm.rgb,am3),mix(bm.a,sm.a,a)); oK=vec4(mix(bk.rgb,sk.rgb,am3),1.0); return; }
   if(uOp==7){ if(bc.a<=0.0){ oC=bc; oM=bm; return; } vec3 c=bc.rgb/bc.a; float k=1.0-smoothstep(uTolR,uTolR+0.04,distance(c,uTgt));
     float L=dot(c,vec3(0.299,0.587,0.114)), L2=dot(uCol,vec3(0.299,0.587,0.114)); vec3 nc=clamp(uCol*(L+0.05)/(L2+0.05),0.0,1.0);
     oC=vec4(mix(c,nc,a*k)*bc.a,bc.a); oM=bm; return; }
@@ -1161,7 +1166,8 @@ void main(){ SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=fC(
   vec3 col=uCol; vec3 mat=uMat;
   if(uOp==4) col=sc.rgb/max(sc.a,1e-4);
   else if(uUsePat){ col=texelFetch(uPC,ip,0).rgb; mat=texelFetch(uPM,ip,0).rgb; }
-  oC=vec4(col*av.x,av.x)+bc*(1.0-av.x); oM=vec4(mat*am3+bm.rgb*(1.0-am3), a+bm.a*(1.0-a)); oK=vec4(am3+bk.rgb*(1.0-am3),1.0); }`;
+  oC=vec4(col*av.x,av.x)+bc*(1.0-av.x); oM=vec4(mat*am3+bm.rgb*(1.0-am3), a+bm.a*(1.0-a)); oK=vec4(am3+bk.rgb*(1.0-am3),1.0);
+  oX=vec4(uEO.x*ax.x+bx.r*(1.0-ax.x), ax.y+bx.g*(1.0-ax.y), uEO.y*ax.z+bx.b*(1.0-ax.z), ax.w+bx.a*(1.0-ax.w)); }`;
 
 const FS_APPLYMASK = G_HEAD + `
 uniform sampler2D uB,uStroke,uSC,uSel; uniform float uOpac,uVal; uniform int uOp,uSrc; uniform bool uHasSel; uniform ivec2 uOff; uniform float uBlurR; out vec4 o;
@@ -1231,15 +1237,18 @@ vec3 chanColor(vec2 uv){
   if(uChan==7){ vec4 b=texture(uBake,uv); float e=1.0-clamp(b.r/0.04,0.0,1.0); float c=1.0-clamp(b.g/0.04,0.0,1.0);
     return vec3(0.12)+vec3(1.0,0.45,0.3)*max(e,clamp(b.b*0.05,0.0,1.0))+vec3(0.3,0.5,1.0)*max(c,clamp(-b.b*0.05,0.0,1.0)); }
   if(uChan==8){ float m=1.0; if(uHasMP) m*=texture(uMaskP,uv).r; if(uHasMG) m*=texture(uMaskG,uv).r; return vec3(m); }
+  if(uChan==10){ vec4 c=texture(uC,uv); return c.rgb*c.a; }
+  if(uChan==11) return vec3(texture(uN,uv).a);
   if(uChan==9){ vec2 g=floor(uv*16.0); float c=mod(g.x+g.y,2.0); return mix(vec3(0.85,0.3,0.36),vec3(0.95),c)*(0.75+0.25*vec3(uv,1.0)); }
   return texture(uC,uv).rgb; }
 `;
 
 const FS_VIEW = G_HEAD + G_ENV + G_CHAN + `
 in vec3 vP; in vec3 vN; in vec2 vUV; in vec3 vBary;
-uniform vec3 uEye; uniform bool uWire; uniform float uAOStr;
+uniform vec3 uEye; uniform bool uWire; uniform float uAOStr; uniform float uEmit;
 out vec4 o;
 void main(){
+  if(uChan==0){ float op=texture(uN,vUV).a; float dn=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715)))); if(op<0.999 && op<=dn) discard; }
   vec3 V=normalize(uEye-vP); vec3 N0=normalize(vN); if(dot(N0,V)<0.0) N0=-N0;
   vec3 dp1=dFdx(vP), dp2=dFdy(vP); vec2 du1=dFdx(vUV), du2=dFdy(vUV);
   vec3 dp2p=cross(dp2,N0), dp1p=cross(N0,dp1);
@@ -1247,7 +1256,7 @@ void main(){
   float mx=max(dot(T,T),dot(B,B)); vec3 N=N0;
   if(mx>1e-20){ float im=inversesqrt(mx); vec3 tn=texture(uN,vUV).xyz*2.0-1.0; N=normalize(mat3(T*im,B*im,N0)*tn); if(dot(N,V)<0.0) N=normalize(N-V*dot(N,V)*1.01); }
   vec3 col;
-  if(uChan==0){ vec4 c=texture(uC,vUV), m=texture(uM,vUV); col=shadePBR(c.rgb,m.r,m.g,mix(1.0,m.a,uAOStr),N,V); }
+  if(uChan==0){ vec4 c=texture(uC,vUV), m=texture(uM,vUV); col=shadePBR(c.rgb,m.r,m.g,mix(1.0,m.a,uAOStr),N,V); col+=c.rgb*c.a*uEmit; }
   else if(uChan==5 && false){ col=N*0.5+0.5; }
   else { col=chanColor(vUV); if(uChan==1||uChan==9){ col=col*(0.55+0.45*max(dot(N,normalize(V+vec3(0.3,0.5,0.2))),0.0)); } }
   col=selTint(col,vUV);
@@ -1290,6 +1299,9 @@ void main(){ vec4 c=texture(uC,vUV), m=texture(uM,vUV); vec3 n=texture(uN,vUV).x
   else if(uKind==8) o=vec4(m.g,m.g,m.g,1.0-m.r);
   else if(uKind==9) o=vec4(vec3(clamp((1.0-m.r)*mix(0.55,1.0,m.g),0.0,1.0)),1.0);
   else if(uKind==10) o=vec4(vec3(1.0-m.r),1.0);
+  else if(uKind==11) o=vec4(c.rgb*c.a,1.0);
+  else if(uKind==12) o=vec4(vec3(texture(uN,vUV).a),1.0);
+  else if(uKind==13) o=vec4(c.rgb*ao,texture(uN,vUV).a);
   else o=vec4(c.rgb,1.0); }`;
 
 /* Vorschau-Kugeln/Würfel für das Regal */
@@ -1327,12 +1339,13 @@ uniform sampler2D uSel; uniform bool uHasSel; uniform ivec2 uOff;
 float fs(ivec2 p){ if(!inside(p)) return 0.0; return uHasSel ? texelFetch(uSel,p,0).r : 1.0; }
 `;
 const FS_SHIFT = G_HEAD + G_SHIFT + `
-uniform sampler2D uBC,uBM,uBK; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK;
+uniform sampler2D uBC,uBM,uBK,uBX; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK; layout(location=3) out vec4 oX;
+vec4 fx(ivec2 p){ return inside(p) ? texelFetch(uBX,p,0) : vec4(0.0); }
 vec4 fc(ivec2 p){ return inside(p) ? texelFetch(uBC,p,0) : vec4(0.0); }
 vec4 fm(ivec2 p){ return inside(p) ? texelFetch(uBM,p,0) : vec4(0.0); }
 vec4 fk(ivec2 p){ return inside(p) ? texelFetch(uBK,p,0) : vec4(0.0); }
 void main(){ SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); float s0=fs(ip), s1=fs(ip-uOff);
-  oC=fc(ip-uOff)*s1+fc(ip)*(1.0-s0)*(1.0-s1); oM=fm(ip-uOff)*s1+fm(ip)*(1.0-s0)*(1.0-s1); oK=fk(ip-uOff)*s1+fk(ip)*(1.0-s0)*(1.0-s1); oK.a=1.0; }`;
+  oC=fc(ip-uOff)*s1+fc(ip)*(1.0-s0)*(1.0-s1); oM=fm(ip-uOff)*s1+fm(ip)*(1.0-s0)*(1.0-s1); oK=fk(ip-uOff)*s1+fk(ip)*(1.0-s0)*(1.0-s1); oK.a=1.0; oX=fx(ip-uOff)*s1+fx(ip)*(1.0-s0)*(1.0-s1); }`;
 const FS_SHIFT1 = G_HEAD + G_SHIFT + `
 uniform sampler2D uB; uniform bool uPure; out vec4 o;
 float fb(ivec2 p){ return inside(p) ? texelFetch(uB,p,0).r : 0.0; }
@@ -1365,10 +1378,10 @@ void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=texelFetch(uBC,ip,0); if(b
 
 /* Ebene spiegeln / drehen */
 const FS_XF = G_HEAD + `
-uniform sampler2D uBC,uBM,uBK; uniform int uMode; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK;
+uniform sampler2D uBC,uBM,uBK,uBX; uniform int uMode; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK; layout(location=3) out vec4 oX;
 void main(){ ivec2 SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); ivec2 q=ip;
   if(uMode==0||uMode==2) q.x=SZ.x-1-ip.x; if(uMode==1||uMode==2) q.y=SZ.y-1-ip.y;
-  oC=texelFetch(uBC,q,0); oM=texelFetch(uBM,q,0); oK=texelFetch(uBK,q,0); }`;
+  oC=texelFetch(uBC,q,0); oM=texelFetch(uBM,q,0); oK=texelFetch(uBK,q,0); oX=texelFetch(uBX,q,0); }`;
 const FS_XF1 = G_HEAD + `
 uniform sampler2D uB; uniform int uMode; out vec4 o;
 void main(){ ivec2 SZ=textureSize(uB,0); ivec2 ip=ivec2(gl_FragCoord.xy); ivec2 q=ip;
@@ -1389,18 +1402,19 @@ void main(){ SZ=textureSize(uBC,0); ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=F(i
   float s=uHasSel?texelFetch(uSel,ip,0).r:1.0; o=mix(bc,r,s); }`;
 /* Ebenen zusammenführen */
 const FS_MERGE = G_HEAD + `
-uniform sampler2D uTC,uTM,uTK,uBC,uBM,uBK,uMP,uMG; uniform bool uHasMP,uHasMG; uniform float uOp; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK;
+uniform sampler2D uTC,uTM,uTK,uTX,uBC,uBM,uBK,uBX,uMP,uMG; uniform bool uHasMP,uHasMG; uniform float uOp; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK; layout(location=3) out vec4 oX;
 void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); float k=uOp; if(uHasMP) k*=texelFetch(uMP,ip,0).r; if(uHasMG) k*=texelFetch(uMG,ip,0).r;
   vec4 tc=texelFetch(uTC,ip,0)*k, tm=texelFetch(uTM,ip,0)*k, bc=texelFetch(uBC,ip,0), bm=texelFetch(uBM,ip,0);
   vec3 tk=texelFetch(uTK,ip,0).rgb*k, bk=texelFetch(uBK,ip,0).rgb;
-  oC=tc+bc*(1.0-tc.a); oM=vec4(tm.rgb+bm.rgb*(1.0-tk), tm.a+bm.a*(1.0-tm.a)); oK=vec4(tk+bk*(1.0-tk),1.0); }`;
+  oC=tc+bc*(1.0-tc.a); oM=vec4(tm.rgb+bm.rgb*(1.0-tk), tm.a+bm.a*(1.0-tm.a)); oK=vec4(tk+bk*(1.0-tk),1.0);
+  vec4 tx=texelFetch(uTX,ip,0)*k, bx=texelFetch(uBX,ip,0); oX=vec4(tx.r+bx.r*(1.0-tx.g), tx.g+bx.g*(1.0-tx.g), tx.b+bx.b*(1.0-tx.a), tx.a+bx.a*(1.0-tx.a)); }`;
 /* Auswahl ausschneiden/kopieren, Endergebnis zur Ebene machen */
 const FS_MCOPY = G_HEAD + `
-uniform sampler2D uC,uM,uK,uSel; uniform bool uHasSel; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK;
-void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); float s=uHasSel?texelFetch(uSel,ip,0).r:1.0; oC=texelFetch(uC,ip,0)*s; oM=texelFetch(uM,ip,0)*s; oK=vec4(texelFetch(uK,ip,0).rgb*s,1.0); }`;
+uniform sampler2D uC,uM,uK,uX,uSel; uniform bool uHasSel; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK; layout(location=3) out vec4 oX;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); float s=uHasSel?texelFetch(uSel,ip,0).r:1.0; oC=texelFetch(uC,ip,0)*s; oM=texelFetch(uM,ip,0)*s; oK=vec4(texelFetch(uK,ip,0).rgb*s,1.0); oX=texelFetch(uX,ip,0)*s; }`;
 const FS_FLAT = G_HEAD + `
-uniform sampler2D uC,uM; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK;
-void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 c=texelFetch(uC,ip,0), m=texelFetch(uM,ip,0); oC=vec4(c.rgb,1.0); oM=vec4(m.r,m.g,m.b*2.0-1.0,1.0); oK=vec4(1.0); }`;
+uniform sampler2D uC,uM,uN; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK; layout(location=3) out vec4 oX;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 c=texelFetch(uC,ip,0), m=texelFetch(uM,ip,0); oC=vec4(c.rgb,1.0); oM=vec4(m.r,m.g,m.b*2.0-1.0,1.0); oK=vec4(1.0); oX=vec4(c.a,1.0,texelFetch(uN,ip,0).a,1.0); }`;
 const FS_KFROMM = G_HEAD + `
 uniform sampler2D uM; out vec4 o;
 void main(){ float a=texelFetch(uM,ivec2(gl_FragCoord.xy),0).a; o=vec4(a,a,a,1.0); }`;
@@ -1858,7 +1872,7 @@ function makeAutoUV(P, I, fn, fa, pid, nP, nT) {
 'use strict';
 /* ================= Textur-Engine ================= */
 const BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'add', 'subtract', 'darken', 'lighten', 'softlight'];
-const BASE_C = [0.55, 0.55, 0.55, 1], BASE_M = [0.5, 0, 0, 1];
+const BASE_C = [0.55, 0.55, 0.55, 0], BASE_M = [0.5, 0, 0, 1];
 
 const S = {
   mode: 'paint',
@@ -1867,7 +1881,7 @@ const S = {
   brush: { size: 40, flow: 1, opacity: 1, hard: 0.6, spacing: 0.12, shape: 0, angle: 0, jitAng: 0, jitSize: 0,
     color: '#ff4f64', rough: 0.45, metal: 0, height: 0, mat: '', maskVal: 1, mirror: 0, through: false, pSize: true, pOpac: false, fillMode: 'island',
     air: false, blur: 0.3, toneMode: 'light', gradKind: 'linear', shapeKind: 'rect', shapeFill: 1, lineW: 6, text: 'Melone', font: 'Arial Black', fontSize: 48, bold: false,
-    chC: true, chR: true, chM: true, chH: true, sizeSpace: 'screen', lazy: 0, follow: false, jitFlow: 0, jitPos: 0, decalSize: 200, decalAngle: 0, selKind: 'rect', wandMode: 'color', bucketMode: 'planar', tol: 0.12, pencil: 2, radius: 12 },
+    chC: true, chR: true, chM: true, chH: true, chE: false, chO: false, emit: 1, bop: 0, sizeSpace: 'screen', lazy: 0, follow: false, jitFlow: 0, jitPos: 0, decalSize: 200, decalAngle: 0, selKind: 'rect', wandMode: 'color', bucketMode: 'planar', tol: 0.12, pencil: 2, radius: 12 },
   view: { layout: '3d', chan: 0, wire: false, env: 0, envRot: 0.6, exposure: 1, bg: 0, ao: 1 },
   cam: { yaw: 0.6, pitch: 0.35, dist: 3.2, target: [0, 0, 0], fov: 35 },
   uv2d: { zoom: 0, pan: [0, 0] },
@@ -1955,9 +1969,9 @@ function copyTex(src, w = src.w, h = src.h, fmt = src.fmt) {
 }
 function trackTex(t) { E.layerTex.add(t); return t; }
 function newPaintTex(res = S.res) {
-  const c = trackTex(new Tex(res, res, 'rgba8')), m = trackTex(new Tex(res, res, 'rgba16f')), k = trackTex(new Tex(res, res, 'rgba8'));
-  clearTex(c, [0, 0, 0, 0]); clearTex(m, [0, 0, 0, 0]); clearTex(k, [0, 0, 0, 1]);
-  return { c, m, k };
+  const c = trackTex(new Tex(res, res, 'rgba8')), m = trackTex(new Tex(res, res, 'rgba16f')), k = trackTex(new Tex(res, res, 'rgba8')), x = trackTex(new Tex(res, res, 'rgba8'));
+  clearTex(c, [0, 0, 0, 0]); clearTex(m, [0, 0, 0, 0]); clearTex(k, [0, 0, 0, 1]); clearTex(x, [0, 0, 0, 0]);
+  return { c, m, k, x };
 }
 function newMaskTex(val, res = S.res) { const t = trackTex(new Tex(res, res, 'r8')); clearTex(t, [val, val, val, val]); return t; }
 
@@ -2088,7 +2102,8 @@ function compositeTarget(T, layers) {
     if (!src || !src.c) continue;
     const A = A0, B = B0, mp = mp0, mg = mg0;
     bindTargets([B.c, B.m]);
-    P.comp.use().tex('uFMP', fmp).tex('uFMG', fmg).set('uHasFMP', !!fmp).set('uHasFMG', !!fmg).set('uMLev', l.mask ? [l.mask.lo || 0, l.mask.hi ?? 1] : [0, 1]).tex('uAccC', A.c).tex('uAccM', A.m).tex('uSrcC', src.c).tex('uSrcM', src.m).tex('uSrcK', src.k || null).set('uHasK', !!src.k).tex('uMaskP', mp).tex('uMaskG', mg)
+    P.comp.use().tex('uFMP', fmp).tex('uFMG', fmg).set('uHasFMP', !!fmp).set('uHasFMG', !!fmg).set('uMLev', l.mask ? [l.mask.lo || 0, l.mask.hi ?? 1] : [0, 1]).tex('uAccC', A.c).tex('uAccM', A.m).tex('uSrcC', src.c).tex('uSrcM', src.m).tex('uSrcK', src.k || null).set('uHasK', !!src.k).tex('uSrcX', src.x || null).set('uHasX', !!src.x)
+      .set('uFillEO', l.fill ? [l.fill.emit || 0, l.fill.opac ?? 1] : [0, 1]).set('uChEO', l.kind === 'paint' ? [l.ch.e !== false ? 1 : 0, l.ch.o !== false ? 1 : 0] : [l.ch.e ? 1 : 0, l.ch.o ? 1 : 0]).tex('uMaskP', mp).tex('uMaskG', mg)
       .set('uHasMP', !!mp).set('uHasMG', !!mg).set('uOpacity', opac).set('uBlend', Math.max(0, BLENDS.indexOf(l.blend)))
       .set('uHBlend', l.hblend === 'add' ? 1 : 0).set('uCh', [l.ch.c ? 1 : 0, l.ch.r ? 1 : 0, l.ch.m ? 1 : 0, l.ch.h ? 1 : 0]);
     drawFull();
@@ -2191,7 +2206,7 @@ function renderAll() {
       const pb = E.P.bg.use(); setEnvUniforms(pb); pb.set('uInvVP', cm.inv).set('uEye', cm.eye).set('uBgMode', S.view.bg); drawFull();
       gl.enable(gl.DEPTH_TEST); gl.clear(gl.DEPTH_BUFFER_BIT);
       const p = E.P.view.use(); setEnvUniforms(p); bindChanTextures(p);
-      p.set('uVP', cm.vp).set('uEye', cm.eye).set('uWire', S.view.wire).set('uAOStr', S.view.ao);
+      p.set('uVP', cm.vp).set('uEye', cm.eye).set('uWire', S.view.wire).set('uAOStr', S.view.ao).set('uEmit', S.view.emit ?? 3);
       drawSoup();
       drawModSelection(cm);
       gl.disable(gl.DEPTH_TEST);
@@ -2216,7 +2231,7 @@ function cloneLayer(l) {
   return { ...l, ch: { ...l.ch }, filt: l.filt ? { ...l.filt } : null, fill: l.fill ? { ...l.fill } : null, mask: l.mask ? { ...l.mask } : null, tex: l.tex ? { ...l.tex } : null };
 }
 function snapshot() { return { layers: S.layers.map(cloneLayer), sel: S.sel, target: S.target, mesh: S.mesh }; }
-function snapTexs(sn, set) { for (const l of sn.layers) { if (l.tex) { set.add(l.tex.c); set.add(l.tex.m); set.add(l.tex.k); } if (l.mask && l.mask.tex) set.add(l.mask.tex); } }
+function snapTexs(sn, set) { for (const l of sn.layers) { if (l.tex) { set.add(l.tex.c); set.add(l.tex.m); set.add(l.tex.k); set.add(l.tex.x); } if (l.mask && l.mask.tex) set.add(l.mask.tex); } }
 function gcTextures() {
   const live = new Set(); snapTexs({ layers: S.layers }, live);
   U.stack.forEach((s) => snapTexs(s, live)); U.redo.forEach((s) => snapTexs(s, live));
@@ -2301,6 +2316,7 @@ function strokeBegin(r, op) {
   if (!onMask && l.kind !== 'paint') { toast(l.mask ? 'Klick rechts auf „Maske bemalen“.' : 'Hier kann man nicht malen. Nimm eine Mal-Ebene (+ Malen).', 'warn'); return false; }
   if (!l.visible) toast('Die Ebene ist gerade ausgeblendet.');
   pushUndo(typeof toolById !== 'undefined' ? toolById(S.tool).name : 'Malen');
+  if (S.brush.chE) E.usedE = true; if (S.brush.chO) E.usedO = true;
   if (onMask) { const old = l.mask.tex; l.mask.tex = trackTex(copyTex(old)); Object.assign(ST, { before: { mask: old } }); }
   else { const o = l.tex; l.tex = copyLT(o); Object.assign(ST, { before: { ...o } }); }
   clearTex(E.stroke, [0, 0, 0, 0]);
@@ -2413,8 +2429,8 @@ function applyStroke() {
   } else {
     const bm = b.mat && MATERIALS[b.mat] && ST.op === 0 ? brushMatTex(b.mat) : null;
     ltTargets(l.tex);
-    const p = common(P.apply.use().tex('uBC', ST.before.c).tex('uBM', ST.before.m).tex('uBK', ST.before.k).tex('uPC', bm && bm.c).tex('uPM', bm && bm.m))
-      .set('uCol', hex2rgb(b.color)).set('uMat', [b.rough, b.metal, b.height]).set('uOn', ST.pencil && ST.op === 0 ? [1, b.chR ? 1 : 0, b.chM ? 1 : 0, b.chH ? 1 : 0] : [b.chC ? 1 : 0, b.chR ? 1 : 0, b.chM ? 1 : 0, b.chH ? 1 : 0]);
+    const p = common(P.apply.use().tex('uBC', ST.before.c).tex('uBM', ST.before.m).tex('uBK', ST.before.k).tex('uBX', ST.before.x).tex('uPC', bm && bm.c).tex('uPM', bm && bm.m))
+      .set('uCol', hex2rgb(b.color)).set('uMat', [b.rough, b.metal, b.height]).set('uEO', [b.emit || 0, b.bop ?? 1]).set('uOn2', [b.chE ? 1 : 0, b.chO ? 1 : 0]).set('uOn', ST.pencil && ST.op === 0 ? [1, b.chR ? 1 : 0, b.chM ? 1 : 0, b.chH ? 1 : 0] : [b.chC ? 1 : 0, b.chR ? 1 : 0, b.chM ? 1 : 0, b.chH ? 1 : 0]);
     p.set('uUsePat', !!bm);
   }
   drawFull();
@@ -2473,7 +2489,7 @@ function changeResolution(res) {
   S.res = res;
   const scale = (t) => { const n = trackTex(copyTex(t, res, res)); return n; };
   for (const l of S.layers) {
-    if (l.tex) l.tex = { c: scale(l.tex.c), m: scale(l.tex.m), k: scale(l.tex.k) };
+    if (l.tex) l.tex = { c: scale(l.tex.c), m: scale(l.tex.m), k: scale(l.tex.k), x: scale(l.tex.x) };
     if (l.mask && l.mask.tex) l.mask.tex = scale(l.mask.tex);
   }
   resetUndo();
@@ -2516,13 +2532,14 @@ function renderPreview(layers) {
 'use strict';
 /* ================= Werkzeug-Technik: Projektion, Auswahl, UV-Bearbeitung ================= */
 const FS_IMGM = G_HEAD + `
-in vec2 vUV; uniform sampler2D uSrc; uniform float uRough,uMetal; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK;
-void main(){ vec4 c=texture(uSrc,vUV); oC=c; oM=vec4(uRough*c.a,uMetal*c.a,0.0,c.a); oK=vec4(c.a,c.a,0.0,1.0); }`;
+in vec2 vUV; uniform sampler2D uSrc; uniform float uRough,uMetal; layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oK; layout(location=3) out vec4 oX;
+void main(){ vec4 c=texture(uSrc,vUV); oC=c; oM=vec4(uRough*c.a,uMetal*c.a,0.0,c.a); oK=vec4(c.a,c.a,0.0,1.0); oX=vec4(0.0); }`;
 function initTools() { E.P.imgm = new Prog(VS_FULL, FS_IMGM, 'imgm'); E.P.kfromm = new Prog(VS_FULL, FS_KFROMM, 'kfromm'); }
 function kFromM(m, res) { const k = trackTex(new Tex(res, res, 'rgba8')); bindTargets([k]); gl.disable(gl.BLEND); E.P.kfromm.use().tex('uM', m); drawFull(); return k; }
-const copyLT = (t) => ({ c: trackTex(copyTex(t.c)), m: trackTex(copyTex(t.m)), k: trackTex(copyTex(t.k)) });
-const newLT = () => ({ c: trackTex(new Tex(S.res, S.res, 'rgba8')), m: trackTex(new Tex(S.res, S.res, 'rgba16f')), k: trackTex(new Tex(S.res, S.res, 'rgba8')) });
-const ltTargets = (t) => bindTargets([t.c, t.m, t.k]);
+const copyLT = (t) => ({ c: trackTex(copyTex(t.c)), m: trackTex(copyTex(t.m)), k: trackTex(copyTex(t.k)), x: trackTex(copyTex(t.x)) });
+const newLT = () => ({ c: trackTex(new Tex(S.res, S.res, 'rgba8')), m: trackTex(new Tex(S.res, S.res, 'rgba16f')), k: trackTex(new Tex(S.res, S.res, 'rgba8')), x: trackTex(new Tex(S.res, S.res, 'rgba8')) });
+const ltTargets = (t) => bindTargets([t.c, t.m, t.k, t.x]);
+function xEmpty(res) { const x = trackTex(new Tex(res, res, 'rgba8')); clearTex(x, [0, 0, 0, 0]); return x; }
 
 /* Canvas (Bildschirm-Größe der Region) -> Textur */
 function canvasTex(cv) {
@@ -2708,14 +2725,14 @@ function warmUp() {
     // Projektion
     bindTargets([E.strokeCol]); P.proj.use().set('uMode', 1).set('uView', [1, 1]).set('uZoom', 0).set('uPan', [-10, -10]).tex('uScreen', null).tex('uGPos', E.gb.pos); drawSoup();
     // Auftragen
-    const tk2 = new Tex(8, 8, 'rgba8');
-    bindTargets([tc, tm, tk2]);
+    const tk2 = new Tex(8, 8, 'rgba8'), tx2 = new Tex(8, 8, 'rgba8');
+    bindTargets([tc, tm, tk2, tx2]);
     P.apply.use().tex('uBC', null).tex('uBM', sm).tex('uStroke', sk).tex('uSC', null).tex('uSel', sk).tex('uPC', null).tex('uPM', sm).set('uOp', 0).set('uUsePat', true); drawFull();
     bindTargets([tk]); P.applyMask.use().tex('uB', sk).tex('uStroke', sk).tex('uSC', null).tex('uSel', sk).set('uOp', 2); drawFull();
     bindTargets([tk]); P.selComb.use().tex('uOld', sk).tex('uSC', null).tex('uStroke', sk); drawFull();
     bindTargets([tk]); P.one.use(); drawSoup();
     readF32(E.gb.pos, 0, 0, 1, 1); readRGBA8(E.fin.c, 0, 0, 1, 1);
-    [tc, tm, tk, sm, sk, tk2].forEach((t) => t.free());
+    [tc, tm, tk, sm, sk, tk2, tx2].forEach((t) => t.free());
     E.gb.pos.free(); E.gb.uv.free(); E.gb = save; E.gbDirty = true;
     clearTex(E.stroke, [0, 0, 0, 0]); clearTex(E.strokeCol, [0, 0, 0, 0]);
     cleanFBOs();
@@ -2857,7 +2874,7 @@ function moveUpdate(x, y) {
   MV.lastOff = off; const P = E.P; gl.disable(gl.BLEND);
   if (MV.pixels) {
     if (MV.mask) { bindTargets([MV.layer.mask.tex]); P.shift1.use().tex('uB', MV.before.mask).tex('uSel', MV.selBefore).set('uHasSel', !!MV.selBefore).set('uOff', off).set('uPure', false); }
-    else { ltTargets(MV.layer.tex); P.shift.use().tex('uBC', MV.before.c).tex('uBM', MV.before.m).tex('uBK', MV.before.k).tex('uSel', MV.selBefore).set('uHasSel', !!MV.selBefore).set('uOff', off); }
+    else { ltTargets(MV.layer.tex); P.shift.use().tex('uBC', MV.before.c).tex('uBM', MV.before.m).tex('uBK', MV.before.k).tex('uBX', MV.before.x).tex('uSel', MV.selBefore).set('uHasSel', !!MV.selBefore).set('uOff', off); }
     drawFull(); E.needComp = true;
   }
   if (MV.selBefore) { bindTargets([E.sel]); P.shift1.use().tex('uB', MV.selBefore).tex('uSel', null).set('uHasSel', false).set('uOff', off).set('uPure', true); drawFull(); E.needDraw = true; }
@@ -2897,7 +2914,7 @@ function needPaintLayer() {
 }
 function xformLayer(l, mode) {
   const P = E.P; gl.disable(gl.BLEND);
-  if (l.tex) { const o = l.tex; l.tex = newLT(); ltTargets(l.tex); P.xf.use().tex('uBC', o.c).tex('uBM', o.m).tex('uBK', o.k).set('uMode', mode); drawFull(); }
+  if (l.tex) { const o = l.tex; l.tex = newLT(); ltTargets(l.tex); P.xf.use().tex('uBC', o.c).tex('uBM', o.m).tex('uBK', o.k).tex('uBX', o.x).set('uMode', mode); drawFull(); }
   if (l.mask && l.mask.tex) { const o = l.mask.tex; l.mask.tex = trackTex(new Tex(S.res, S.res, 'r8')); bindTargets([l.mask.tex]); P.xf1.use().tex('uB', o).set('uMode', mode); drawFull(); }
 }
 function layerXform(mode, all) {
@@ -2923,7 +2940,7 @@ function mergeDown() {
   const nt = newLT();
   ltTargets(nt); gl.disable(gl.BLEND);
   const mp = l.mask ? l.mask.tex : null, mg = l.mask && l.mask.gen ? cache.g : null;
-  E.P.merge.use().tex('uTC', l.tex.c).tex('uTM', l.tex.m).tex('uTK', l.tex.k).tex('uBC', below.tex.c).tex('uBM', below.tex.m).tex('uBK', below.tex.k).tex('uMP', mp).tex('uMG', mg).set('uHasMP', !!mp).set('uHasMG', !!mg).set('uOp', l.visible ? l.opacity : 0);
+  E.P.merge.use().tex('uTC', l.tex.c).tex('uTM', l.tex.m).tex('uTK', l.tex.k).tex('uTX', l.tex.x).tex('uBC', below.tex.c).tex('uBM', below.tex.m).tex('uBK', below.tex.k).tex('uBX', below.tex.x).tex('uMP', mp).tex('uMG', mg).set('uHasMP', !!mp).set('uHasMG', !!mg).set('uOp', l.visible ? l.opacity : 0);
   drawFull();
   below.tex = nt; S.layers.splice(i, 1); S.sel = below.id; S.target = 'layer';
   E.needComp = true; S.dirty = true;
@@ -2934,7 +2951,7 @@ function flattenAll() {
   pushUndo();
   const l = newLayer('paint', { name: 'Alles zusammen' });
   ltTargets(l.tex); gl.disable(gl.BLEND);
-  E.P.flat.use().tex('uC', E.fin.c).tex('uM', E.fin.m); drawFull();
+  E.P.flat.use().tex('uC', E.fin.c).tex('uM', E.fin.m).tex('uN', E.fin.n); drawFull();
   S.layers = [l]; S.sel = l.id; S.target = 'layer'; E.needComp = true; S.dirty = true;
 }
 function moveLayer(d) {
@@ -2943,10 +2960,10 @@ function moveLayer(d) {
 }
 function copySel(cut) {
   const l = needPaintLayer(); if (!l) return false;
-  if (E.clip) { E.clip.c.free(); E.clip.m.free(); E.clip.k.free(); }
-  E.clip = { c: new Tex(S.res, S.res, 'rgba8'), m: new Tex(S.res, S.res, 'rgba16f'), k: new Tex(S.res, S.res, 'rgba8') };
-  bindTargets([E.clip.c, E.clip.m, E.clip.k]); gl.disable(gl.BLEND);
-  E.P.mcopy.use().tex('uC', l.tex.c).tex('uM', l.tex.m).tex('uK', l.tex.k).tex('uSel', E.sel).set('uHasSel', !!E.sel); drawFull();
+  if (E.clip) { E.clip.c.free(); E.clip.m.free(); E.clip.k.free(); E.clip.x.free(); }
+  E.clip = { c: new Tex(S.res, S.res, 'rgba8'), m: new Tex(S.res, S.res, 'rgba16f'), k: new Tex(S.res, S.res, 'rgba8'), x: new Tex(S.res, S.res, 'rgba8') };
+  bindTargets([E.clip.c, E.clip.m, E.clip.k, E.clip.x]); gl.disable(gl.BLEND);
+  E.P.mcopy.use().tex('uC', l.tex.c).tex('uM', l.tex.m).tex('uK', l.tex.k).tex('uX', l.tex.x).tex('uSel', E.sel).set('uHasSel', !!E.sel); drawFull();
   if (cut) { if (E.sel) eraseSelection(); else { pushUndo(); l.tex = newPaintTex(); E.needComp = true; } }
   toast(cut ? 'Ausgeschnitten' : 'Kopiert');
   return true;
@@ -2955,7 +2972,7 @@ function pasteClip() {
   if (!E.clip || E.clip.c.w !== S.res) { toast('Nichts zum Einfügen. Erst etwas auswählen und mit Strg+C kopieren.'); return; }
   pushUndo();
   const l = newLayer('paint', { name: 'Eingefügt' });
-  for (const t of [l.tex.c, l.tex.m, l.tex.k]) { t.free(); E.layerTex.delete(t); }
+  for (const t of [l.tex.c, l.tex.m, l.tex.k, l.tex.x]) { t.free(); E.layerTex.delete(t); }
   l.tex = copyLT(E.clip);
   insertLayers([l]); setTool('movePix'); toast('Eingefügt als neue Ebene – mit Ziehen verschieben');
 }
@@ -4002,11 +4019,11 @@ async function buildProject() {
   const layers = [];
   for (const l of S.layers) {
     const o = { ...l, tex: null, mask: l.mask ? { ...l.mask, tex: null } : null };
-    if (l.tex) { o.tex = { c: `L${l.id}_c.bin`, m: `L${l.id}_m.bin`, k: `L${l.id}_k.bin` }; files.push({ name: o.tex.c, data: texToBytes(l.tex.c) }, { name: o.tex.m, data: texToBytes(l.tex.m) }, { name: o.tex.k, data: texToBytes(l.tex.k) }); }
+    if (l.tex) { o.tex = { c: `L${l.id}_c.bin`, m: `L${l.id}_m.bin`, k: `L${l.id}_k.bin`, x: `L${l.id}_x.bin` }; files.push({ name: o.tex.c, data: texToBytes(l.tex.c) }, { name: o.tex.m, data: texToBytes(l.tex.m) }, { name: o.tex.k, data: texToBytes(l.tex.k) }, { name: o.tex.x, data: texToBytes(l.tex.x) }); }
     if (l.mask && l.mask.tex) { o.mask.tex = `L${l.id}_mask.bin`; files.push({ name: o.mask.tex, data: texToBytes(l.mask.tex) }); }
     layers.push(o);
   }
-  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, mats: S.mesh.mats, edited: !!S.mesh.uvEdited, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
+  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, mats: S.mesh.mats, edited: !!S.mesh.uvEdited, usedE: !!E.usedE, usedO: !!E.usedO, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
   files.unshift({ name: 'projekt.json', data: enc.encode(JSON.stringify(meta)) });
   return makeZip(files);
 }
@@ -4034,12 +4051,13 @@ async function loadProjectBuffer(buf) {
   const mesh = finalizeMesh({ pos, nrm, uv, idx, mid, mats: meta.mats }, meta.meshName, { raw: !!meta.ctr });
   if (meta.ctr) { mesh.ctr = meta.ctr; mesh.rad = meta.rad; }
   if (meta.edited) mesh.uvEdited = true;
+  E.usedE = !!meta.usedE; E.usedO = !!meta.usedO;
   await startProject(mesh, meta.res, meta.name, () => {
     S.hdepth = meta.hdepth ?? S.hdepth;
     let maxId = 0;
     S.layers = meta.layers.map((o) => {
       const l = { ...o };
-      if (o.tex) { l.tex = { c: bytesToTex(files.get(o.tex.c), 'rgba8', meta.res), m: bytesToTex(files.get(o.tex.m), 'rgba16f', meta.res) }; l.tex.k = o.tex.k && files.get(o.tex.k) ? bytesToTex(files.get(o.tex.k), 'rgba8', meta.res) : kFromM(l.tex.m, meta.res); }
+      if (o.tex) { l.tex = { c: bytesToTex(files.get(o.tex.c), 'rgba8', meta.res), m: bytesToTex(files.get(o.tex.m), 'rgba16f', meta.res) }; l.tex.k = o.tex.k && files.get(o.tex.k) ? bytesToTex(files.get(o.tex.k), 'rgba8', meta.res) : kFromM(l.tex.m, meta.res); l.tex.x = o.tex.x && files.get(o.tex.x) ? bytesToTex(files.get(o.tex.x), 'rgba8', meta.res) : xEmpty(meta.res); }
       if (o.mask) { l.mask = { ...defaultMask(), ...o.mask }; l.mask.tex = o.mask.tex ? bytesToTex(files.get(o.mask.tex), 'r8', meta.res) : newMaskTex(1); }
       if (l.fill) l.fill = { ...defaultFill(), ...l.fill };
       maxId = Math.max(maxId, +l.id || 0);
@@ -4052,17 +4070,17 @@ async function loadProjectBuffer(buf) {
 
 /* ---------- Texturen exportieren ---------- */
 const EXPORTS = {
-  roblox: { name: 'Roblox (SurfaceAppearance)', size: 1024, aoInBase: 0.6, maps: [['Color', 0], ['Metalness', 2], ['Roughness', 1], ['Normal', 5]],
+  roblox: { name: 'Roblox (SurfaceAppearance)', size: 1024, aoInBase: 0.6, maps: [['Color', 0], ['Metalness', 2], ['Roughness', 1], ['Normal', 5], ['ColorAlpha', 13, 'o']],
     hint: 'In Roblox Studio: SurfaceAppearance in das MeshPart einfügen und ColorMap, MetalnessMap, NormalMap und RoughnessMap zuweisen. Roblox erlaubt höchstens 1024 × 1024.' },
   fivem: { name: 'FiveM / GTA V', size: 2048, aoInBase: 0.8, maps: [['d', 0], ['n', 6], ['s', 9]], sep: '_',
     hint: 'Diffuse (_d), Normal im DirectX-Format (_n) und Glanz-Map (_s). In OpenIV oder CodeWalker in die .ytd einfügen (beim Import in DDS umwandeln lassen).' },
-  blender: { name: 'Blender / glTF', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['Roughness', 1], ['Metallic', 2], ['Normal', 5], ['Height', 3], ['AO', 4], ['ORM', 7]],
+  blender: { name: 'Blender / glTF', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['Roughness', 1], ['Metallic', 2], ['Normal', 5], ['Height', 3], ['AO', 4], ['ORM', 7], ['Emission', 11, 'e'], ['Alpha', 12, 'o']],
     hint: 'Normal-Map im OpenGL-Format. In Blender die Normal-Map als „Non-Color“ laden. ORM = AO (Rot), Rauheit (Grün), Metall (Blau) für glTF.' },
-  unity: { name: 'Unity', size: 0, aoInBase: 0, maps: [['Albedo', 0], ['MetallicSmoothness', 8], ['Normal', 5], ['Occlusion', 4], ['Height', 3]],
+  unity: { name: 'Unity', size: 0, aoInBase: 0, maps: [['Albedo', 0], ['MetallicSmoothness', 8], ['Normal', 5], ['Occlusion', 4], ['Height', 3], ['Emission', 11, 'e'], ['AlbedoTransparency', 13, 'o']],
     hint: 'MetallicSmoothness: Metall in Rot, Glätte im Alpha-Kanal. Normal-Map im Inspector als „Normal map“ markieren.' },
-  unreal: { name: 'Unreal Engine', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['ORM', 7], ['Normal', 6]],
+  unreal: { name: 'Unreal Engine', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['ORM', 7], ['Normal', 6], ['Emissive', 11, 'e'], ['Opacity', 12, 'o']],
     hint: 'ORM = AO, Rauheit, Metall. Normal-Map im DirectX-Format. ORM-Textur ohne sRGB importieren.' },
-  all: { name: 'Alle Einzel-Maps', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['Roughness', 1], ['Metallic', 2], ['Height', 3], ['AO', 4], ['Normal_OpenGL', 5], ['Normal_DirectX', 6], ['Glossiness', 10]], hint: '' },
+  all: { name: 'Alle Einzel-Maps', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['Roughness', 1], ['Metallic', 2], ['Height', 3], ['AO', 4], ['Normal_OpenGL', 5], ['Normal_DirectX', 6], ['Glossiness', 10], ['Emissive', 11], ['Opacity', 12]], hint: '' },
 };
 async function exportTextures({ preset, size, name, aoInBase, height16, withModel }) {
   const ex = EXPORTS[preset]; const sz = size || S.res;
@@ -4071,7 +4089,9 @@ async function exportTextures({ preset, size, name, aoInBase, height16, withMode
   const out8 = new Tex(sz, sz, 'rgba8');
   const out16 = height16 ? new Tex(sz, sz, 'rgba16f') : null;
   try {
-    for (const [suffix, kind] of ex.maps) {
+    const used = { e: S.layers.some((l) => l.visible && ((l.fill && l.fill.emit > 0) || (l.kind === 'paint' && l.ch.e !== false && E.usedE))), o: S.layers.some((l) => l.visible && ((l.fill && l.fill.opac < 1) || (l.kind === 'paint' && l.ch.o !== false && E.usedO))) };
+    for (const [suffix, kind, need] of ex.maps) {
+      if (need && !used[need]) continue;
       const sixteen = kind === 3 && height16;
       const tgt = sixteen ? out16 : out8;
       bindTargets([tgt]); gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST);
@@ -4164,7 +4184,7 @@ async function openFromLibrary(id) {
 
 'use strict';
 /* ================= Oberfläche ================= */
-const CHANNELS = ['Fertiges Material', 'Nur Farbe', 'Rauheit', 'Metall', 'Höhe', 'Normal-Map', 'Schatten in Ecken (AO)', 'Kanten', 'Maske der Ebene', 'UV-Prüfmuster'];
+const CHANNELS = ['Fertiges Material', 'Nur Farbe', 'Rauheit', 'Metall', 'Höhe', 'Normal-Map', 'Schatten in Ecken (AO)', 'Kanten', 'Maske der Ebene', 'UV-Prüfmuster', 'Leuchten', 'Transparenz'];
 const TOOLS = [
   { id: 'paint', icon: 'brush', name: 'Pinsel', key: 'B', desc: 'Malt Farbe, Rauheit, Metall und Höhe direkt aufs Modell.' },
   { id: 'erase', icon: 'eraser', name: 'Radierer', key: 'E', desc: 'Entfernt Gemaltes von der Ebene – nur in den eingeschalteten Kanälen.' },
@@ -4742,7 +4762,10 @@ const UI = {
         if (S.tool !== 'decal') kids.push(ctlSelect('Malt mit', b, 'mat', opts, { onchange: () => this.renderProps() }));
         if (S.tool === 'decal') kids.push(el('div', { class: 'note' }, 'Der Aufkleber nimmt die Farben aus dem Bild.'), ctlSlider('Rauheit', b, 'rough', 0, 1, 0.01), ctlSlider('Metall', b, 'metal', 0, 1, 0.01));
         if (S.tool !== 'decal') kids.push(el('div', { class: 'chk', 'data-tip': 'Welche Kanäle der Pinsel malt', 'data-desc': 'Ausgeschaltete Kanäle bleiben beim Malen und Radieren unverändert – z. B. nur Höhe malen für Dellen, nur Rauheit für Fettflecken.' },
-          ctlCheck('Farbe', b, 'chC'), ctlCheck('Rauheit', b, 'chR'), ctlCheck('Metall', b, 'chM'), ctlCheck('Höhe', b, 'chH')));
+          ctlCheck('Farbe', b, 'chC'), ctlCheck('Rauheit', b, 'chR'), ctlCheck('Metall', b, 'chM'), ctlCheck('Höhe', b, 'chH'),
+          ctlCheck('Leuchten', b, 'chE', { onchange: () => this.renderProps() }), ctlCheck('Transparenz', b, 'chO', { onchange: () => this.renderProps() })));
+        if (b.chE) kids.push(ctlSlider('Leuchten', b, 'emit', 0, 1, 0.01, { tip: 'Wie stark die Stelle selbst leuchtet (in ihrer Farbe)' }));
+        if (b.chO) kids.push(ctlSlider('Sichtbarkeit', b, 'bop', 0, 1, 0.01, { tip: '0 = durchsichtig (Loch), 1 = undurchsichtig' }));
         if (S.tool === 'decal') {}
         else if (!b.mat) {
           kids.push(ctlColor('Farbe', b, 'color'));
@@ -4765,6 +4788,8 @@ const UI = {
     const chk = el('div', { class: 'chk' },
       ctlCheck('Farbe', l.ch, 'c', { undo: true, onchange: recomp }), ctlCheck('Rauheit', l.ch, 'r', { undo: true, onchange: recomp }),
       ctlCheck('Metall', l.ch, 'm', { undo: true, onchange: recomp }), ctlCheck('Höhe', l.ch, 'h', { undo: true, onchange: recomp }));
+    if (l.ch.e === undefined) l.ch.e = l.kind === 'paint'; if (l.ch.o === undefined) l.ch.o = l.kind === 'paint';
+    chk.append(ctlCheck('Leuchten', l.ch, 'e', { undo: true, onchange: recomp }), ctlCheck('Transparenz', l.ch, 'o', { undo: true, onchange: recomp }));
     P.append(sec('Ebene',
       el('div', { class: 'row two' }, el('label', {}, 'Name'), nameIn),
       ctlSlider('Deckkraft', l, 'opacity', 0, 1, 0.01, { undo: true, onchange: recompL }),
@@ -4814,6 +4839,9 @@ const UI = {
       const a = [];
       if (two) a.push(ctlColor('Farbe 2', f, 'colB', { undo: true, onchange: recompL }), ctlSlider('Rauheit 2', f, 'roughB', 0, 1, 0.01, { undo: true, onchange: recomp }), ctlSlider('Metall 2', f, 'metalB', 0, 1, 0.01, { undo: true, onchange: recomp }));
       a.push(ctlSlider('Höhe', f, 'hAmt', -1, 1, 0.01, { undo: true, onchange: recomp }));
+      if (f.emit === undefined) f.emit = 0; if (f.opac === undefined) f.opac = 1;
+      a.push(ctlSlider('Leuchten', f, 'emit', 0, 1, 0.01, { undo: true, onchange: (v) => { if (v > 0) l.ch.e = true; recomp(); }, tip: 'Leuchtet in der eigenen Farbe (z. B. Lampen, Displays, Neon)' }),
+        ctlSlider('Sichtbarkeit', f, 'opac', 0, 1, 0.01, { undo: true, onchange: (v) => { if (v < 1) l.ch.o = true; recomp(); }, tip: 'Unter 1 wird es durchsichtig (Glas, Löcher, Gitter)' }));
       if (f.pat) a.push(ctlSlider('Variation', f, 'vari', 0, 1, 0.01, { undo: true, onchange: recomp }),
         el('div', { class: 'row two' }, el('label', {}, ''), el('button', { class: 'btn', onclick: () => { pushUndo(); f.seed = Math.round(Math.random() * 1000); E.needComp = true; } }, 'Muster neu würfeln')));
       k.push(adv('fill', ...a));
@@ -5100,6 +5128,7 @@ const UI = {
       ctlSelect('Oberfläche', UISCALE, 'v', [[0, 'Automatisch'], [0.8, '80 %'], [0.9, '90 %'], [1, '100 %'], [1.15, '115 %'], [1.3, '130 %'], [1.5, '150 %'], [1.75, '175 %']], { onchange: () => { try { localStorage.setItem('mt_ui', UISCALE.v); } catch (e) { /* */ } applyUIScale(); } }),
       ctlSelect('Design', THEME, 'v', [['melone', 'Melone (bunt)'], ['pro', 'Profi (neutral, kompakt)']], { onchange: () => { try { localStorage.setItem('mt_theme', THEME.v); } catch (e) { /* */ } applyTheme(); } }),
       ctlSlider('Helligkeit', S.view, 'exposure', 0.2, 2.5, 0.01, { onchange: () => { E.needDraw = true; } }),
+      ctlSlider('Leuchtkraft', S.view, 'emit', 0, 10, 0.1, { onchange: () => { E.needDraw = true; }, tip: 'Wie hell leuchtende Stellen in der Ansicht strahlen' }),
       ctlSlider('Schatten (AO)', S.view, 'ao', 0, 1, 0.01, { onchange: () => { E.needDraw = true; } }),
       el('div', { class: 'row two' }, el('label', {}, 'Hintergrund'), ctlCheck('Licht-Umgebung zeigen', S.view, 'bg', { onchange: () => { E.needDraw = true; } })),
       el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' },
