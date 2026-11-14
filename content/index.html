@@ -1,0 +1,2924 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Melonentextur</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#121316;--p1:#1a1b1f;--p2:#212227;--p3:#2a2c32;--line:#2f3138;--tx:#e7e8ec;--mu:#8d909a;--ac:#ff4f64;--ac2:#4fd27a;--warn:#ffb648;--sel:#3a2328}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:12.5px/1.4 system-ui,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+button,select,input{font:inherit;color:inherit}
+#app{display:grid;height:100vh;grid-template-columns:46px 1fr 330px;grid-template-rows:34px 42px 1fr 172px 24px;
+  grid-template-areas:"top top top" "ctx ctx ctx" "tools view side" "tools shelf side" "status status status"}
+#top{grid-area:top;display:flex;align-items:center;gap:4px;padding:0 8px;background:#0e0f11;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;margin-right:10px;letter-spacing:.2px}
+.logo{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 50% 120%,#ff6b7c 0 52%,#fff 53% 58%,#3fbf6a 59% 72%,transparent 73%);position:relative}
+.menu{position:relative}
+.menu>button{background:none;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;color:var(--tx)}
+.menu>button:hover,.menu.open>button{background:var(--p3)}
+.menu .dd{display:none;position:absolute;top:100%;left:0;min-width:250px;background:var(--p2);border:1px solid var(--line);border-radius:8px;padding:5px;z-index:50;box-shadow:0 10px 30px #0008}
+.menu.open .dd{display:block}
+.dd button{display:flex;width:100%;justify-content:space-between;gap:20px;background:none;border:none;padding:6px 10px;border-radius:5px;cursor:pointer;text-align:left}
+.dd button:hover{background:var(--p3)}
+.dd button kbd{color:var(--mu);font:11px system-ui}
+.dd hr{border:none;border-top:1px solid var(--line);margin:4px 2px}
+#top .sp{flex:1}
+.tbtn{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+.tbtn:hover{border-color:var(--ac)}
+#projName{color:var(--mu);margin-right:10px}
+#ctx{grid-area:ctx;display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--p1);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+#ctx .grp{display:flex;align-items:center;gap:6px}
+#ctx label{color:var(--mu)}
+#ctx input[type=range]{width:90px}
+#ctx input[type=number]{width:52px}
+#ctx .sep{width:1px;height:22px;background:var(--line)}
+#tools{grid-area:tools;background:var(--p1);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px}
+#tools button{width:36px;height:36px;border-radius:8px;border:1px solid transparent;background:none;cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;color:var(--tx)}
+#tools button:hover{background:var(--p3)}
+#tools button.on{background:var(--sel);border-color:var(--ac)}
+#tools .sep{width:26px;height:1px;background:var(--line);margin:4px 0}
+#view{grid-area:view;position:relative;overflow:hidden;background:#0b0b0d}
+#gl,#ov{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ov{pointer-events:none}
+#gl{touch-action:none}
+#vbar{position:absolute;top:8px;right:8px;display:flex;gap:6px;align-items:center;background:#16171bdd;border:1px solid var(--line);border-radius:8px;padding:4px 6px;backdrop-filter:blur(4px)}
+#vbar select,#vbar button{background:var(--p2);border:1px solid var(--line);border-radius:5px;padding:3px 6px;cursor:pointer}
+#vbar button.on{border-color:var(--ac);background:var(--sel)}
+#vbar .seg{display:flex}
+#vbar .seg button{border-radius:0}
+#vbar .seg button:first-child{border-radius:5px 0 0 5px}
+#vbar .seg button:last-child{border-radius:0 5px 5px 0}
+#vbar input[type=range]{width:70px}
+#targetBadge{position:absolute;left:10px;top:10px;background:#16171bdd;border:1px solid var(--line);border-radius:8px;padding:4px 10px;pointer-events:none}
+#targetBadge b{color:var(--ac)}
+#targetBadge.mask b{color:#9cc8ff}
+#shelf{grid-area:shelf;background:var(--p1);border-top:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#shelf .tabs{display:flex;gap:2px;padding:6px 8px 0}
+#shelf .tabs button{background:none;border:none;border-bottom:2px solid transparent;padding:4px 10px;cursor:pointer;color:var(--mu)}
+#shelf .tabs button.on{color:var(--tx);border-color:var(--ac)}
+#shelf .hint{margin-left:auto;color:var(--mu);align-self:center;font-size:11.5px}
+#shelf .items{flex:1;display:flex;gap:8px;padding:8px;overflow-x:auto;overflow-y:hidden}
+.tile{flex:0 0 92px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;border-radius:8px;border:1px solid transparent;cursor:pointer;background:none;color:var(--tx)}
+.tile:hover{background:var(--p3);border-color:var(--line)}
+.tile.on{border-color:var(--ac)}
+.tile img,.tile .ph{width:76px;height:76px;border-radius:8px;background:#0f1012;object-fit:cover}
+.tile span{font-size:11.5px;text-align:center;line-height:1.2;max-width:88px}
+#side{grid-area:side;background:var(--p1);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.ph{display:flex;align-items:center;gap:6px;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--line);background:var(--p2)}
+.ph .btns{margin-left:auto;display:flex;gap:3px}
+.ph .btns button{width:28px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--p1);cursor:pointer;font-size:13px}
+.ph .btns button:hover{border-color:var(--ac)}
+#layerList{height:250px;overflow:auto;border-bottom:1px solid var(--line)}
+.lrow{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid #ffffff08;cursor:pointer;user-select:none}
+.lrow:hover{background:#ffffff08}
+.lrow.sel{background:var(--sel)}
+.lrow .eye{width:22px;height:22px;border:none;background:none;cursor:pointer;opacity:.85;font-size:13px}
+.lrow .eye.off{opacity:.3}
+.lrow .th{width:30px;height:30px;border-radius:5px;border:1px solid var(--line);flex:0 0 30px;display:flex;align-items:center;justify-content:center;font-size:13px}
+.lrow .th.act{outline:2px solid var(--ac);outline-offset:1px}
+.lrow .mk{width:30px;height:30px;border-radius:5px;border:1px solid var(--line);flex:0 0 30px;display:flex;align-items:center;justify-content:center;font-size:12px;background:#000;color:#fff}
+.lrow .mk.act{outline:2px solid #9cc8ff;outline-offset:1px}
+.lrow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow .nm small{display:block;color:var(--mu);font-size:10.5px}
+.lrow.drop{box-shadow:inset 0 2px 0 var(--ac)}
+#props{flex:1;overflow:auto;padding-bottom:20px}
+.sec{border-bottom:1px solid var(--line)}
+.sec h4{margin:0;padding:8px 10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);display:flex;align-items:center;gap:8px}
+.sec .body{padding:2px 10px 10px}
+.row{display:grid;grid-template-columns:96px 1fr 54px;gap:8px;align-items:center;margin:5px 0}
+.row.two{grid-template-columns:96px 1fr}
+.row label{color:var(--mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row input[type=number]{width:54px}
+input[type=number],input[type=text],select{background:var(--p2);border:1px solid var(--line);border-radius:5px;padding:3px 5px;min-width:0}
+input[type=color]{width:100%;height:24px;border:1px solid var(--line);border-radius:5px;background:var(--p2);padding:1px;cursor:pointer}
+input[type=range]{accent-color:var(--ac);min-width:0;width:100%}
+input[type=checkbox]{accent-color:var(--ac)}
+.chk{display:flex;gap:10px;flex-wrap:wrap}
+.chk label{display:flex;gap:4px;align-items:center;color:var(--tx)}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.btn{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer}
+.btn:hover{border-color:var(--ac)}
+.btn.pri{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
+.btn.on{border-color:#9cc8ff;background:#1d2a3a}
+.note{color:var(--mu);font-size:11.5px;margin:6px 0;line-height:1.45}
+.note.warn{color:var(--warn)}
+#status{grid-area:status;display:flex;align-items:center;gap:16px;padding:0 10px;background:#0e0f11;border-top:1px solid var(--line);color:var(--mu);font-size:11.5px;white-space:nowrap;overflow:hidden}
+#status .sp{flex:1}
+#toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:#2b2e36;border:1px solid var(--line);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s;z-index:200;pointer-events:none;max-width:70vw}
+#toast.show{opacity:1}
+#toast.err{border-color:var(--ac)}
+#toast.warn{border-color:var(--warn)}
+#modal{position:fixed;inset:0;background:#07080acc;z-index:100;display:flex;align-items:center;justify-content:center}
+#modal.hidden{display:none}
+.mbox{background:var(--p1);border:1px solid var(--line);border-radius:14px;padding:22px 24px;max-width:92vw;max-height:92vh;overflow:auto;box-shadow:0 20px 60px #000a}
+.mbox h2{margin:0 0 4px;font-size:20px}
+.mbox .sub{color:var(--mu);margin:0 0 16px}
+.welcome{width:860px}
+.welcome .hero{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.welcome .hero .logo{width:44px;height:44px}
+.welcome h1{margin:0;font-size:30px;background:linear-gradient(120deg,#fff,#ff8a98 60%,#7fe6a2);-webkit-background-clip:text;background-clip:text;color:transparent}
+.prims{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0 16px}
+.prim{background:var(--p2);border:1px solid var(--line);border-radius:10px;padding:12px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px}
+.prim:hover{border-color:var(--ac)}
+.prim .ic{font-size:26px}
+.wrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--mu);margin:6px 0 14px;cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--ac);color:var(--tx)}
+#busy{position:fixed;inset:0;background:#07080ab0;z-index:300;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-size:15px}
+#busy.on{display:flex}
+.spin{width:38px;height:38px;border-radius:50%;border:4px solid #ffffff22;border-top-color:var(--ac);animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:4px 18px}
+.keys kbd{background:var(--p3);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font:11.5px system-ui;justify-self:start}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#33363e;border-radius:6px;border:2px solid var(--p1)}::-webkit-scrollbar-track{background:transparent}
+.welcome .row{grid-template-columns:120px 300px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="brand"><span class="logo"></span>Melonentextur</div>
+    <nav id="menus" style="display:flex;gap:2px"></nav>
+    <div class="sp"></div>
+    <span id="projName"></span>
+    <button class="tbtn" id="btnExport" title="Texturen exportieren (Strg+Umschalt+E)">⤓ Exportieren</button>
+    <button class="tbtn" id="btnReport" title="Kopiert das Fehlerprotokoll – dann in Discord einfügen">🐞 Fehler melden</button>
+    <button class="tbtn" id="btnLauncher" title="Launcher öffnen">Launcher</button>
+  </header>
+  <div id="ctx"></div>
+  <aside id="tools"></aside>
+  <main id="view">
+    <canvas id="gl"></canvas>
+    <canvas id="ov"></canvas>
+    <div id="targetBadge"></div>
+    <div id="vbar"></div>
+  </main>
+  <section id="shelf"><div class="tabs"></div><div class="items"></div></section>
+  <aside id="side">
+    <div class="ph">Ebenen <span class="btns" id="layerBtns"></span></div>
+    <div id="layerList"></div>
+    <div id="props"></div>
+  </aside>
+  <footer id="status"><span id="stHint"></span><span class="sp"></span><span id="stInfo"></span></footer>
+</div>
+<div id="modal" class="hidden"></div>
+<div id="busy"><div class="spin"></div><div id="busyMsg"></div></div>
+<div id="toast"></div>
+<input type="file" id="fileIn" hidden>
+<script>
+'use strict';
+const APP_NAME = 'Melonentextur';
+const APP_VERSION = '1.0.0';
+const NATIVE = window.melonenNative || null;
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in attrs) {
+    const v = attrs[k];
+    if (v === false || v == null) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'style') e.style.cssText = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) {
+    if (c == null || c === false) continue;
+    e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  }
+  return e;
+}
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+function hex2rgb(h) {
+  h = String(h || '#000').replace('#', '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = parseInt(h, 16) || 0;
+  return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+}
+function rgb2hex(c) { return '#' + c.map((v) => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, '0')).join(''); }
+let _uid = 1;
+const uid = () => _uid++;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const deepClone = (o) => JSON.parse(JSON.stringify(o));
+
+function toast(msg, kind = '') {
+  const t = $('#toast');
+  t.textContent = msg; t.className = 'show ' + kind;
+  clearTimeout(t._t); t._t = setTimeout(() => { t.className = ''; }, kind === 'err' ? 5000 : 2600);
+}
+
+/* ---------- Mathe (Spalten-Matrizen wie in WebGL) ---------- */
+const V3 = {
+  add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+  sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+  mul: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
+  dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+  cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+  len: (a) => Math.hypot(a[0], a[1], a[2]),
+  norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+};
+const M4 = {
+  ident: () => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+  mul(a, b) {
+    const o = new Float32Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+      let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+      o[c * 4 + r] = s;
+    }
+    return o;
+  },
+  persp(fovy, asp, n, f) {
+    const t = 1 / Math.tan(fovy / 2), o = new Float32Array(16);
+    o[0] = t / asp; o[5] = t; o[10] = (f + n) / (n - f); o[11] = -1; o[14] = 2 * f * n / (n - f);
+    return o;
+  },
+  ortho(l, r, b, t, n, f) {
+    const o = M4.ident();
+    o[0] = 2 / (r - l); o[5] = 2 / (t - b); o[10] = -2 / (f - n);
+    o[12] = -(r + l) / (r - l); o[13] = -(t + b) / (t - b); o[14] = -(f + n) / (f - n);
+    return o;
+  },
+  lookAt(eye, at, up) {
+    const z = V3.norm(V3.sub(eye, at));
+    let x = V3.cross(up, z);
+    if (V3.len(x) < 1e-6) x = V3.cross([0, 0, 1], z);
+    x = V3.norm(x);
+    const y = V3.cross(z, x);
+    return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0,
+      -V3.dot(x, eye), -V3.dot(y, eye), -V3.dot(z, eye), 1]);
+  },
+  invert(m) {
+    const inv = new Float32Array(16);
+    inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
+    inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
+    inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] + m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+    inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
+    inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
+    inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] + m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+    inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] - m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+    inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] + m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+    inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] + m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
+    inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] - m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+    inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] + m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+    inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] - m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+    inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
+    inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
+    inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
+    inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
+    let det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+    det = det ? 1 / det : 0;
+    for (let i = 0; i < 16; i++) inv[i] *= det;
+    return inv;
+  },
+  // aus Translation, Rotation (Quaternion) und Skalierung
+  trs(t = [0, 0, 0], q = [0, 0, 0, 1], s = [1, 1, 1]) {
+    const [x, y, z, w] = q, x2 = x + x, y2 = y + y, z2 = z + z;
+    const xx = x * x2, xy = x * y2, xz = x * z2, yy = y * y2, yz = y * z2, zz = z * z2, wx = w * x2, wy = w * y2, wz = w * z2;
+    return new Float32Array([
+      (1 - (yy + zz)) * s[0], (xy + wz) * s[0], (xz - wy) * s[0], 0,
+      (xy - wz) * s[1], (1 - (xx + zz)) * s[1], (yz + wx) * s[1], 0,
+      (xz + wy) * s[2], (yz - wx) * s[2], (1 - (xx + yy)) * s[2], 0,
+      t[0], t[1], t[2], 1]);
+  },
+};
+
+/* Union-Find für Dreiecks-Gruppen */
+class UF {
+  constructor(n) { this.p = new Int32Array(n); for (let i = 0; i < n; i++) this.p[i] = i; }
+  find(a) { const p = this.p; while (p[a] !== a) { p[a] = p[p[a]]; a = p[a]; } return a; }
+  union(a, b) { a = this.find(a); b = this.find(b); if (a !== b) this.p[a] = b; }
+}
+
+/* Half-Float-Umrechnung für Projektdateien */
+const _f32 = new Float32Array(1), _u32 = new Uint32Array(_f32.buffer);
+function f32ToF16(v) {
+  _f32[0] = v; const x = _u32[0];
+  const sign = (x >>> 16) & 0x8000; let e = ((x >>> 23) & 0xff) - 127 + 15; let m = x & 0x7fffff;
+  if (e <= 0) { if (e < -10) return sign; m = (m | 0x800000) >> (1 - e); return sign | ((m + 0x1000) >> 13); }
+  if (e >= 31) return sign | 0x7c00;
+  const r = sign | (e << 10) | ((m + 0x1000) >> 13);
+  return r;
+}
+function f16ToF32(h) {
+  const s = (h & 0x8000) ? -1 : 1, e = (h >> 10) & 0x1f, m = h & 0x3ff;
+  if (e === 0) return s * Math.pow(2, -14) * (m / 1024);
+  if (e === 31) return m ? NaN : s * Infinity;
+  return s * Math.pow(2, e - 15) * (1 + m / 1024);
+}
+
+'use strict';
+/* ---------- kleine WebGL2-Hilfen ---------- */
+let gl = null;
+const FMT = {
+  rgba8: { i: 'RGBA8', f: 'RGBA', t: 'UNSIGNED_BYTE', bpp: 4, filter: true },
+  rgba16f: { i: 'RGBA16F', f: 'RGBA', t: 'HALF_FLOAT', bpp: 8, filter: true },
+  rgba32f: { i: 'RGBA32F', f: 'RGBA', t: 'FLOAT', bpp: 16, filter: false },
+  r8: { i: 'R8', f: 'RED', t: 'UNSIGNED_BYTE', bpp: 1, filter: true },
+};
+const TEX_LIVE = new Set();
+
+class Tex {
+  constructor(w, h, fmt = 'rgba8', data = null) {
+    this.w = w; this.h = h; this.fmt = fmt; this.mip = false;
+    const F = FMT[fmt];
+    this.t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl[F.i], w, h, 0, gl[F.f], gl[F.t], data);
+    const flt = F.filter ? gl.LINEAR : gl.NEAREST;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, flt);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, flt);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    TEX_LIVE.add(this);
+  }
+  get bytes() { return this.w * this.h * FMT[this.fmt].bpp * (this.mip ? 1.34 : 1); }
+  mipmap() {
+    gl.bindTexture(gl.TEXTURE_2D, this.t);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    if (!this.mip) {
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      const an = gl.getExtension('EXT_texture_filter_anisotropic');
+      if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, 8);
+      this.mip = true;
+    }
+  }
+  free() { if (this.t) { gl.deleteTexture(this.t); this.t = null; TEX_LIVE.delete(this); } }
+}
+
+/* Framebuffer-Cache: dieselbe Textur-Kombination nutzt dasselbe FBO */
+const FBO_CACHE = new Map();
+const DEPTH_RB = new Map();
+function bindTargets(texs, depth = false) {
+  const key = texs.map((t) => (t._id || (t._id = uid()))).join(',') + (depth ? 'd' : '');
+  let f = FBO_CACHE.get(key);
+  if (f && texs.some((t) => !t.t)) { gl.deleteFramebuffer(f.fb); FBO_CACHE.delete(key); f = null; }
+  if (!f) {
+    const fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    texs.forEach((t, i) => gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t.t, 0));
+    gl.drawBuffers(texs.map((_, i) => gl.COLOR_ATTACHMENT0 + i));
+    f = { fb, texs, depth };
+    FBO_CACHE.set(key, f);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, f.fb);
+  if (depth && !f.hasDepth) {
+    const k2 = texs[0].w + 'x' + texs[0].h;
+    let rb = DEPTH_RB.get(k2);
+    if (!rb) {
+      rb = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, texs[0].w, texs[0].h);
+      DEPTH_RB.set(k2, rb);
+    }
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+    f.hasDepth = true;
+  }
+  gl.viewport(0, 0, texs[0].w, texs[0].h);
+  return f;
+}
+function cleanFBOs() {
+  for (const [k, f] of FBO_CACHE) if (f.texs.some((t) => !t.t)) { gl.deleteFramebuffer(f.fb); FBO_CACHE.delete(k); }
+}
+function toScreen() { gl.bindFramebuffer(gl.FRAMEBUFFER, null); }
+
+let DUMMY_TEX = null;
+class Prog {
+  constructor(vs, fs, name) {
+    const mk = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(s);
+        const lines = src.split('\n');
+        const m = /ERROR: \d+:(\d+)/.exec(log || '');
+        const ctx = m ? lines.slice(Math.max(0, +m[1] - 3), +m[1] + 2).join('\n') : '';
+        throw new Error(`Shader "${name}": ${log}\n${ctx}`);
+      }
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, mk(gl.VERTEX_SHADER, vs));
+    gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(`Programm "${name}": ${gl.getProgramInfoLog(p)}`);
+    this.p = p; this.name = name; this.u = {};
+    const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) {
+      const info = gl.getActiveUniform(p, i);
+      this.u[info.name.replace(/\[0\]$/, '')] = { loc: gl.getUniformLocation(p, info.name), type: info.type, size: info.size };
+    }
+  }
+  use() { gl.useProgram(this.p); this.unit = 0; return this; }
+  set(name, v) {
+    const u = this.u[name]; if (!u) return this;
+    const L = u.loc;
+    switch (u.type) {
+      case gl.FLOAT: u.size > 1 ? gl.uniform1fv(L, v) : gl.uniform1f(L, v); break;
+      case gl.FLOAT_VEC2: gl.uniform2fv(L, v); break;
+      case gl.FLOAT_VEC3: gl.uniform3fv(L, v); break;
+      case gl.FLOAT_VEC4: gl.uniform4fv(L, v); break;
+      case gl.INT: case gl.BOOL: u.size > 1 ? gl.uniform1iv(L, v) : gl.uniform1i(L, typeof v === 'boolean' ? (v ? 1 : 0) : v); break;
+      case gl.INT_VEC2: gl.uniform2iv(L, v); break;
+      case gl.FLOAT_MAT4: gl.uniformMatrix4fv(L, false, v); break;
+      case gl.FLOAT_MAT3: gl.uniformMatrix3fv(L, false, v); break;
+      default: break;
+    }
+    return this;
+  }
+  setAll(o) { for (const k in o) this.set(k, o[k]); return this; }
+  tex(name, t) {
+    const u = this.u[name]; if (!u) return this;
+    gl.activeTexture(gl.TEXTURE0 + this.unit);
+    gl.bindTexture(gl.TEXTURE_2D, t && t.t ? t.t : DUMMY_TEX.t);
+    gl.uniform1i(u.loc, this.unit);
+    this.unit++;
+    return this;
+  }
+}
+
+let FULL_VAO = null;
+function drawFull() { gl.bindVertexArray(FULL_VAO); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+
+function readRGBA8(tex, x = 0, y = 0, w = tex.w, h = tex.h) {
+  bindTargets([tex]);
+  const out = new Uint8Array(w * h * 4);
+  gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, out);
+  return out;
+}
+function readF32(tex, x = 0, y = 0, w = tex.w, h = tex.h) {
+  bindTargets([tex]);
+  const out = new Float32Array(w * h * 4);
+  gl.readPixels(x, y, w, h, gl.RGBA, gl.FLOAT, out);
+  return out;
+}
+
+function initGL(canvas) {
+  gl = canvas.getContext('webgl2', { antialias: true, alpha: false, premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+  if (!gl) throw new Error('Dein Grafiktreiber unterstützt kein WebGL2.');
+  if (!gl.getExtension('EXT_color_buffer_float')) throw new Error('Deine Grafikkarte unterstützt keine Gleitkomma-Texturen (EXT_color_buffer_float).');
+  gl.getExtension('EXT_float_blend');
+  gl.getExtension('OES_texture_float_linear');
+  FULL_VAO = gl.createVertexArray();
+  DUMMY_TEX = new Tex(1, 1, 'rgba8', new Uint8Array([255, 255, 255, 255]));
+  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); console.error('WebGL-Kontext verloren (Grafikkarte überlastet?)'); toast('Die Grafikkarte hat den Kontext verloren – bitte speichern und neu starten.', 'err'); });
+}
+
+'use strict';
+/* ================= Shader ================= */
+const G_HEAD = `#version 300 es
+precision highp float; precision highp int; precision highp sampler2D;
+`;
+
+const G_NOISE = `
+uvec3 pcg3d(uvec3 v){ v=v*1664525u+1013904223u; v.x+=v.y*v.z; v.y+=v.z*v.x; v.z+=v.x*v.y; v^=v>>16u; v.x+=v.y*v.z; v.y+=v.z*v.x; v.z+=v.x*v.y; return v; }
+vec3 rnd3(vec3 c){ return vec3(pcg3d(uvec3(ivec3(c)+ivec3(1048576))))*(1.0/4294967295.0); }
+float rnd1(vec3 c){ return rnd3(c).x; }
+float gnoise(vec3 p){
+  vec3 i=floor(p), f=p-i; vec3 u=f*f*f*(f*(f*6.0-15.0)+10.0);
+  float a=dot(rnd3(i)*2.0-1.0, f);
+  float b=dot(rnd3(i+vec3(1,0,0))*2.0-1.0, f-vec3(1,0,0));
+  float c=dot(rnd3(i+vec3(0,1,0))*2.0-1.0, f-vec3(0,1,0));
+  float d=dot(rnd3(i+vec3(1,1,0))*2.0-1.0, f-vec3(1,1,0));
+  float e=dot(rnd3(i+vec3(0,0,1))*2.0-1.0, f-vec3(0,0,1));
+  float g=dot(rnd3(i+vec3(1,0,1))*2.0-1.0, f-vec3(1,0,1));
+  float h=dot(rnd3(i+vec3(0,1,1))*2.0-1.0, f-vec3(0,1,1));
+  float k=dot(rnd3(i+vec3(1,1,1))*2.0-1.0, f-vec3(1,1,1));
+  return mix(mix(mix(a,b,u.x),mix(c,d,u.x),u.y),mix(mix(e,g,u.x),mix(h,k,u.x),u.y),u.z)*1.7;
+}
+float fbm(vec3 p, int o){ float s=0.0,a=0.5,n=0.0; for(int i=0;i<8;i++){ if(i>=o)break; s+=a*gnoise(p); n+=a; p=p*2.03+vec3(11.7,3.1,7.9); a*=0.5; } return s/n; }
+float n01(vec3 p,int o){ return clamp(fbm(p,o)*0.5+0.5,0.0,1.0); }
+vec2 worley(vec3 p){ vec3 i=floor(p), f=p-i; float d1=8.0,d2=8.0;
+  for(int z=-1;z<=1;z++)for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){ vec3 g=vec3(x,y,z); vec3 o=rnd3(i+g); float d=length(g+o-f); if(d<d1){d2=d1;d1=d;}else if(d<d2)d2=d; }
+  return vec2(d1,d2); }
+`;
+
+/* Prozedurale Materialien (Füll-Ebenen, Pinsel-Material, Vorschau) */
+const G_PATTERN = `
+uniform int uPat; uniform vec3 uColA, uColB; uniform float uRoughA,uRoughB,uMetalA,uMetalB,uHAmt,uScale,uVar,uSeed;
+struct Mat { vec3 col; float rough; float metal; float h; };
+vec2 pat2(int id, vec2 q){
+  if(id==6){ vec2 g=q*16.0; vec2 c=floor(g); vec2 f=fract(g);
+    bool over = mod(c.x+c.y,2.0)<1.0;
+    float a = over ? sin(f.x*3.14159) : sin(f.y*3.14159);
+    float th = over ? 0.5+0.5*sin(f.y*6.2832*3.0) : 0.5+0.5*sin(f.x*6.2832*3.0);
+    return vec2(clamp(0.25+0.6*a*mix(1.0,th,0.5),0.0,1.0), a-0.5); }
+  if(id==7){ vec2 g=q*vec2(2.0,4.0); float row=floor(g.y); g.x+=mod(row,2.0)*0.5; vec2 c=floor(g); vec2 f=fract(g);
+    float d=min(min(f.x,1.0-f.x)*0.5, min(f.y,1.0-f.y)*0.25);
+    float grout=1.0-smoothstep(0.01,0.018,d);
+    float r=rnd1(vec3(c,7.0));
+    float t=max(grout, r*0.45*(0.3+uVar));
+    return vec2(t, grout>0.5 ? -1.0 : smoothstep(0.012,0.05,d)*0.6-0.2+r*0.1); }
+  if(id==8){ vec2 g=q*12.0; vec2 c=floor(g*0.5); vec2 f=fract(g*0.5);
+    bool dir = mod(c.x+c.y,2.0)<1.0;
+    float x = dir ? f.y : f.x; float along = dir ? f.x : f.y;
+    float sh = sin(x*3.14159); float fib = 0.5+0.5*sin(along*6.2832*6.0+x);
+    return vec2(clamp(sh*0.8+fib*0.15,0.0,1.0), sh*0.6-0.3); }
+  return vec2(0.0);
+}
+Mat pattern(vec3 p, vec3 n){
+  vec3 q = p*uScale + uSeed*vec3(17.3,9.1,4.7);
+  float t=0.0, h=0.0;
+  if(uPat==0){ h=1.0; }
+  else if(uPat==1){ float f=fbm(q*2.0,5); t=clamp(0.5+f*(0.6+uVar*3.0),0.0,1.0); h=f; }
+  else if(uPat==2){ vec3 w=q*vec3(1.0,0.25,1.0); float r=length(w.xz)+fbm(q*vec3(1.2,0.25,1.2),4)*0.45;
+    float ring=fract(r*3.0); float grain=n01(q*vec3(30.0,1.2,30.0),3);
+    t=clamp(smoothstep(0.05,0.95,ring)*0.7+grain*0.3*(0.5+uVar),0.0,1.0); h=-t*0.6+grain*0.2; }
+  else if(uPat==3){ float f=fbm(vec3(q.x*0.6,q.y*70.0,q.z*70.0),4)+fbm(vec3(q.x*70.0,q.y*70.0,q.z*0.6),3)*0.5;
+    t=clamp(0.5+f*(0.5+uVar*1.5),0.0,1.0); h=f*0.3; }
+  else if(uPat==4){ float big=fbm(q*1.5,5); float fine=fbm(q*12.0,4); float pits=worley(q*6.0).x;
+    t=clamp(0.5+fine*1.1+big*0.8*uVar,0.0,1.0); h=fine*0.6-(1.0-smoothstep(0.0,0.35,pits))*0.6+big*0.3; }
+  else if(uPat==5){ vec2 w=worley(q*6.0); float cell=w.y-w.x; h=smoothstep(0.0,0.25,cell)-0.5;
+    t=clamp(1.0-smoothstep(0.0,0.2,cell)+fbm(q*20.0,3)*0.25*(0.5+uVar),0.0,1.0); }
+  else if(uPat>=6 && uPat<=8){ vec3 wt=pow(abs(n),vec3(4.0)); wt/=(wt.x+wt.y+wt.z);
+    vec2 a=pat2(uPat,q.zy)*wt.x+pat2(uPat,q.xz)*wt.y+pat2(uPat,q.xy)*wt.z; t=a.x; h=a.y; }
+  else if(uPat==9){ float f=fbm(q*1.5,6); float pores=1.0-smoothstep(0.02,0.08,worley(q*14.0).x);
+    t=clamp(0.5+f*(0.7+uVar*2.0),0.0,1.0); h=f*0.7-pores*0.7; }
+  else if(uPat==10){ float ang=atan(p.z,p.x); float wob=fbm(q*vec3(2.0,0.7,2.0),4);
+    float s=sin(ang*max(1.0,floor(uScale*6.0+0.5))+wob*2.5);
+    float e=0.15+uVar*0.35; t=smoothstep(-e,e,s); t=clamp(t+fbm(q*9.0,3)*0.2,0.0,1.0); h=fbm(q*6.0,3)*0.3; }
+  else if(uPat==11){ float sp=n01(q*90.0,2); t=smoothstep(0.62-uVar*0.15,0.8,sp)+fbm(q*3.0,3)*0.1; t=clamp(t,0.0,1.0); h=0.0; }
+  Mat m; m.col=mix(uColA,uColB,t); m.rough=mix(uRoughA,uRoughB,t); m.metal=mix(uMetalA,uMetalB,t); m.h=h*uHAmt; return m;
+}
+`;
+
+/* Masken-Generatoren */
+const G_GEN = `
+uniform int uGen; uniform float uGLevel,uGWidth,uGRough,uGSoft,uGScale,uGSeed; uniform bool uGInv;
+float genMask(vec3 p, vec3 n, vec4 bk){
+  vec3 q = p*uGScale + uGSeed*vec3(7.1,3.3,5.9);
+  float nz = n01(q*3.0,5);
+  float v=0.0; float w=max(uGWidth,1e-4);
+  if(uGen==1){ float e=1.0-clamp(bk.r/w,0.0,1.0); float c=smoothstep(0.5,1.5,bk.b*w*2.5); v=max(e,c); }
+  else if(uGen==2){ float e=1.0-clamp(bk.g/w,0.0,1.0); float c=smoothstep(0.5,1.5,-bk.b*w*2.5); float ao=clamp((1.0-bk.a)*2.2,0.0,1.0); v=max(max(e,c),ao); }
+  else if(uGen==3){ v=clamp((1.0-bk.a)*1.6,0.0,1.0); }
+  else if(uGen==4){ v=nz; }
+  else if(uGen==5){ v=clamp(n.y*0.8+0.2,0.0,1.0)*mix(0.75,1.0,p.y*0.5+0.5); }
+  else if(uGen==6){ v=clamp(1.0-(p.y*0.5+0.5),0.0,1.0); }
+  else if(uGen==7){ float s1=abs(gnoise(vec3(q.x*1.5,q.y*24.0,q.z*1.5)));
+    float s2=abs(gnoise(vec3(q.x*24.0+5.0,q.y*1.5,q.z*24.0)+3.0));
+    float s3=abs(gnoise(vec3(q.x*1.5+9.0,q.y*1.5,q.z*24.0)));
+    float l=max(max(1.0-smoothstep(0.0,0.06,s1),1.0-smoothstep(0.0,0.06,s2)),1.0-smoothstep(0.0,0.06,s3));
+    v=l*smoothstep(0.35,0.6,n01(q*0.8,3)); }
+  else if(uGen==8){ v=1.0-smoothstep(0.0,0.9,worley(q*2.0).x)+(nz-0.5)*0.4; }
+  if(uGen!=4 && uGen!=7) v += (nz-0.5)*uGRough*1.6;
+  float t=1.0-uGLevel; float s=max(uGSoft,0.002);
+  float m=smoothstep(t-s,t+s,v);
+  if(uGInv) m=1.0-m;
+  return m;
+}
+`;
+
+const G_ENV = `
+uniform vec3 uSkyTop,uSkyHor,uGround,uL1Dir,uL1Col,uL2Dir,uL2Col; uniform float uEnvRot, uExposure;
+vec3 env(vec3 d, float r){
+  float cs=cos(uEnvRot), sn=sin(uEnvRot); d=vec3(cs*d.x-sn*d.z, d.y, sn*d.x+cs*d.z);
+  float k=mix(0.03,0.9,r);
+  vec3 sky=mix(uSkyHor,uSkyTop,smoothstep(0.0,0.8,d.y));
+  vec3 gnd=mix(uSkyHor*0.55,uGround,smoothstep(0.0,0.5,-d.y));
+  vec3 c=mix(gnd,sky,smoothstep(-k,k,d.y));
+  float e=mix(900.0,2.0,pow(r,0.6)); float g=min((e+1.0)/16.0,30.0);
+  c+=uL1Col*pow(max(dot(d,uL1Dir),0.0),e)*g + uL2Col*pow(max(dot(d,uL2Dir),0.0),e)*g;
+  return c;
+}
+vec2 envBRDF(float NoV, float r){ const vec4 c0=vec4(-1.0,-0.0275,-0.572,0.022); const vec4 c1=vec4(1.0,0.0425,1.04,-0.04);
+  vec4 rr=r*c0+c1; float a=min(rr.x*rr.x,exp2(-9.28*NoV))*rr.x+rr.y; return vec2(-1.04,1.04)*a+rr.zw; }
+vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
+vec3 shadePBR(vec3 baseS, float rough, float metal, float ao, vec3 N, vec3 V){
+  vec3 base=pow(baseS,vec3(2.2)); rough=clamp(rough,0.03,1.0); metal=clamp(metal,0.0,1.0);
+  float NoV=clamp(dot(N,V),1e-4,1.0);
+  vec3 F0=mix(vec3(0.04),base,metal); vec2 ab=envBRDF(NoV,rough);
+  vec3 spec=env(reflect(-V,N),rough)*(F0*ab.x+ab.y);
+  vec3 diff=env(N,1.0)*base*(1.0-metal)*0.9;
+  vec3 lit=(diff*ao+spec*mix(1.0,ao,0.6))*uExposure;
+  return pow(aces(lit),vec3(1.0/2.2));
+}
+`;
+
+/* ---------- Vertex-Shader ---------- */
+const VS_FULL = G_HEAD + `
+out vec2 vUV;
+void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); vUV=p; gl_Position=vec4(p*2.0-1.0,0.0,1.0); }`;
+
+const VS_UV = G_HEAD + `
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm; layout(location=2) in vec2 aUV;
+layout(location=3) in vec3 aBary; layout(location=4) in vec3 aAlt; layout(location=5) in vec3 aCvx; layout(location=6) in vec3 aCcv; layout(location=7) in float aCurv;
+out vec3 vP; out vec3 vN; out vec2 vUV; out vec3 vBary; out vec3 vAlt; out vec3 vCvx; out vec3 vCcv; out float vCurv;
+void main(){ vP=aPos; vN=aNrm; vUV=aUV; vBary=aBary; vAlt=aAlt; vCvx=aCvx; vCcv=aCcv; vCurv=aCurv; gl_Position=vec4(aUV*2.0-1.0,0.0,1.0); }`;
+
+const VS_VIEW = G_HEAD + `
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm; layout(location=2) in vec2 aUV; layout(location=3) in vec3 aBary;
+uniform mat4 uVP;
+out vec3 vP; out vec3 vN; out vec2 vUV; out vec3 vBary; flat out float vTri;
+void main(){ vP=aPos; vN=aNrm; vUV=aUV; vBary=aBary; vTri=float(gl_VertexID/3); gl_Position=uVP*vec4(aPos,1.0); }`;
+
+const VS_WIRE2D = G_HEAD + `
+layout(location=2) in vec2 aUV; layout(location=3) in vec3 aBary;
+uniform float uZoom; uniform vec2 uPan; uniform vec2 uSize;
+out vec3 vBary;
+void main(){ vBary=aBary; vec2 px=aUV*uZoom+uPan; gl_Position=vec4(px/uSize*2.0-1.0,0.0,1.0); }`;
+
+/* ---------- Fragment-Shader ---------- */
+const FS_AODEPTH = G_HEAD + `
+in vec3 vP; uniform mat4 uVP; out vec4 o;
+void main(){ vec4 c=uVP*vec4(vP,1.0); o=vec4(c.z/c.w*0.5+0.5,0.0,0.0,1.0); }`;
+
+const FS_AOACC = G_HEAD + `
+in vec3 vP; in vec3 vN; uniform sampler2D uDepth; uniform mat4 uVP; uniform vec3 uDir; out vec4 o;
+void main(){ vec3 n=normalize(vN); float w=dot(n,uDir); if(w<=0.0){ o=vec4(0.0); return; }
+  vec3 p=vP+n*0.006; vec4 c=uVP*vec4(p,1.0); vec2 t=c.xy/c.w*0.5+0.5; float z=c.z/c.w*0.5+0.5;
+  float vis=0.0; vec2 ts=1.0/vec2(textureSize(uDepth,0));
+  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){ vis += z <= texture(uDepth,t+vec2(x,y)*ts).r+0.0025 ? 1.0 : 0.0; }
+  o=vec4(vis/9.0*w, w, 0.0, 0.0); }`;
+
+const FS_GEOBAKE = G_HEAD + `
+in vec3 vP; in vec3 vN; in vec2 vUV; in vec3 vBary; in vec3 vAlt; in vec3 vCvx; in vec3 vCcv; in float vCurv;
+uniform sampler2D uAO;
+layout(location=0) out vec4 oPos; layout(location=1) out vec4 oNrm; layout(location=2) out vec4 oBake;
+void main(){
+  oPos=vec4(vP,1.0); oNrm=vec4(normalize(vN),1.0);
+  vec3 d=vBary*vAlt; float cvx=1000.0, ccv=1000.0;
+  for(int i=0;i<3;i++){ if(vCvx[i]>0.01) cvx=min(cvx,d[i]/vCvx[i]); if(vCcv[i]>0.01) ccv=min(ccv,d[i]/vCcv[i]); }
+  vec4 a=texelFetch(uAO,ivec2(gl_FragCoord.xy),0);
+  float ao=a.y>1e-4 ? a.x/a.y : 1.0;
+  oBake=vec4(cvx,ccv,vCurv,ao);
+}`;
+
+const FS_JFAINIT = G_HEAD + `
+uniform sampler2D uPos; out vec4 o;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); o = texelFetch(uPos,ip,0).a>0.5 ? vec4(gl_FragCoord.xy,1.0,1.0) : vec4(-1e5,-1e5,0.0,0.0); }`;
+
+const FS_JFA = G_HEAD + `
+uniform sampler2D uSrc; uniform float uStep; out vec4 o;
+void main(){ vec2 fc=gl_FragCoord.xy; ivec2 sz=textureSize(uSrc,0); vec4 best=vec4(0.0); float bd=1e20;
+  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){ ivec2 q=ivec2(fc+vec2(x,y)*uStep);
+    if(q.x<0||q.y<0||q.x>=sz.x||q.y>=sz.y) continue;
+    vec4 s=texelFetch(uSrc,q,0); if(s.z>0.5){ float d=distance(s.xy,fc); if(d<bd){bd=d;best=s;} } }
+  o=best; }`;
+
+const FS_FILL = G_HEAD + G_NOISE + G_PATTERN + `
+uniform sampler2D uPos,uNrm;
+layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
+  if(pp.a<0.5){ oC=vec4(0.0); oM=vec4(0.0); return; }
+  Mat m=pattern(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz)); oC=vec4(m.col,1.0); oM=vec4(m.rough,m.metal,m.h,1.0); }`;
+
+const FS_GENC = G_HEAD + G_NOISE + G_GEN + `
+uniform sampler2D uPos,uNrm,uBake; out vec4 o;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
+  if(pp.a<0.5){ o=vec4(0.0); return; }
+  o=vec4(genMask(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz),texelFetch(uBake,ip,0))); }`;
+
+const FS_COMPOSITE = G_HEAD + `
+uniform sampler2D uAccC,uAccM,uSrcC,uSrcM,uMaskP,uMaskG;
+uniform bool uHasMP,uHasMG; uniform float uOpacity; uniform int uBlend,uHBlend; uniform vec4 uCh;
+layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+vec3 blendC(int m, vec3 a, vec3 b){
+  if(m==1) return a*b;
+  if(m==2) return 1.0-(1.0-a)*(1.0-b);
+  if(m==3) return mix(2.0*a*b, 1.0-2.0*(1.0-a)*(1.0-b), step(0.5,a));
+  if(m==4) return min(a+b,vec3(1.0));
+  if(m==5) return max(a-b,vec3(0.0));
+  if(m==6) return min(a,b);
+  if(m==7) return max(a,b);
+  if(m==8) return mix(2.0*a*b+a*a*(1.0-2.0*b), sqrt(a)*(2.0*b-1.0)+2.0*a*(1.0-b), step(0.5,b));
+  return b; }
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy);
+  vec4 ac=texelFetch(uAccC,ip,0), am=texelFetch(uAccM,ip,0);
+  vec4 sc=texelFetch(uSrcC,ip,0), sm=texelFetch(uSrcM,ip,0);
+  float a=sc.a; vec3 col=sc.rgb/max(a,1e-5); vec3 mat=sm.rgb/max(sm.a,1e-5);
+  float mk=1.0; if(uHasMP) mk*=texelFetch(uMaskP,ip,0).r; if(uHasMG) mk*=texelFetch(uMaskG,ip,0).r;
+  a=clamp(a*mk*uOpacity,0.0,1.0);
+  vec3 bc=clamp(blendC(uBlend,ac.rgb,clamp(col,0.0,1.0)),0.0,1.0);
+  oC=vec4(mix(ac.rgb,bc,a*uCh.x),1.0);
+  float r=mix(am.r,mat.r,a*uCh.y), me=mix(am.g,mat.g,a*uCh.z);
+  float h = uHBlend==1 ? am.b+mat.b*a*uCh.w : mix(am.b,mat.b,a*uCh.w);
+  oM=vec4(r,me,h,1.0); }`;
+
+const FS_FINAL = G_HEAD + `
+uniform sampler2D uAccC,uAccM,uIsl,uBake; uniform float uHS;
+layout(location=0) out vec4 oC; layout(location=1) out vec4 oM; layout(location=2) out vec4 oN;
+ivec2 SZ;
+ivec2 nearT(ivec2 p){ p=clamp(p,ivec2(0),SZ-1); vec4 s=texelFetch(uIsl,p,0); return s.z>0.5 ? ivec2(s.xy) : p; }
+float H(ivec2 p){ return texelFetch(uAccM,nearT(p),0).b; }
+void main(){ SZ=textureSize(uAccC,0); ivec2 ip=ivec2(gl_FragCoord.xy); ivec2 q=nearT(ip);
+  vec4 c=texelFetch(uAccC,q,0), m=texelFetch(uAccM,q,0); float ao=texelFetch(uBake,q,0).a;
+  float dx=H(q-ivec2(1,0))-H(q+ivec2(1,0)), dy=H(q-ivec2(0,1))-H(q+ivec2(0,1));
+  vec3 n=normalize(vec3(dx*uHS,dy*uHS,1.0));
+  oC=vec4(clamp(c.rgb,0.0,1.0),1.0);
+  oM=vec4(clamp(m.r,0.0,1.0),clamp(m.g,0.0,1.0),clamp(m.b*0.5+0.5,0.0,1.0),clamp(ao,0.0,1.0));
+  oN=vec4(n*0.5+0.5,1.0); }`;
+
+const FS_COPY = G_HEAD + `in vec2 vUV; uniform sampler2D uSrc; out vec4 o; void main(){ o=texture(uSrc,vUV); }`;
+
+const FS_STAMP = G_HEAD + G_NOISE + `
+in vec3 vP; in vec3 vN; in vec2 vUV;
+uniform int uMode; uniform mat4 uVP; uniform vec2 uView; uniform vec3 uEye; uniform sampler2D uGPos; uniform float uTol; uniform bool uThrough;
+uniform vec3 uMir; uniform bool uMirOn;
+uniform int uN; uniform vec4 uSt[64]; uniform vec2 uSt2[64];
+uniform int uShape; uniform float uHard; uniform float uZoom; uniform vec2 uPan;
+out vec4 o;
+float shape(vec2 l, float seed){
+  float r=length(l); float h=clamp(uHard,0.0,0.97);
+  if(uShape==1){ float q=max(abs(l.x),abs(l.y)); return 1.0-smoothstep(h,1.0,q); }
+  if(r>=1.0) return 0.0;
+  float base=1.0-smoothstep(h,1.0,r);
+  if(uShape==2) return base*smoothstep(0.38,0.62,n01(vec3(l*2.5,seed*31.0),4));
+  if(uShape==3){ vec2 w=worley(vec3(l*4.5,seed*17.0)); float dots=1.0-smoothstep(0.12,0.2,w.x);
+    return max(dots*(1.0-smoothstep(0.4,1.0,r)), 1.0-smoothstep(0.22,0.34,r)); }
+  if(uShape==4){ float s=abs(gnoise(vec3(l.x*1.2,l.y*14.0,seed*13.0))); return base*(1.0-smoothstep(0.03,0.1,s)); }
+  if(uShape==5){ return 1.0-smoothstep(0.03,0.08+(1.0-h)*0.2,abs(r-0.78)); }
+  return base; }
+float stampsAt(vec2 px){ float keep=1.0;
+  for(int i=0;i<64;i++){ if(i>=uN) break; vec4 s=uSt[i]; vec2 d=(px-s.xy)/s.z; if(dot(d,d)>2.05) continue;
+    float c=cos(s.w), sn=sin(s.w); d=vec2(c*d.x+sn*d.y,-sn*d.x+c*d.y);
+    keep*=1.0-clamp(shape(d,uSt2[i].y)*uSt2[i].x,0.0,1.0); }
+  return 1.0-keep; }
+float vis3(vec3 p, vec3 n, out vec2 px){ px=vec2(-1e4);
+  vec4 c=uVP*vec4(p,1.0); if(c.w<=0.0) return 0.0; vec2 ndc=c.xy/c.w; if(abs(ndc.x)>1.05||abs(ndc.y)>1.05) return 0.0;
+  px=(ndc*0.5+0.5)*uView; if(uThrough) return 1.0;
+  float f=dot(normalize(n),normalize(uEye-p)); float facing=smoothstep(0.0,0.2,f); if(facing<=0.0) return 0.0;
+  vec4 g=texelFetch(uGPos,clamp(ivec2(px),ivec2(0),ivec2(uView)-1),0); if(g.a<0.5) return 0.0;
+  return distance(p,uEye)-distance(g.xyz,uEye) < uTol ? facing : 0.0; }
+void main(){ float a=0.0;
+  if(uMode==1){ a=stampsAt(vUV*uZoom+uPan); }
+  else { vec2 px; float v=vis3(vP,vN,px); if(v>0.0) a=stampsAt(px)*v;
+    if(uMirOn){ vec2 px2; float v2=vis3(vP*uMir,vN*uMir,px2); if(v2>0.0) a=max(a,stampsAt(px2)*v2); } }
+  if(a<=0.0) discard;
+  o=vec4(a); }`;
+
+const FS_ONE = G_HEAD + `out vec4 o; void main(){ o=vec4(1.0); }`;
+
+const FS_APPLY = G_HEAD + G_NOISE + G_PATTERN + `
+uniform sampler2D uBC,uBM,uStroke,uPos,uNrm; uniform float uOpac; uniform int uOp; uniform vec3 uCol; uniform vec3 uMat; uniform bool uUsePat;
+layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 bc=texelFetch(uBC,ip,0), bm=texelFetch(uBM,ip,0);
+  float a=clamp(texelFetch(uStroke,ip,0).r*uOpac,0.0,1.0);
+  if(uOp==1){ oC=bc*(1.0-a); oM=bm*(1.0-a); return; }
+  vec3 col=uCol; vec3 mat=uMat;
+  if(uUsePat && a>0.0){ vec4 pp=texelFetch(uPos,ip,0); Mat m=pattern(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz)); col=m.col; mat=vec3(m.rough,m.metal,m.h); }
+  oC=vec4(col*a,a)+bc*(1.0-a); oM=vec4(mat*a,a)+bm*(1.0-a); }`;
+
+const FS_APPLYMASK = G_HEAD + `
+uniform sampler2D uB,uStroke; uniform float uOpac,uVal; out vec4 o;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); float b=texelFetch(uB,ip,0).r; float a=clamp(texelFetch(uStroke,ip,0).r*uOpac,0.0,1.0); o=vec4(mix(b,uVal,a)); }`;
+
+const FS_GBUF = G_HEAD + `
+in vec3 vP; in vec2 vUV; flat in float vTri;
+layout(location=0) out vec4 o0; layout(location=1) out vec4 o1;
+void main(){ o0=vec4(vP,1.0); o1=vec4(vUV,vTri,1.0); }`;
+
+const G_CHAN = `
+uniform int uChan; uniform sampler2D uC,uM,uN,uBake,uMaskP,uMaskG; uniform bool uHasMP,uHasMG;
+vec3 heat(float t){ return clamp(vec3(1.5*t, 1.5*t-0.5, 3.0*t-2.0)+vec3(0.05,0.05,0.25)*(1.0-t),0.0,1.0); }
+vec3 chanColor(vec2 uv){
+  if(uChan==1) return texture(uC,uv).rgb;
+  if(uChan==2) return vec3(texture(uM,uv).r);
+  if(uChan==3) return vec3(texture(uM,uv).g);
+  if(uChan==4) return vec3(texture(uM,uv).b);
+  if(uChan==5) return texture(uN,uv).rgb;
+  if(uChan==6) return vec3(texture(uM,uv).a);
+  if(uChan==7){ vec4 b=texture(uBake,uv); float e=1.0-clamp(b.r/0.04,0.0,1.0); float c=1.0-clamp(b.g/0.04,0.0,1.0);
+    return vec3(0.12)+vec3(1.0,0.45,0.3)*max(e,clamp(b.b*0.05,0.0,1.0))+vec3(0.3,0.5,1.0)*max(c,clamp(-b.b*0.05,0.0,1.0)); }
+  if(uChan==8){ float m=1.0; if(uHasMP) m*=texture(uMaskP,uv).r; if(uHasMG) m*=texture(uMaskG,uv).r; return vec3(m); }
+  if(uChan==9){ vec2 g=floor(uv*16.0); float c=mod(g.x+g.y,2.0); return mix(vec3(0.85,0.3,0.36),vec3(0.95),c)*(0.75+0.25*vec3(uv,1.0)); }
+  return texture(uC,uv).rgb; }
+`;
+
+const FS_VIEW = G_HEAD + G_ENV + G_CHAN + `
+in vec3 vP; in vec3 vN; in vec2 vUV; in vec3 vBary;
+uniform vec3 uEye; uniform bool uWire; uniform float uAOStr;
+out vec4 o;
+void main(){
+  vec3 V=normalize(uEye-vP); vec3 N0=normalize(vN); if(dot(N0,V)<0.0) N0=-N0;
+  vec3 dp1=dFdx(vP), dp2=dFdy(vP); vec2 du1=dFdx(vUV), du2=dFdy(vUV);
+  vec3 dp2p=cross(dp2,N0), dp1p=cross(N0,dp1);
+  vec3 T=dp2p*du1.x+dp1p*du2.x, B=dp2p*du1.y+dp1p*du2.y;
+  float mx=max(dot(T,T),dot(B,B)); vec3 N=N0;
+  if(mx>1e-20){ float im=inversesqrt(mx); vec3 tn=texture(uN,vUV).xyz*2.0-1.0; N=normalize(mat3(T*im,B*im,N0)*tn); if(dot(N,V)<0.0) N=normalize(N-V*dot(N,V)*1.01); }
+  vec3 col;
+  if(uChan==0){ vec4 c=texture(uC,vUV), m=texture(uM,vUV); col=shadePBR(c.rgb,m.r,m.g,mix(1.0,m.a,uAOStr),N,V); }
+  else if(uChan==5 && false){ col=N*0.5+0.5; }
+  else { col=chanColor(vUV); if(uChan==1||uChan==9){ col=col*(0.55+0.45*max(dot(N,normalize(V+vec3(0.3,0.5,0.2))),0.0)); } }
+  if(uWire){ vec3 d=fwidth(vBary); vec3 a3=smoothstep(vec3(0.0),d*1.3,vBary); float w=1.0-min(min(a3.x,a3.y),a3.z); col=mix(col,vec3(1.0,0.4,0.48),w*0.55); }
+  o=vec4(col,1.0); }`;
+
+const FS_BG = G_HEAD + G_ENV + `
+in vec2 vUV; uniform mat4 uInvVP; uniform vec3 uEye; uniform int uBgMode; out vec4 o;
+void main(){ vec4 w=uInvVP*vec4(vUV*2.0-1.0,1.0,1.0); vec3 d=normalize(w.xyz/w.w-uEye);
+  vec3 c;
+  if(uBgMode==1){ c=env(d,0.8)*0.45*uExposure; c=pow(aces(c),vec3(1.0/2.2)); }
+  else { float v=length(vUV-0.5); c=mix(vec3(0.16,0.165,0.18),vec3(0.085,0.088,0.1),smoothstep(0.1,0.8,v)); }
+  o=vec4(c,1.0); }`;
+
+const FS_VIEW2D = G_HEAD + G_CHAN + `
+uniform vec2 uOrig; uniform float uZoom; uniform vec2 uPan; out vec4 o;
+void main(){ vec2 px=gl_FragCoord.xy-uOrig; vec2 uv=(px-uPan)/uZoom;
+  vec2 ck=floor(px/14.0); vec3 bg=vec3(mod(ck.x+ck.y,2.0)<1.0?0.13:0.16);
+  if(uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0){ o=vec4(vec3(0.1),1.0); return; }
+  vec3 col= uChan==0 ? texture(uC,uv).rgb : chanColor(uv);
+  o=vec4(col,1.0); }`;
+
+const FS_WIRE2D = G_HEAD + `
+in vec3 vBary; uniform float uAlpha; out vec4 o;
+void main(){ vec3 d=fwidth(vBary); vec3 a3=smoothstep(vec3(0.0),d*1.1,vBary); float w=1.0-min(min(a3.x,a3.y),a3.z);
+  if(w<0.02) discard; o=vec4(1.0,1.0,1.0,w*uAlpha); }`;
+
+const FS_EXPORT = G_HEAD + `
+in vec2 vUV; uniform sampler2D uC,uM,uN; uniform int uKind; uniform float uAOB; out vec4 o;
+void main(){ vec4 c=texture(uC,vUV), m=texture(uM,vUV); vec3 n=texture(uN,vUV).xyz;
+  float ao=mix(1.0,m.a,uAOB);
+  if(uKind==0) o=vec4(c.rgb*ao,1.0);
+  else if(uKind==1) o=vec4(vec3(m.r),1.0);
+  else if(uKind==2) o=vec4(vec3(m.g),1.0);
+  else if(uKind==3) o=vec4(vec3(m.b),1.0);
+  else if(uKind==4) o=vec4(vec3(m.a),1.0);
+  else if(uKind==5) o=vec4(n,1.0);
+  else if(uKind==6) o=vec4(n.x,1.0-n.y,n.z,1.0);
+  else if(uKind==7) o=vec4(m.a,m.r,m.g,1.0);
+  else if(uKind==8) o=vec4(m.g,m.g,m.g,1.0-m.r);
+  else if(uKind==9) o=vec4(vec3(clamp((1.0-m.r)*mix(0.55,1.0,m.g),0.0,1.0)),1.0);
+  else if(uKind==10) o=vec4(vec3(1.0-m.r),1.0);
+  else o=vec4(c.rgb,1.0); }`;
+
+/* Vorschau-Kugeln/Würfel für das Regal */
+const FS_PREVGEO = G_HEAD + `
+in vec2 vUV; uniform mat3 uRot;
+layout(location=0) out vec4 oPos; layout(location=1) out vec4 oNrm; layout(location=2) out vec4 oBake; layout(location=3) out vec4 oVN;
+float sdRB(vec3 p, vec3 b, float r){ vec3 q=abs(p)-b+r; return length(max(q,0.0))+min(max(q.x,max(q.y,q.z)),0.0)-r; }
+void main(){ vec2 uv=vUV*2.0-1.0; vec3 ro=uRot*vec3(uv*1.05,3.0); vec3 rd=uRot*vec3(0.0,0.0,-1.0);
+  const float H=0.6, R=0.1; float t=0.0; bool hit=false;
+  for(int i=0;i<80;i++){ float d=sdRB(ro+rd*t,vec3(H),R); if(d<1e-4){hit=true;break;} t+=d; if(t>6.0) break; }
+  if(!hit){ oPos=vec4(0.0); oNrm=vec4(0.0,1.0,0.0,0.0); oBake=vec4(1000.0,1000.0,0.0,1.0); oVN=vec4(0.0); return; }
+  vec3 p=ro+rd*t; vec2 e=vec2(1e-3,0.0);
+  vec3 n=normalize(vec3(sdRB(p+e.xyy,vec3(H),R)-sdRB(p-e.xyy,vec3(H),R), sdRB(p+e.yxy,vec3(H),R)-sdRB(p-e.yxy,vec3(H),R), sdRB(p+e.yyx,vec3(H),R)-sdRB(p-e.yyx,vec3(H),R)));
+  vec3 q=abs(p); float mx=max(q.x,max(q.y,q.z)), mn=min(q.x,min(q.y,q.z)); float mid=q.x+q.y+q.z-mx-mn;
+  float inner=H-R; float dist=max(0.0,inner-mid);
+  float ao=1.0-0.25*smoothstep(0.02,0.0,dist)*0.0;
+  oPos=vec4(p,1.0); oNrm=vec4(n,1.0); oBake=vec4(dist,1000.0,mid>inner?1.0/R:0.0,ao); oVN=vec4(transpose(uRot)*n,1.0); }`;
+
+const FS_PREVSHADE = G_HEAD + G_ENV + `
+uniform sampler2D uC,uM,uVN,uPos; uniform float uHS; out vec4 o;
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); ivec2 sz=textureSize(uC,0);
+  if(texelFetch(uPos,ip,0).a<0.5){ o=vec4(0.0); return; }
+  vec4 c=texelFetch(uC,ip,0), m=texelFetch(uM,ip,0);
+  float hl=texelFetch(uM,clamp(ip-ivec2(1,0),ivec2(0),sz-1),0).b, hr=texelFetch(uM,clamp(ip+ivec2(1,0),ivec2(0),sz-1),0).b;
+  float hd=texelFetch(uM,clamp(ip-ivec2(0,1),ivec2(0),sz-1),0).b, hu=texelFetch(uM,clamp(ip+ivec2(0,1),ivec2(0),sz-1),0).b;
+  vec3 N=normalize(texelFetch(uVN,ip,0).xyz+vec3(hl-hr,hd-hu,0.0)*uHS);
+  vec3 col=shadePBR(c.rgb,m.r,m.g,1.0,N,vec3(0.0,0.0,1.0));
+  o=vec4(col,1.0); }`;
+
+'use strict';
+/* ================= Modelle ================= */
+
+/* ---------- eingebaute Grundkörper ---------- */
+const PRIMS = {
+  rbox: { name: 'Würfel (abgerundet)', make: () => primBox(0.8, 0.12, 48) },
+  box: { name: 'Würfel (scharf)', make: () => primBox(0.8, 0, 12) },
+  sphere: { name: 'Kugel', make: () => primSphere(1, 1, 1, 128, 64) },
+  cyl: { name: 'Zylinder', make: () => primLathe([[0, -0.8], [0.6, -0.8], [0.6, 0.8], [0, 0.8]], 96, true) },
+  barrel: { name: 'Fass', make: () => primBarrel() },
+  torus: { name: 'Torus', make: () => primTorus(0.7, 0.28, 160, 64) },
+  melon: { name: 'Melone', make: () => primSphere(0.95, 1.2, 0.95, 128, 64) },
+  plane: { name: 'Ebene', make: () => primPlane(64) },
+};
+
+function primBox(H, R, n) {
+  const pos = [], nrm = [], uv = [], idx = [];
+  const faces = [
+    { N: [1, 0, 0], U: [0, 0, -1], V: [0, 1, 0] }, { N: [-1, 0, 0], U: [0, 0, 1], V: [0, 1, 0] },
+    { N: [0, 1, 0], U: [1, 0, 0], V: [0, 0, -1] }, { N: [0, -1, 0], U: [1, 0, 0], V: [0, 0, 1] },
+    { N: [0, 0, 1], U: [1, 0, 0], V: [0, 1, 0] }, { N: [0, 0, -1], U: [-1, 0, 0], V: [0, 1, 0] },
+  ];
+  const inner = H - R, pad = 0.012;
+  faces.forEach((F, fi) => {
+    const tx = fi % 3, ty = Math.floor(fi / 3), base = pos.length / 3;
+    for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+      const s = i / n * 2 - 1, t = j / n * 2 - 1;
+      const q = [0, 1, 2].map((k) => (F.N[k] + s * F.U[k] + t * F.V[k]) * H);
+      let p, nn;
+      if (R > 0) {
+        const c = q.map((v) => clamp(v, -inner, inner));
+        const d = V3.norm(V3.sub(q, c));
+        p = V3.add(c, V3.mul(d, R)); nn = d;
+      } else { p = q; nn = F.N; }
+      pos.push(...p); nrm.push(...nn);
+      uv.push((tx + pad + (1 - 2 * pad) * (i / n)) / 3, (ty + pad + (1 - 2 * pad) * (j / n)) / 2);
+    }
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const a = base + j * (n + 1) + i, b = a + 1, c = a + n + 2, d = a + n + 1;
+      idx.push(a, b, c, a, c, d);
+    }
+  });
+  return { pos: new Float32Array(pos), nrm: new Float32Array(nrm), uv: new Float32Array(uv), idx: new Uint32Array(idx) };
+}
+
+function primSphere(rx, ry, rz, seg, ring) {
+  const pos = [], nrm = [], uv = [], idx = [];
+  for (let i = 0; i <= ring; i++) {
+    const th = i / ring * Math.PI, y = -Math.cos(th), r = Math.sin(th);
+    for (let j = 0; j <= seg; j++) {
+      const ph = j / seg * Math.PI * 2, x = -Math.cos(ph) * r, z = Math.sin(ph) * r;
+      pos.push(x * rx, y * ry, z * rz);
+      nrm.push(...V3.norm([x / rx, y / ry, z / rz]));
+      uv.push(j / seg, i / ring);
+    }
+  }
+  for (let i = 0; i < ring; i++) for (let j = 0; j < seg; j++) {
+    const a = i * (seg + 1) + j, b = a + seg + 1;
+    if (i > 0) idx.push(a, a + 1, b);
+    if (i < ring - 1) idx.push(a + 1, b + 1, b);
+  }
+  return { pos: new Float32Array(pos), nrm: new Float32Array(nrm), uv: new Float32Array(uv), idx: new Uint32Array(idx) };
+}
+
+function primTorus(R, r, seg, side) {
+  const pos = [], nrm = [], uv = [], idx = [];
+  for (let i = 0; i <= seg; i++) {
+    const u = i / seg * Math.PI * 2, cu = Math.cos(u), su = Math.sin(u);
+    for (let j = 0; j <= side; j++) {
+      const v = j / side * Math.PI * 2, cv = Math.cos(v), sv = Math.sin(v);
+      pos.push((R + r * cv) * cu, r * sv, (R + r * cv) * su);
+      nrm.push(cv * cu, sv, cv * su);
+      uv.push(i / seg, j / side);
+    }
+  }
+  for (let i = 0; i < seg; i++) for (let j = 0; j < side; j++) {
+    const a = i * (side + 1) + j, b = a + side + 1;
+    idx.push(a, a + 1, b, a + 1, b + 1, b);
+  }
+  return { pos: new Float32Array(pos), nrm: new Float32Array(nrm), uv: new Float32Array(uv), idx: new Uint32Array(idx) };
+}
+
+function primPlane(n) {
+  const pos = [], nrm = [], uv = [], idx = [];
+  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+    pos.push(i / n * 2 - 1, 0, 1 - j / n * 2); nrm.push(0, 1, 0); uv.push(i / n, j / n);
+  }
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const a = j * (n + 1) + i; idx.push(a, a + 1, a + n + 2, a, a + n + 2, a + n + 1);
+  }
+  return { pos: new Float32Array(pos), nrm: new Float32Array(nrm), uv: new Float32Array(uv), idx: new Uint32Array(idx) };
+}
+
+/* Rotationskörper aus Profil [r,y]; Mantel oben im UV-Bild, Deckel unten */
+function primLathe(profile, seg, caps) {
+  const pos = [], nrm = [], uv = [], idx = [];
+  // Mantel: nur die Profilpunkte mit r>0 zwischen den Deckeln
+  const side = profile.filter((p) => p[0] > 0);
+  let total = 0; const acc = [0];
+  for (let k = 1; k < side.length; k++) { total += Math.hypot(side[k][0] - side[k - 1][0], side[k][1] - side[k - 1][1]); acc.push(total); }
+  const sideNorm = side.map((p, k) => {
+    const a = side[Math.max(0, k - 1)], b = side[Math.min(side.length - 1, k + 1)];
+    const t = [b[0] - a[0], b[1] - a[1]]; const l = Math.hypot(t[0], t[1]) || 1;
+    return [t[1] / l, -t[0] / l];
+  });
+  const base = 0;
+  for (let k = 0; k < side.length; k++) for (let j = 0; j <= seg; j++) {
+    const ph = j / seg * Math.PI * 2, c = Math.cos(ph), s = Math.sin(ph);
+    pos.push(side[k][0] * c, side[k][1], -side[k][0] * s);
+    nrm.push(sideNorm[k][0] * c, sideNorm[k][1], -sideNorm[k][0] * s);
+    uv.push(0.01 + 0.98 * j / seg, 0.36 + 0.63 * acc[k] / total);
+  }
+  for (let k = 0; k < side.length - 1; k++) for (let j = 0; j < seg; j++) {
+    const a = base + k * (seg + 1) + j, b = a + seg + 1;
+    idx.push(a, a + 1, b + 1, a, b + 1, b);
+  }
+  if (caps) {
+    [[side[0], -1, 0.25], [side[side.length - 1], 1, 0.75]].forEach(([p, dir, cx]) => {
+      const c0 = pos.length / 3;
+      pos.push(0, p[1], 0); nrm.push(0, dir, 0); uv.push(cx, 0.175);
+      for (let j = 0; j <= seg; j++) {
+        const ph = j / seg * Math.PI * 2, c = Math.cos(ph), s = Math.sin(ph);
+        pos.push(p[0] * c, p[1], -p[0] * s); nrm.push(0, dir, 0);
+        uv.push(cx + 0.165 * c, 0.175 + 0.165 * s * dir);
+      }
+      for (let j = 0; j < seg; j++) dir > 0 ? idx.push(c0, c0 + 1 + j, c0 + 2 + j) : idx.push(c0, c0 + 2 + j, c0 + 1 + j);
+    });
+  }
+  return { pos: new Float32Array(pos), nrm: new Float32Array(nrm), uv: new Float32Array(uv), idx: new Uint32Array(idx) };
+}
+function primBarrel() {
+  const prof = [];
+  for (let k = 0; k <= 32; k++) { const y = -0.85 + 1.7 * k / 32; prof.push([0.5 + 0.1 * Math.cos(y / 0.85 * Math.PI / 2), y]); }
+  return primLathe(prof, 96, true);
+}
+
+/* ---------- Dateien laden ---------- */
+function parseOBJ(text) {
+  const v = [], vt = [], vn = [];
+  const pos = [], nrm = [], uv = [], idx = [];
+  const map = new Map();
+  let hasT = true, hasN = true, faces = 0;
+  const lines = text.split(/\r?\n/);
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const c0 = line.charCodeAt(0);
+    if (c0 !== 118 && c0 !== 102) continue; // v / f
+    const parts = line.trim().split(/\s+/);
+    const tag = parts[0];
+    if (tag === 'v') v.push(+parts[1], +parts[2], +parts[3]);
+    else if (tag === 'vt') vt.push(+parts[1], +parts[2]);
+    else if (tag === 'vn') vn.push(+parts[1], +parts[2], +parts[3]);
+    else if (tag === 'f') {
+      const ids = [];
+      for (let k = 1; k < parts.length; k++) {
+        const tok = parts[k]; if (!tok) continue;
+        let id = map.get(tok);
+        if (id === undefined) {
+          const s = tok.split('/');
+          let a = parseInt(s[0], 10); a = a < 0 ? v.length / 3 + a : a - 1;
+          let b = s[1] ? parseInt(s[1], 10) : NaN; let c = s[2] ? parseInt(s[2], 10) : NaN;
+          if (isNaN(b)) hasT = false; else b = b < 0 ? vt.length / 2 + b : b - 1;
+          if (isNaN(c)) hasN = false; else c = c < 0 ? vn.length / 3 + c : c - 1;
+          id = pos.length / 3;
+          pos.push(v[a * 3], v[a * 3 + 1], v[a * 3 + 2]);
+          uv.push(isNaN(b) ? 0 : vt[b * 2], isNaN(b) ? 0 : vt[b * 2 + 1]);
+          nrm.push(isNaN(c) ? 0 : vn[c * 3], isNaN(c) ? 0 : vn[c * 3 + 1], isNaN(c) ? 1 : vn[c * 3 + 2]);
+          map.set(tok, id);
+        }
+        ids.push(id);
+      }
+      for (let k = 1; k + 1 < ids.length; k++) idx.push(ids[0], ids[k], ids[k + 1]);
+      faces++;
+    }
+  }
+  if (!faces) throw new Error('In der OBJ-Datei wurden keine Flächen gefunden.');
+  return { pos: new Float32Array(pos), nrm: hasN && vn.length ? new Float32Array(nrm) : null, uv: hasT && vt.length ? new Float32Array(uv) : null, idx: new Uint32Array(idx) };
+}
+
+function parseGLB(buf) {
+  const dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== 0x46546C67) {
+    const json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf)));
+    return parseGLTF(json, null);
+  }
+  let off = 12, json = null, bin = null;
+  while (off < buf.byteLength) {
+    const len = dv.getUint32(off, true), type = dv.getUint32(off + 4, true);
+    const chunk = new Uint8Array(buf, off + 8, len);
+    if (type === 0x4E4F534A) json = JSON.parse(new TextDecoder().decode(chunk));
+    else if (type === 0x004E4942) bin = chunk;
+    off += 8 + len;
+  }
+  return parseGLTF(json, bin);
+}
+function parseGLTF(json, bin) {
+  if ((json.extensionsUsed || []).includes('KHR_draco_mesh_compression')) throw new Error('Diese GLB ist mit „Draco“ komprimiert. Exportiere sie in Blender ohne Komprimierung.');
+  const buffers = (json.buffers || []).map((b, i) => {
+    if (b.uri && b.uri.startsWith('data:')) { const raw = atob(b.uri.split(',')[1]); const u = new Uint8Array(raw.length); for (let k = 0; k < raw.length; k++) u[k] = raw.charCodeAt(k); return u; }
+    if (i === 0 && bin) return bin;
+    throw new Error('Externe .bin-Dateien werden nicht unterstützt – bitte als .glb (Binär) exportieren.');
+  });
+  const CS = { 5126: 4, 5123: 2, 5125: 4, 5121: 1, 5122: 2, 5120: 1 };
+  const NC = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+  function read(ai) {
+    const a = json.accessors[ai]; const n = NC[a.type], cs = CS[a.componentType];
+    const out = new Float32Array(a.count * n);
+    if (a.bufferView === undefined) return out;
+    const bv = json.bufferViews[a.bufferView]; const B = buffers[bv.buffer];
+    const d = new DataView(B.buffer, B.byteOffset + (bv.byteOffset || 0) + (a.byteOffset || 0));
+    const stride = bv.byteStride || n * cs;
+    for (let i = 0; i < a.count; i++) for (let c = 0; c < n; c++) {
+      const o = i * stride + c * cs; let val;
+      switch (a.componentType) {
+        case 5126: val = d.getFloat32(o, true); break;
+        case 5125: val = d.getUint32(o, true); break;
+        case 5123: val = d.getUint16(o, true); if (a.normalized) val /= 65535; break;
+        case 5121: val = d.getUint8(o); if (a.normalized) val /= 255; break;
+        case 5122: val = d.getInt16(o, true); if (a.normalized) val = Math.max(val / 32767, -1); break;
+        default: val = d.getInt8(o); if (a.normalized) val = Math.max(val / 127, -1);
+      }
+      out[i * n + c] = val;
+    }
+    return out;
+  }
+  const pos = [], nrm = [], uv = [], idx = [];
+  let hasN = true, hasT = true;
+  const nodes = json.nodes || [];
+  const roots = json.scenes ? (json.scenes[json.scene || 0].nodes || []) : nodes.map((_, i) => i);
+  function visit(ni, parent) {
+    const nd = nodes[ni];
+    const local = nd.matrix ? new Float32Array(nd.matrix) : M4.trs(nd.translation, nd.rotation, nd.scale);
+    const W = M4.mul(parent, local);
+    if (nd.mesh !== undefined) {
+      const nm = M4.invert(W); // Normalenmatrix = transponierte Inverse
+      for (const pr of json.meshes[nd.mesh].primitives) {
+        if (pr.mode !== undefined && pr.mode !== 4) continue;
+        const P = read(pr.attributes.POSITION); const cnt = P.length / 3; const base = pos.length / 3;
+        const Nn = pr.attributes.NORMAL !== undefined ? read(pr.attributes.NORMAL) : null;
+        const T = pr.attributes.TEXCOORD_0 !== undefined ? read(pr.attributes.TEXCOORD_0) : null;
+        if (!Nn) hasN = false; if (!T) hasT = false;
+        for (let i = 0; i < cnt; i++) {
+          const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+          pos.push(W[0] * x + W[4] * y + W[8] * z + W[12], W[1] * x + W[5] * y + W[9] * z + W[13], W[2] * x + W[6] * y + W[10] * z + W[14]);
+          if (Nn) { const a = Nn[i * 3], b = Nn[i * 3 + 1], c = Nn[i * 3 + 2]; nrm.push(...V3.norm([nm[0] * a + nm[1] * b + nm[2] * c, nm[4] * a + nm[5] * b + nm[6] * c, nm[8] * a + nm[9] * b + nm[10] * c])); } else nrm.push(0, 1, 0);
+          if (T) uv.push(T[i * 2], 1 - T[i * 2 + 1]); else uv.push(0, 0);
+        }
+        if (pr.indices !== undefined) { const I = read(pr.indices); for (let k = 0; k < I.length; k++) idx.push(base + I[k]); }
+        else for (let k = 0; k < cnt; k++) idx.push(base + k);
+      }
+    }
+    (nd.children || []).forEach((c) => visit(c, W));
+  }
+  roots.forEach((r) => visit(r, M4.ident()));
+  if (!idx.length) throw new Error('In der Datei wurde kein Modell gefunden.');
+  return { pos: new Float32Array(pos), nrm: hasN ? new Float32Array(nrm) : null, uv: hasT ? new Float32Array(uv) : null, idx: new Uint32Array(idx) };
+}
+
+/* ---------- Aufbereitung: Normalen, UVs, Kanten, Krümmung, Gruppen ---------- */
+function finalizeMesh(src, name) {
+  const P0 = src.pos; const nV = P0.length / 3;
+  // Entartete Dreiecke entfernen
+  let I = src.idx; const keep = [];
+  for (let t = 0; t < I.length / 3; t++) { const a = I[t * 3], b = I[t * 3 + 1], c = I[t * 3 + 2]; if (a !== b && b !== c && a !== c && a < nV && b < nV && c < nV) keep.push(a, b, c); }
+  I = new Uint32Array(keep);
+  const nT = I.length / 3;
+  if (!nT) throw new Error('Das Modell hat keine Dreiecke.');
+  // Normalisieren auf Radius 1
+  const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < nV; i++) for (let k = 0; k < 3; k++) { const v = P0[i * 3 + k]; if (v < mn[k]) mn[k] = v; if (v > mx[k]) mx[k] = v; }
+  const ctr = [0, 1, 2].map((k) => (mn[k] + mx[k]) / 2);
+  const rad = Math.max(1e-9, Math.hypot(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) / 2);
+  const P = new Float32Array(nV * 3);
+  for (let i = 0; i < nV; i++) for (let k = 0; k < 3; k++) P[i * 3 + k] = (P0[i * 3 + k] - ctr[k]) / rad;
+
+  // Positionen verschweißen
+  const pid = new Int32Array(nV); const pmap = new Map(); let nP = 0; const pRep = [];
+  for (let i = 0; i < nV; i++) {
+    const key = Math.round(P[i * 3] * 1e5) + ',' + Math.round(P[i * 3 + 1] * 1e5) + ',' + Math.round(P[i * 3 + 2] * 1e5);
+    let id = pmap.get(key); if (id === undefined) { id = nP++; pmap.set(key, id); pRep.push(i); }
+    pid[i] = id;
+  }
+  // Flächennormalen
+  const fn = new Float32Array(nT * 3), fa = new Float32Array(nT), fc = new Float32Array(nT * 3);
+  for (let t = 0; t < nT; t++) {
+    const a = I[t * 3] * 3, b = I[t * 3 + 1] * 3, c = I[t * 3 + 2] * 3;
+    const e1 = [P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]], e2 = [P[c] - P[a], P[c + 1] - P[a + 1], P[c + 2] - P[a + 2]];
+    const cr = V3.cross(e1, e2); const l = V3.len(cr) || 1e-20;
+    fn[t * 3] = cr[0] / l; fn[t * 3 + 1] = cr[1] / l; fn[t * 3 + 2] = cr[2] / l; fa[t] = l / 2;
+    for (let k = 0; k < 3; k++) fc[t * 3 + k] = (P[a + k] + P[b + k] + P[c + k]) / 3;
+  }
+  // Flächen je Position (CSR)
+  const cnt = new Int32Array(nP + 1);
+  for (let i = 0; i < I.length; i++) cnt[pid[I[i]] + 1]++;
+  for (let i = 0; i < nP; i++) cnt[i + 1] += cnt[i];
+  const fill = cnt.slice(0, nP); const adj = new Int32Array(I.length);
+  for (let i = 0; i < I.length; i++) adj[fill[pid[I[i]]]++] = (i / 3) | 0;
+
+  // Normalen je Ecke
+  const CN = new Float32Array(nT * 9);
+  const cosS = Math.cos(50 * Math.PI / 180);
+  for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) {
+    const vi = I[t * 3 + k];
+    let n;
+    if (src.nrm) n = V3.norm([src.nrm[vi * 3], src.nrm[vi * 3 + 1], src.nrm[vi * 3 + 2]]);
+    else {
+      const p = pid[vi]; let s = [0, 0, 0];
+      for (let q = cnt[p]; q < cnt[p + 1]; q++) {
+        const f = adj[q];
+        if (fn[f * 3] * fn[t * 3] + fn[f * 3 + 1] * fn[t * 3 + 1] + fn[f * 3 + 2] * fn[t * 3 + 2] > cosS) { s[0] += fn[f * 3] * fa[f]; s[1] += fn[f * 3 + 1] * fa[f]; s[2] += fn[f * 3 + 2] * fa[f]; }
+      }
+      n = V3.len(s) > 0 ? V3.norm(s) : [fn[t * 3], fn[t * 3 + 1], fn[t * 3 + 2]];
+    }
+    if (!isFinite(n[0])) n = [0, 1, 0];
+    CN.set(n, t * 9 + k * 3);
+  }
+
+  // UVs je Ecke
+  let CU;
+  let autoUV = false;
+  if (src.uv) {
+    CU = new Float32Array(nT * 6);
+    for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) { const vi = I[t * 3 + k]; CU[t * 6 + k * 2] = src.uv[vi * 2]; CU[t * 6 + k * 2 + 1] = src.uv[vi * 2 + 1]; }
+    for (let t = 0; t < nT; t++) {
+      const su = Math.floor((CU[t * 6] + CU[t * 6 + 2] + CU[t * 6 + 4]) / 3), sv = Math.floor((CU[t * 6 + 1] + CU[t * 6 + 3] + CU[t * 6 + 5]) / 3);
+      if (su || sv) for (let k = 0; k < 3; k++) { CU[t * 6 + k * 2] -= su; CU[t * 6 + k * 2 + 1] -= sv; }
+    }
+  } else { CU = makeAutoUV(P, I, fn, fa, pid, nP, nT); autoUV = true; }
+
+  // Kanten
+  const cvx = new Float32Array(nT * 3), ccv = new Float32Array(nT * 3);
+  const emap = new Map();
+  const planarUF = new UF(nT);
+  const edgeList = [];
+  for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) {
+    const a = pid[I[t * 3 + (k + 1) % 3]], b = pid[I[t * 3 + (k + 2) % 3]];
+    const key = a < b ? a * nP + b : b * nP + a;
+    const e = emap.get(key);
+    if (e === undefined) { emap.set(key, t * 3 + k); edgeList.push(a, b); }
+    else if (e >= 0) {
+      const t1 = (e / 3) | 0, k1 = e % 3;
+      const d = fn[t1 * 3] * fn[t * 3] + fn[t1 * 3 + 1] * fn[t * 3 + 1] + fn[t1 * 3 + 2] * fn[t * 3 + 2];
+      const ang = Math.acos(clamp(d, -1, 1)) * 180 / Math.PI;
+      const sharp = clamp((ang - 20) / 25, 0, 1);
+      if (ang < 3) planarUF.union(t, t1);
+      if (sharp > 0) {
+        const dc = (fc[t * 3] - fc[t1 * 3]) * fn[t1 * 3] + (fc[t * 3 + 1] - fc[t1 * 3 + 1]) * fn[t1 * 3 + 1] + (fc[t * 3 + 2] - fc[t1 * 3 + 2]) * fn[t1 * 3 + 2];
+        const arr = dc < 0 ? cvx : ccv;
+        arr[t * 3 + k] = sharp; arr[t1 * 3 + k1] = sharp;
+      }
+      emap.set(key, -1);
+    }
+  }
+  // Krümmung je Position
+  const pn = new Float32Array(nP * 3);
+  for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) { const p = pid[I[t * 3 + k]]; for (let c = 0; c < 3; c++) pn[p * 3 + c] += fn[t * 3 + c] * fa[t]; }
+  for (let p = 0; p < nP; p++) { const n = V3.norm([pn[p * 3], pn[p * 3 + 1], pn[p * 3 + 2]]); pn.set(n, p * 3); }
+  const kap = new Float32Array(nP), kc = new Float32Array(nP);
+  for (let e = 0; e < edgeList.length; e += 2) {
+    const a = edgeList[e], b = edgeList[e + 1], ia = pRep[a] * 3, ib = pRep[b] * 3;
+    const d = [P[ib] - P[ia], P[ib + 1] - P[ia + 1], P[ib + 2] - P[ia + 2]]; const L2 = V3.dot(d, d);
+    if (L2 < 1e-14) continue;
+    kap[a] += -2 * (pn[a * 3] * d[0] + pn[a * 3 + 1] * d[1] + pn[a * 3 + 2] * d[2]) / L2; kc[a]++;
+    kap[b] += 2 * (pn[b * 3] * d[0] + pn[b * 3 + 1] * d[1] + pn[b * 3 + 2] * d[2]) / L2; kc[b]++;
+  }
+  for (let p = 0; p < nP; p++) kap[p] = kc[p] ? clamp(2 * kap[p] / kc[p], -120, 120) : 0; // 2× Mittelwert: Kante = 1/Radius
+
+  // Gruppen für das Füll-Werkzeug
+  const partUF = new UF(nP);
+  for (let t = 0; t < nT; t++) { partUF.union(pid[I[t * 3]], pid[I[t * 3 + 1]]); partUF.union(pid[I[t * 3]], pid[I[t * 3 + 2]]); }
+  const uvKey = new Map(); const islUF = new UF(nT);
+  for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) {
+    const key = Math.round(CU[t * 6 + k * 2] * 65536) + ',' + Math.round(CU[t * 6 + k * 2 + 1] * 65536) + ',' + pid[I[t * 3 + k]];
+    const o = uvKey.get(key); if (o === undefined) uvKey.set(key, t); else islUF.union(t, o);
+  }
+  const groups = { part: new Int32Array(nT), island: new Int32Array(nT), planar: new Int32Array(nT) };
+  for (let t = 0; t < nT; t++) { groups.part[t] = partUF.find(pid[I[t * 3]]); groups.island[t] = islUF.find(t); groups.planar[t] = planarUF.find(t); }
+
+  // Dreiecks-Suppe für die Grafikkarte
+  const n3 = nT * 3;
+  const S = {
+    pos: new Float32Array(n3 * 3), nrm: CN, uv: CU, bary: new Float32Array(n3 * 3),
+    alt: new Float32Array(n3 * 3), cvx: new Float32Array(n3 * 3), ccv: new Float32Array(n3 * 3), curv: new Float32Array(n3),
+  };
+  for (let t = 0; t < nT; t++) {
+    const ps = [0, 1, 2].map((k) => I[t * 3 + k] * 3);
+    const L = [0, 1, 2].map((k) => { const a = ps[(k + 1) % 3], b = ps[(k + 2) % 3]; return Math.hypot(P[a] - P[b], P[a + 1] - P[b + 1], P[a + 2] - P[b + 2]) || 1e-9; });
+    for (let k = 0; k < 3; k++) {
+      const o = (t * 3 + k) * 3;
+      S.pos[o] = P[ps[k]]; S.pos[o + 1] = P[ps[k] + 1]; S.pos[o + 2] = P[ps[k] + 2];
+      S.bary[o + k] = 1;
+      for (let j = 0; j < 3; j++) { S.alt[o + j] = 2 * fa[t] / L[j]; S.cvx[o + j] = cvx[t * 3 + j]; S.ccv[o + j] = ccv[t * 3 + j]; }
+      S.curv[t * 3 + k] = kap[pid[I[t * 3 + k]]];
+    }
+  }
+  return { name: name || 'Modell', nT, soup: S, groups, autoUV };
+}
+
+/* Automatische UVs: Box-Projektion, Inseln nebeneinander packen */
+function makeAutoUV(P, I, fn, fa, pid, nP, nT) {
+  const ax = new Int8Array(nT);
+  for (let t = 0; t < nT; t++) {
+    const n = [fn[t * 3], fn[t * 3 + 1], fn[t * 3 + 2]]; let a = 0;
+    if (Math.abs(n[1]) > Math.abs(n[a])) a = 1; if (Math.abs(n[2]) > Math.abs(n[a])) a = 2;
+    ax[t] = a * 2 + (n[a] < 0 ? 1 : 0);
+  }
+  const uf = new UF(nT); const first = new Map();
+  for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) {
+    const key = pid[I[t * 3 + k]] * 6 + ax[t]; const o = first.get(key);
+    if (o === undefined) first.set(key, t); else uf.union(t, o);
+  }
+  const CU = new Float32Array(nT * 6);
+  const proj = [[2, 1, -1], [2, 1, 1], [0, 2, -1], [0, 2, 1], [0, 1, 1], [0, 1, -1]];
+  for (let t = 0; t < nT; t++) {
+    const [a, b, s] = proj[ax[t]];
+    for (let k = 0; k < 3; k++) { const v = I[t * 3 + k] * 3; CU[t * 6 + k * 2] = P[v + a] * s; CU[t * 6 + k * 2 + 1] = P[v + b]; }
+  }
+  const charts = new Map();
+  for (let t = 0; t < nT; t++) {
+    const r = uf.find(t); let c = charts.get(r);
+    if (!c) { c = { tris: [], mn: [Infinity, Infinity], mx: [-Infinity, -Infinity] }; charts.set(r, c); }
+    c.tris.push(t);
+    for (let k = 0; k < 3; k++) for (let j = 0; j < 2; j++) { const v = CU[t * 6 + k * 2 + j]; if (v < c.mn[j]) c.mn[j] = v; if (v > c.mx[j]) c.mx[j] = v; }
+  }
+  const list = [...charts.values()]; let area = 0;
+  for (const c of list) { c.w = c.mx[0] - c.mn[0] + 1e-6; c.h = c.mx[1] - c.mn[1] + 1e-6; area += c.w * c.h; }
+  list.sort((a, b) => b.h - a.h);
+  const pad = Math.sqrt(area) * 0.012, rowW = Math.sqrt(area) * 1.25;
+  let x = 0, y = 0, rowH = 0, W = 0;
+  for (const c of list) {
+    if (x > 0 && x + c.w > rowW) { x = 0; y += rowH + pad; rowH = 0; }
+    c.ox = x; c.oy = y; x += c.w + pad; rowH = Math.max(rowH, c.h); W = Math.max(W, x);
+  }
+  const Ht = y + rowH; const sc = 0.98 / Math.max(W, Ht);
+  for (const c of list) for (const t of c.tris) for (let k = 0; k < 3; k++) {
+    CU[t * 6 + k * 2] = 0.01 + (CU[t * 6 + k * 2] - c.mn[0] + c.ox) * sc;
+    CU[t * 6 + k * 2 + 1] = 0.01 + (CU[t * 6 + k * 2 + 1] - c.mn[1] + c.oy) * sc;
+  }
+  return CU;
+}
+
+'use strict';
+/* ================= Textur-Engine ================= */
+const BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'add', 'subtract', 'darken', 'lighten', 'softlight'];
+const BASE_C = [0.55, 0.55, 0.55, 1], BASE_M = [0.5, 0, 0, 1];
+
+const S = {
+  res: 2048, hdepth: 0.06, mesh: null, layers: [], sel: null, target: 'layer',
+  tool: 'paint',
+  brush: { size: 40, flow: 1, opacity: 1, hard: 0.6, spacing: 0.12, shape: 0, angle: 0, jitAng: 0, jitSize: 0,
+    color: '#ff4f64', rough: 0.45, metal: 0, height: 0, mat: '', maskVal: 1, mirror: 0, through: false, pSize: true, pOpac: false, fillMode: 'island' },
+  view: { layout: '3d', chan: 0, wire: false, env: 0, envRot: 0.6, exposure: 1, bg: 0, ao: 1 },
+  cam: { yaw: 0.6, pitch: 0.35, dist: 3.2, target: [0, 0, 0], fov: 35 },
+  uv2d: { zoom: 0, pan: [0, 0] },
+  projectName: 'Unbenannt', dirty: false, fileHandle: null,
+};
+
+const E = { P: {}, vao: null, nVerts: 0, bufs: [], T: null, fin: null, isl: null, stroke: null, gb: null, caches: new Map(), layerTex: new Set(), needComp: true, needDraw: true, regions: [] };
+
+function compilePrograms() {
+  const P = E.P;
+  P.aoDepth = new Prog(VS_VIEW, FS_AODEPTH, 'aoDepth');
+  P.aoAcc = new Prog(VS_UV, FS_AOACC, 'aoAcc');
+  P.geo = new Prog(VS_UV, FS_GEOBAKE, 'geo');
+  P.jfaInit = new Prog(VS_FULL, FS_JFAINIT, 'jfaInit');
+  P.jfa = new Prog(VS_FULL, FS_JFA, 'jfa');
+  P.fill = new Prog(VS_FULL, FS_FILL, 'fill');
+  P.gen = new Prog(VS_FULL, FS_GENC, 'gen');
+  P.comp = new Prog(VS_FULL, FS_COMPOSITE, 'comp');
+  P.final = new Prog(VS_FULL, FS_FINAL, 'final');
+  P.copy = new Prog(VS_FULL, FS_COPY, 'copy');
+  P.stamp = new Prog(VS_UV, FS_STAMP, 'stamp');
+  P.one = new Prog(VS_UV, FS_ONE, 'one');
+  P.apply = new Prog(VS_FULL, FS_APPLY, 'apply');
+  P.applyMask = new Prog(VS_FULL, FS_APPLYMASK, 'applyMask');
+  P.gbuf = new Prog(VS_VIEW, FS_GBUF, 'gbuf');
+  P.view = new Prog(VS_VIEW, FS_VIEW, 'view');
+  P.bg = new Prog(VS_FULL, FS_BG, 'bg');
+  P.view2d = new Prog(VS_FULL, FS_VIEW2D, 'view2d');
+  P.wire2d = new Prog(VS_WIRE2D, FS_WIRE2D, 'wire2d');
+  P.export = new Prog(VS_FULL, FS_EXPORT, 'export');
+  P.prevGeo = new Prog(VS_FULL, FS_PREVGEO, 'prevGeo');
+  P.prevShade = new Prog(VS_FULL, FS_PREVSHADE, 'prevShade');
+}
+
+/* ---------- Modell hochladen ---------- */
+function uploadMesh(mesh) {
+  if (E.vao) { gl.deleteVertexArray(E.vao); E.bufs.forEach((b) => gl.deleteBuffer(b)); E.bufs = []; }
+  const s = mesh.soup;
+  E.vao = gl.createVertexArray(); gl.bindVertexArray(E.vao);
+  [[s.pos, 3], [s.nrm, 3], [s.uv, 2], [s.bary, 3], [s.alt, 3], [s.cvx, 3], [s.ccv, 3], [s.curv, 1]].forEach(([arr, n], loc) => {
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 0, 0); E.bufs.push(b);
+  });
+  gl.bindVertexArray(null);
+  E.nVerts = mesh.nT * 3;
+  E.idxBuf = E.idxBuf || gl.createBuffer();
+}
+function drawSoup() { gl.bindVertexArray(E.vao); gl.drawArrays(gl.TRIANGLES, 0, E.nVerts); }
+
+function clearTex(t, rgba, i = 0) { bindTargets([t]); gl.clearBufferfv(gl.COLOR, i, rgba); }
+function copyTex(src, w = src.w, h = src.h, fmt = src.fmt) {
+  const t = new Tex(w, h, fmt);
+  bindTargets([t]); E.P.copy.use().tex('uSrc', src); gl.disable(gl.BLEND); drawFull();
+  return t;
+}
+function trackTex(t) { E.layerTex.add(t); return t; }
+function newPaintTex(res = S.res) {
+  const c = trackTex(new Tex(res, res, 'rgba8')), m = trackTex(new Tex(res, res, 'rgba16f'));
+  clearTex(c, [0, 0, 0, 0]); clearTex(m, [0, 0, 0, 0]);
+  return { c, m };
+}
+function newMaskTex(val, res = S.res) { const t = trackTex(new Tex(res, res, 'r8')); clearTex(t, [val, val, val, val]); return t; }
+
+/* ---------- Ziel (Textursatz) und Backen ---------- */
+function makeAcc(size) { return [0, 1].map(() => ({ c: new Tex(size, size, 'rgba8'), m: new Tex(size, size, 'rgba16f') })); }
+function freeTarget(T) {
+  if (!T) return;
+  ['pos', 'nrm', 'bake', 'vn'].forEach((k) => T[k] && T[k].free());
+  T.acc.forEach((a) => { a.c.free(); a.m.free(); });
+  for (const c of T.caches.values()) freeCache(c);
+  T.caches.clear();
+}
+function freeCache(c) { ['c', 'm', 'g'].forEach((k) => { if (c[k]) { c[k].free(); c[k] = null; } }); }
+
+function bakeMesh(progress) {
+  const res = S.res, P = E.P;
+  freeTarget(E.T);
+  if (E.fin) { E.fin.c.free(); E.fin.m.free(); E.fin.n.free(); }
+  if (E.isl) E.isl.free();
+  if (E.stroke) E.stroke.free();
+  for (const c of E.caches.values()) freeCache(c);
+  E.caches.clear();
+  const T = { size: res, pos: new Tex(res, res, 'rgba32f'), nrm: new Tex(res, res, 'rgba16f'), bake: new Tex(res, res, 'rgba16f'), acc: makeAcc(res), caches: E.caches };
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST); gl.disable(gl.CULL_FACE);
+
+  // Umgebungsverdeckung (AO) aus vielen Richtungen
+  const aoAcc = new Tex(res, res, 'rgba16f'); clearTex(aoAcc, [0, 0, 0, 0]);
+  const depth = new Tex(1024, 1024, 'rgba32f');
+  const ND = E.nVerts > 900000 ? 32 : 64;
+  for (let i = 0; i < ND; i++) {
+    const y = 1 - (i + 0.5) / ND * 2, r = Math.sqrt(1 - y * y), ph = i * 2.39996323;
+    const dir = [Math.cos(ph) * r, y, Math.sin(ph) * r];
+    const view = M4.lookAt(V3.mul(dir, 3), [0, 0, 0], Math.abs(y) > 0.99 ? [1, 0, 0] : [0, 1, 0]);
+    const VP = M4.mul(M4.ortho(-1.05, 1.05, -1.05, 1.05, 0.5, 5.5), view);
+    bindTargets([depth], true);
+    gl.clearBufferfv(gl.COLOR, 0, [1, 1, 1, 1]); gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    P.aoDepth.use().set('uVP', VP); drawSoup();
+    gl.disable(gl.DEPTH_TEST);
+    bindTargets([aoAcc]); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    P.aoAcc.use().tex('uDepth', depth).set('uVP', VP).set('uDir', dir); drawSoup();
+    gl.disable(gl.BLEND);
+  }
+  depth.free();
+  if (progress) progress('Kanten und Krümmung …');
+  // Position, Normale, Kanten, Krümmung, AO
+  bindTargets([T.pos, T.nrm, T.bake]);
+  gl.clearBufferfv(gl.COLOR, 0, [0, 0, 0, 0]); gl.clearBufferfv(gl.COLOR, 1, [0, 1, 0, 0]); gl.clearBufferfv(gl.COLOR, 2, [1000, 1000, 0, 1]);
+  P.geo.use().tex('uAO', aoAcc); drawSoup();
+  aoAcc.free();
+  // Ränder auffüllen: nächstes Texel jeder UV-Insel (Jump Flooding)
+  let a = new Tex(res, res, 'rgba32f'), b = new Tex(res, res, 'rgba32f');
+  bindTargets([a]); P.jfaInit.use().tex('uPos', T.pos); drawFull();
+  for (let st = res / 2; st >= 1; st /= 2) { bindTargets([b]); P.jfa.use().tex('uSrc', a).set('uStep', st); drawFull(); [a, b] = [b, a]; }
+  bindTargets([b]); P.jfa.use().tex('uSrc', a).set('uStep', 1); drawFull(); [a, b] = [b, a];
+  b.free(); E.isl = a;
+  E.T = T;
+  E.fin = { c: new Tex(res, res, 'rgba8'), m: new Tex(res, res, 'rgba16f'), n: new Tex(res, res, 'rgba8') };
+  E.stroke = new Tex(res, res, 'r8');
+  cleanFBOs();
+  E.needComp = true;
+}
+
+/* ---------- Ebenen-Caches (Füllmuster und Masken-Generatoren) ---------- */
+function setPatternUniforms(p, f) {
+  p.set('uPat', f.pat | 0).set('uColA', hex2rgb(f.colA)).set('uColB', hex2rgb(f.colB))
+    .set('uRoughA', f.roughA).set('uRoughB', f.roughB).set('uMetalA', f.metalA).set('uMetalB', f.metalB)
+    .set('uHAmt', f.hAmt).set('uScale', f.scale).set('uVar', f.vari).set('uSeed', f.seed);
+}
+function setGenUniforms(p, m) {
+  p.set('uGen', m.gen | 0).set('uGLevel', m.level).set('uGWidth', m.width).set('uGRough', m.rough)
+    .set('uGSoft', m.soft).set('uGScale', m.scale).set('uGSeed', m.seed).set('uGInv', !!m.inv);
+}
+const genKey = (m) => JSON.stringify([m.gen, m.level, m.width, m.rough, m.soft, m.scale, m.seed, m.inv]);
+function getCache(T, l) {
+  let c = T.caches.get(l.id);
+  if (!c) { c = {}; T.caches.set(l.id, c); }
+  if (l.kind === 'fill') {
+    const h = JSON.stringify(l.fill);
+    if (c.fh !== h) {
+      if (!c.c) { c.c = new Tex(T.size, T.size, 'rgba8'); c.m = new Tex(T.size, T.size, 'rgba16f'); }
+      bindTargets([c.c, c.m]); const p = E.P.fill.use(); setPatternUniforms(p, l.fill);
+      p.tex('uPos', T.pos).tex('uNrm', T.nrm); drawFull(); c.fh = h;
+    }
+  }
+  if (l.mask && l.mask.gen) {
+    const h = genKey(l.mask);
+    if (c.gh !== h) {
+      if (!c.g) c.g = new Tex(T.size, T.size, 'r8');
+      bindTargets([c.g]); const p = E.P.gen.use(); setGenUniforms(p, l.mask);
+      p.tex('uPos', T.pos).tex('uNrm', T.nrm).tex('uBake', T.bake); drawFull(); c.gh = h;
+    }
+  }
+  return c;
+}
+
+function compositeTarget(T, layers) {
+  const P = E.P; gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
+  let cur = 0;
+  bindTargets([T.acc[0].c, T.acc[0].m]);
+  gl.clearBufferfv(gl.COLOR, 0, BASE_C); gl.clearBufferfv(gl.COLOR, 1, BASE_M);
+  for (const l of layers) {
+    if (!l.visible || l.opacity <= 0) continue;
+    const cache = getCache(T, l);
+    const src = l.kind === 'paint' ? l.tex : cache;
+    if (!src || !src.c) continue;
+    const A = T.acc[cur], B = T.acc[1 - cur];
+    const mp = l.mask ? l.mask.tex : null, mg = l.mask && l.mask.gen ? cache.g : null;
+    bindTargets([B.c, B.m]);
+    P.comp.use().tex('uAccC', A.c).tex('uAccM', A.m).tex('uSrcC', src.c).tex('uSrcM', src.m).tex('uMaskP', mp).tex('uMaskG', mg)
+      .set('uHasMP', !!mp).set('uHasMG', !!mg).set('uOpacity', l.opacity).set('uBlend', Math.max(0, BLENDS.indexOf(l.blend)))
+      .set('uHBlend', l.hblend === 'add' ? 1 : 0).set('uCh', [l.ch.c ? 1 : 0, l.ch.r ? 1 : 0, l.ch.m ? 1 : 0, l.ch.h ? 1 : 0]);
+    drawFull();
+    cur = 1 - cur;
+  }
+  return T.acc[cur];
+}
+function compositeMain() {
+  if (!E.T) return;
+  const acc = compositeTarget(E.T, S.layers);
+  bindTargets([E.fin.c, E.fin.m, E.fin.n]);
+  E.P.final.use().tex('uAccC', acc.c).tex('uAccM', acc.m).tex('uIsl', E.isl).tex('uBake', E.T.bake).set('uHS', S.hdepth * S.res / 8);
+  drawFull();
+  E.fin.c.mipmap(); E.fin.m.mipmap(); E.fin.n.mipmap();
+  // Caches gelöschter Ebenen freigeben
+  const ids = new Set(S.layers.map((l) => l.id));
+  for (const [id, c] of E.caches) if (!ids.has(id)) { freeCache(c); E.caches.delete(id); }
+  E.needComp = false; E.needDraw = true;
+}
+
+/* ---------- Kamera ---------- */
+function camMatrices(r) {
+  const c = S.cam;
+  const eye = V3.add(c.target, V3.mul([Math.cos(c.pitch) * Math.sin(c.yaw), Math.sin(c.pitch), Math.cos(c.pitch) * Math.cos(c.yaw)], c.dist));
+  const view = M4.lookAt(eye, c.target, [0, 1, 0]);
+  const proj = M4.persp(c.fov * Math.PI / 180, r.w / Math.max(1, r.h), Math.max(0.01, c.dist * 0.02), c.dist * 6 + 6);
+  const vp = M4.mul(proj, view);
+  return { eye, view, proj, vp, inv: M4.invert(vp) };
+}
+function frameCamera() {
+  S.cam.target = [0, 0, 0]; S.cam.dist = 1.18 / Math.sin(S.cam.fov * Math.PI / 360);
+  E.gbDirty = true; E.needDraw = true;
+}
+function fit2D(r) { const z = Math.min(r.w, r.h) * 0.92; S.uv2d.zoom = z; S.uv2d.pan = [(r.w - z) / 2, (r.h - z) / 2]; }
+
+const ENVS = [
+  { name: 'Studio', top: [0.55, 0.58, 0.62], hor: [0.34, 0.35, 0.37], gnd: [0.11, 0.11, 0.12], l1: [0.5, 0.7, 0.6], c1: [2.2, 2.1, 2.0], l2: [-0.7, 0.3, -0.45], c2: [0.8, 0.9, 1.1] },
+  { name: 'Draußen', top: [0.32, 0.52, 0.95], hor: [0.78, 0.82, 0.88], gnd: [0.24, 0.21, 0.17], l1: [0.35, 0.8, 0.45], c1: [5.0, 4.6, 4.0], l2: [-0.5, 0.2, -0.6], c2: [0.15, 0.2, 0.3] },
+  { name: 'Neutral hell', top: [0.85, 0.85, 0.86], hor: [0.75, 0.75, 0.76], gnd: [0.45, 0.45, 0.46], l1: [0.4, 0.8, 0.4], c1: [0.8, 0.8, 0.8], l2: [-0.5, 0.4, -0.6], c2: [0.3, 0.3, 0.3] },
+  { name: 'Neon-Nacht', top: [0.04, 0.03, 0.09], hor: [0.14, 0.05, 0.2], gnd: [0.02, 0.02, 0.03], l1: [0.8, 0.35, 0.35], c1: [3.0, 0.8, 1.6], l2: [-0.8, 0.3, -0.25], c2: [0.5, 2.0, 3.0] },
+];
+function setEnvUniforms(p) {
+  const e = ENVS[S.view.env] || ENVS[0];
+  p.set('uSkyTop', e.top).set('uSkyHor', e.hor).set('uGround', e.gnd).set('uL1Dir', V3.norm(e.l1)).set('uL1Col', e.c1)
+    .set('uL2Dir', V3.norm(e.l2)).set('uL2Col', e.c2).set('uEnvRot', S.view.envRot).set('uExposure', S.view.exposure);
+}
+
+/* ---------- G-Buffer (was liegt unter welchem Pixel) ---------- */
+function ensureGbuf(r) {
+  if (!E.gb || E.gb.w !== r.w || E.gb.h !== r.h) {
+    if (E.gb) { E.gb.pos.free(); E.gb.uv.free(); }
+    E.gb = { w: r.w, h: r.h, pos: new Tex(r.w, r.h, 'rgba32f'), uv: new Tex(r.w, r.h, 'rgba32f') };
+    E.gbDirty = true;
+  }
+  if (!E.gbDirty) return;
+  const cm = camMatrices(r);
+  bindTargets([E.gb.pos, E.gb.uv], true);
+  gl.disable(gl.SCISSOR_TEST); gl.disable(gl.BLEND);
+  gl.clearBufferfv(gl.COLOR, 0, [0, 0, 0, 0]); gl.clearBufferfv(gl.COLOR, 1, [0, 0, -1, 0]); gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST); E.P.gbuf.use().set('uVP', cm.vp); drawSoup(); gl.disable(gl.DEPTH_TEST);
+  E.gbDirty = false;
+}
+function pickAt(r, x, y) {
+  if (r.type === '2d') {
+    const u = (x - S.uv2d.pan[0]) / S.uv2d.zoom, v = (y - S.uv2d.pan[1]) / S.uv2d.zoom;
+    if (u < 0 || v < 0 || u > 1 || v > 1) return null;
+    return { uv: [u, v], tri: -1 };
+  }
+  ensureGbuf(r);
+  const xi = clamp(Math.floor(x), 0, r.w - 1), yi = clamp(Math.floor(y), 0, r.h - 1);
+  const p = readF32(E.gb.pos, xi, yi, 1, 1), q = readF32(E.gb.uv, xi, yi, 1, 1);
+  if (p[3] < 0.5) return null;
+  return { pos: [p[0], p[1], p[2]], uv: [q[0], q[1]], tri: Math.round(q[2]) };
+}
+
+/* ---------- Darstellung ---------- */
+function curMaskTexs() {
+  const l = curLayer(); if (!l || !l.mask) return [null, null];
+  const c = E.caches.get(l.id);
+  return [l.mask.tex, l.mask.gen && c ? c.g : null];
+}
+function bindChanTextures(p) {
+  const [mp, mg] = curMaskTexs();
+  p.tex('uC', E.fin.c).tex('uM', E.fin.m).tex('uN', E.fin.n).tex('uBake', E.T.bake).tex('uMaskP', mp).tex('uMaskG', mg)
+    .set('uHasMP', !!mp).set('uHasMG', !!mg).set('uChan', S.view.chan);
+}
+function renderAll() {
+  if (!E.T) return;
+  if (E.needComp) compositeMain();
+  toScreen();
+  const cv = gl.canvas;
+  gl.viewport(0, 0, cv.width, cv.height); gl.disable(gl.SCISSOR_TEST);
+  gl.clearColor(0.07, 0.07, 0.08, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.SCISSOR_TEST);
+  for (const r of E.regions) {
+    gl.viewport(r.x, r.y, r.w, r.h); gl.scissor(r.x, r.y, r.w, r.h);
+    if (r.type === '3d') {
+      const cm = camMatrices(r);
+      gl.disable(gl.DEPTH_TEST);
+      const pb = E.P.bg.use(); setEnvUniforms(pb); pb.set('uInvVP', cm.inv).set('uEye', cm.eye).set('uBgMode', S.view.bg); drawFull();
+      gl.enable(gl.DEPTH_TEST); gl.clear(gl.DEPTH_BUFFER_BIT);
+      const p = E.P.view.use(); setEnvUniforms(p); bindChanTextures(p);
+      p.set('uVP', cm.vp).set('uEye', cm.eye).set('uWire', S.view.wire).set('uAOStr', S.view.ao);
+      drawSoup();
+      gl.disable(gl.DEPTH_TEST);
+    } else {
+      gl.disable(gl.DEPTH_TEST);
+      if (!S.uv2d.zoom) fit2D(r);
+      const p = E.P.view2d.use(); bindChanTextures(p);
+      p.set('uOrig', [r.x, r.y]).set('uZoom', S.uv2d.zoom).set('uPan', S.uv2d.pan); drawFull();
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      E.P.wire2d.use().set('uZoom', S.uv2d.zoom).set('uPan', S.uv2d.pan).set('uSize', [r.w, r.h]).set('uAlpha', S.view.wire ? 0.5 : 0.18);
+      drawSoup(); gl.disable(gl.BLEND);
+    }
+  }
+  gl.disable(gl.SCISSOR_TEST);
+  E.needDraw = false;
+}
+
+/* ---------- Rückgängig ---------- */
+const U = { stack: [], redo: [], budget: 700 * 1024 * 1024 };
+function cloneLayer(l) {
+  return { ...l, ch: { ...l.ch }, fill: l.fill ? { ...l.fill } : null, mask: l.mask ? { ...l.mask } : null, tex: l.tex ? { ...l.tex } : null };
+}
+function snapshot() { return { layers: S.layers.map(cloneLayer), sel: S.sel, target: S.target }; }
+function snapTexs(sn, set) { for (const l of sn.layers) { if (l.tex) { set.add(l.tex.c); set.add(l.tex.m); } if (l.mask && l.mask.tex) set.add(l.mask.tex); } }
+function gcTextures() {
+  const live = new Set(); snapTexs({ layers: S.layers }, live);
+  U.stack.forEach((s) => snapTexs(s, live)); U.redo.forEach((s) => snapTexs(s, live));
+  for (const t of E.layerTex) if (!live.has(t)) { t.free(); E.layerTex.delete(t); }
+  cleanFBOs();
+}
+function undoBytes() {
+  const cur = new Set(); snapTexs({ layers: S.layers }, cur);
+  const only = new Set(); U.stack.forEach((s) => snapTexs(s, only));
+  let b = 0; for (const t of only) if (!cur.has(t)) b += t.bytes;
+  return b;
+}
+function pushUndo() {
+  U.stack.push(snapshot());
+  if (U.redo.length) U.redo = [];
+  while (U.stack.length > 60) U.stack.shift();
+  gcTextures();
+  while (U.stack.length > 2 && undoBytes() > U.budget) { U.stack.shift(); gcTextures(); }
+  S.dirty = true;
+}
+function restoreSnap(sn) {
+  S.layers = sn.layers.map(cloneLayer); S.sel = sn.sel; S.target = sn.target;
+  if (!S.layers.find((l) => l.id === S.sel)) S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null;
+  E.needComp = true; S.dirty = true;
+  if (typeof UI !== 'undefined') UI.refreshAll();
+}
+function undo() { if (!U.stack.length || E.stroke_active) return; U.redo.push(snapshot()); restoreSnap(U.stack.pop()); toast('Rückgängig'); }
+function redo() { if (!U.redo.length || E.stroke_active) return; U.stack.push(snapshot()); restoreSnap(U.redo.pop()); toast('Wiederholt'); }
+function resetUndo() { U.stack = []; U.redo = []; gcTextures(); }
+
+/* ---------- Ebenen ---------- */
+const curLayer = () => S.layers.find((l) => l.id === S.sel) || null;
+function defaultFill() { return { pat: 0, colA: '#b8b8b8', colB: '#6e6e6e', roughA: 0.5, roughB: 0.6, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0.5, seed: 0 }; }
+function defaultMask(gen = 0) { return { tex: null, gen, level: 0.5, width: 0.04, rough: 0.5, soft: 0.06, scale: 2, seed: 0, inv: false }; }
+function newLayer(kind, opts = {}) {
+  const n = S.layers.filter((l) => l.kind === kind).length + 1;
+  const l = { id: uid(), name: opts.name || (kind === 'paint' ? 'Mal-Ebene ' + n : 'Füll-Ebene ' + n), kind, visible: true, opacity: 1, blend: 'normal', hblend: 'add',
+    ch: { c: true, r: true, m: true, h: true }, fill: kind === 'fill' ? Object.assign(defaultFill(), opts.fill || {}) : null, mask: null, tex: kind === 'paint' ? newPaintTex() : null };
+  if (opts.mask) { l.mask = Object.assign(defaultMask(), opts.mask); l.mask.tex = newMaskTex(1); }
+  if (opts.opacity != null) l.opacity = opts.opacity;
+  if (opts.ch) Object.assign(l.ch, opts.ch);
+  if (opts.blend) l.blend = opts.blend;
+  if (opts.hblend) l.hblend = opts.hblend;
+  return l;
+}
+function insertLayers(list, select = true) {
+  const cur = curLayer(); let at = cur ? S.layers.indexOf(cur) + 1 : S.layers.length;
+  for (const l of list) S.layers.splice(at++, 0, l);
+  if (select) { S.sel = list[list.length - 1].id; S.target = 'layer'; }
+  E.needComp = true; S.dirty = true;
+}
+
+/* ---------- Malen ---------- */
+const ST = { on: false };
+function strokeBegin(r, erase) {
+  const l = curLayer();
+  if (!l) { toast('Lege zuerst eine Ebene an.'); return false; }
+  const onMask = S.target === 'mask' && l.mask;
+  if (!onMask && l.kind !== 'paint') { toast(l.mask ? 'Füll-Ebene: Klicke auf das Masken-Symbol, um die Maske zu bemalen.' : 'Auf Füll-Ebenen malst du über eine Maske – oder wähle eine Mal-Ebene.', 'warn'); return false; }
+  if (!l.visible) toast('Hinweis: Die Ebene ist ausgeblendet.');
+  pushUndo();
+  if (onMask) { const old = l.mask.tex; l.mask.tex = trackTex(copyTex(old)); Object.assign(ST, { before: { mask: old } }); }
+  else { const o = l.tex; l.tex = { c: trackTex(copyTex(o.c)), m: trackTex(copyTex(o.m)) }; Object.assign(ST, { before: { c: o.c, m: o.m } }); }
+  clearTex(E.stroke, [0, 0, 0, 0]);
+  if (r.type === '3d') ensureGbuf(r);
+  Object.assign(ST, { on: true, layer: l, mask: !!onMask, erase, r, pending: [], last: null, carry: 0, cm: r.type === '3d' ? camMatrices(r) : null });
+  E.stroke_active = true;
+  return true;
+}
+function brushRadiusPx() { return S.brush.size * (window.devicePixelRatio || 1); }
+function strokeTo(x, y, pressure, isPen) {
+  const b = S.brush, dpr = window.devicePixelRatio || 1;
+  const pr = isPen ? clamp(pressure, 0.02, 1) : 1;
+  const rad = brushRadiusPx() * (b.pSize && isPen ? pr : 1);
+  const str = b.flow * (b.pOpac && isPen ? pr : 1);
+  const mk = (px, py) => ST.pending.push({ x: px, y: py, r: Math.max(0.6 * dpr, rad * (1 + (Math.random() * 2 - 1) * b.jitSize)), a: (b.angle + (Math.random() * 2 - 1) * b.jitAng * 180) * Math.PI / 180, s: str, seed: Math.random() * 100 });
+  if (!ST.last) { mk(x, y); ST.last = [x, y]; ST.carry = 0; return; }
+  const step = Math.max(dpr, rad * 2 * b.spacing);
+  const dx = x - ST.last[0], dy = y - ST.last[1], d = Math.hypot(dx, dy);
+  let t = step - ST.carry;
+  while (t <= d) { mk(ST.last[0] + dx * t / d, ST.last[1] + dy * t / d); t += step; }
+  ST.carry = d - (t - step);
+  ST.last = [x, y];
+}
+function strokeFlush() {
+  if (!ST.on || !ST.pending.length) return;
+  const P = E.P, b = S.brush, r = ST.r;
+  const st = new Float32Array(256), st2 = new Float32Array(128);
+  bindTargets([E.stroke]);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  const p = P.stamp.use();
+  p.set('uMode', r.type === '2d' ? 1 : 0).set('uView', [r.w, r.h]).set('uShape', b.shape).set('uHard', b.hard).set('uThrough', !!b.through)
+    .set('uZoom', S.uv2d.zoom).set('uPan', S.uv2d.pan);
+  if (r.type === '3d') {
+    p.set('uVP', ST.cm.vp).set('uEye', ST.cm.eye).tex('uGPos', E.gb.pos).set('uTol', 0.012 + S.cam.dist * 0.004)
+      .set('uMirOn', b.mirror > 0).set('uMir', [b.mirror === 1 ? -1 : 1, b.mirror === 2 ? -1 : 1, b.mirror === 3 ? -1 : 1]);
+  } else { p.tex('uGPos', null).set('uMirOn', false); }
+  for (let i = 0; i < ST.pending.length; i += 64) {
+    const ch = ST.pending.slice(i, i + 64);
+    st.fill(0); st2.fill(0);
+    ch.forEach((s, k) => { st.set([s.x, s.y, s.r, s.a], k * 4); st2.set([s.s, s.seed], k * 2); });
+    p.set('uN', ch.length).set('uSt', st).set('uSt2', st2);
+    drawSoup();
+  }
+  gl.disable(gl.BLEND);
+  ST.pending = [];
+  applyStroke();
+}
+function applyStroke() {
+  const P = E.P, b = S.brush, l = ST.layer;
+  if (ST.mask) {
+    bindTargets([l.mask.tex]);
+    P.applyMask.use().tex('uB', ST.before.mask).tex('uStroke', E.stroke).set('uOpac', b.opacity).set('uVal', ST.erase ? 0 : b.maskVal);
+  } else {
+    bindTargets([l.tex.c, l.tex.m]);
+    const p = P.apply.use().tex('uBC', ST.before.c).tex('uBM', ST.before.m).tex('uStroke', E.stroke).tex('uPos', E.T.pos).tex('uNrm', E.T.nrm)
+      .set('uOpac', b.opacity).set('uOp', ST.erase ? 1 : 0).set('uCol', hex2rgb(b.color)).set('uMat', [b.rough, b.metal, b.height]);
+    const mat = b.mat && MATERIALS[b.mat];
+    p.set('uUsePat', !!mat);
+    if (mat) setPatternUniforms(p, Object.assign(defaultFill(), mat.fill));
+  }
+  drawFull();
+  E.needComp = true;
+}
+function strokeEnd() {
+  if (!ST.on) return;
+  strokeFlush();
+  ST.on = false; ST.layer = null; ST.before = null; E.stroke_active = false;
+  S.dirty = true;
+  if (typeof UI !== 'undefined') UI.layerThumbsSoon();
+}
+
+/* Füll-Werkzeug: ganze Dreiecke / Flächen / UV-Inseln / Modellteile füllen */
+function fillAt(r, x, y, erase) {
+  const hit = pickAt(r, x, y);
+  let tris;
+  const g = S.mesh.groups, nT = S.mesh.nT, mode = S.brush.fillMode;
+  if (mode === 'all') tris = null;
+  else {
+    if (!hit || hit.tri < 0) { if (r.type === '2d') toast('Im 2D-Fenster füllt das Werkzeug nur „Alles“.'); return; }
+    const t0 = hit.tri;
+    if (mode === 'tri') tris = [t0];
+    else { const arr = mode === 'planar' ? g.planar : mode === 'part' ? g.part : g.island; const id = arr[t0]; tris = []; for (let t = 0; t < nT; t++) if (arr[t] === id) tris.push(t); }
+  }
+  if (!strokeBegin(r, erase)) return;
+  bindTargets([E.stroke]); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
+  E.P.one.use();
+  if (!tris) drawSoup();
+  else {
+    const idx = new Uint32Array(tris.length * 3);
+    tris.forEach((t, i) => { idx[i * 3] = t * 3; idx[i * 3 + 1] = t * 3 + 1; idx[i * 3 + 2] = t * 3 + 2; });
+    gl.bindVertexArray(E.vao);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, E.idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STREAM_DRAW);
+    gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_INT, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+    gl.bindVertexArray(null);
+  }
+  applyStroke();
+  ST.on = false; ST.layer = null; ST.before = null; E.stroke_active = false;
+  if (typeof UI !== 'undefined') UI.layerThumbsSoon();
+}
+
+function pipetteAt(r, x, y) {
+  const hit = pickAt(r, x, y); if (!hit) return null;
+  const tx = clamp(Math.floor(hit.uv[0] * S.res), 0, S.res - 1), ty = clamp(Math.floor(hit.uv[1] * S.res), 0, S.res - 1);
+  const c = readRGBA8(E.fin.c, tx, ty, 1, 1), m = readF32(E.fin.m, tx, ty, 1, 1);
+  return { color: rgb2hex([c[0] / 255, c[1] / 255, c[2] / 255]), rough: m[0], metal: m[1] };
+}
+
+/* ---------- Auflösung ändern ---------- */
+function changeResolution(res) {
+  const old = S.res; if (res === old) return;
+  S.res = res;
+  const scale = (t) => { const n = trackTex(copyTex(t, res, res)); return n; };
+  for (const l of S.layers) {
+    if (l.tex) l.tex = { c: scale(l.tex.c), m: scale(l.tex.m) };
+    if (l.mask && l.mask.tex) l.mask.tex = scale(l.mask.tex);
+  }
+  resetUndo();
+  bakeMesh();
+  E.gbDirty = true;
+}
+
+/* ---------- Vorschaubilder fürs Regal ---------- */
+let PREV = null;
+function previewTarget() {
+  if (PREV) return PREV;
+  const sz = 112;
+  const T = { size: sz, pos: new Tex(sz, sz, 'rgba32f'), nrm: new Tex(sz, sz, 'rgba16f'), bake: new Tex(sz, sz, 'rgba16f'), vn: new Tex(sz, sz, 'rgba16f'), acc: makeAcc(sz), caches: new Map(), out: new Tex(sz, sz, 'rgba8') };
+  const a = -0.62, b = 0.5;
+  const rot = new Float32Array([Math.cos(a), 0, -Math.sin(a), 0, 1, 0, Math.sin(a), 0, Math.cos(a)]);
+  const rx = new Float32Array([1, 0, 0, 0, Math.cos(b), Math.sin(b), 0, -Math.sin(b), Math.cos(b)]);
+  const m3 = (A, B) => { const o = new Float32Array(9); for (let c = 0; c < 3; c++) for (let r = 0; r < 3; r++) { let s = 0; for (let k = 0; k < 3; k++) s += A[k * 3 + r] * B[c * 3 + k]; o[c * 3 + r] = s; } return o; };
+  bindTargets([T.pos, T.nrm, T.bake, T.vn]); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
+  E.P.prevGeo.use().set('uRot', m3(rot, rx)); drawFull();
+  PREV = T; return T;
+}
+let _prevCanvas = null;
+function renderPreview(layers) {
+  const T = previewTarget();
+  const acc = compositeTarget(T, layers);
+  bindTargets([T.out]);
+  const p = E.P.prevShade.use(); const env = S.view.env, rot = S.view.envRot, ex = S.view.exposure;
+  S.view.env = 0; S.view.envRot = 0.6; S.view.exposure = 1.05; setEnvUniforms(p); S.view.env = env; S.view.envRot = rot; S.view.exposure = ex;
+  p.tex('uC', acc.c).tex('uM', acc.m).tex('uVN', T.vn).tex('uPos', T.pos).set('uHS', 1.2); drawFull();
+  const px = readRGBA8(T.out);
+  for (const c of T.caches.values()) freeCache(c);
+  T.caches.clear();
+  if (!_prevCanvas) { _prevCanvas = document.createElement('canvas'); _prevCanvas.width = _prevCanvas.height = T.size; }
+  const ctx = _prevCanvas.getContext('2d'); const img = ctx.createImageData(T.size, T.size);
+  for (let y = 0; y < T.size; y++) img.data.set(px.subarray((T.size - 1 - y) * T.size * 4, (T.size - y) * T.size * 4), y * T.size * 4);
+  ctx.putImageData(img, 0, 0);
+  return _prevCanvas.toDataURL('image/png');
+}
+
+'use strict';
+/* ================= Materialien, Smart-Materialien, Masken, Pinsel ================= */
+const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder (Körnung)', 'Stoff', 'Ziegel / Kacheln', 'Karbon', 'Beton / Stein', 'Streifen (Melone)', 'Metallic-Lack'];
+const PAT_USES_B = [false, true, true, true, true, true, true, true, true, true, true, true];
+const GENS = ['Kein Generator', 'Kanten (Abnutzung)', 'Vertiefungen (Schmutz)', 'Umgebungsverdeckung (AO)', 'Rauschen', 'Von oben (Staub)', 'Von unten (Verlauf)', 'Kratzer', 'Flecken'];
+const SHAPES = ['Rund', 'Quadrat', 'Kreide', 'Spritzer', 'Kratzer', 'Ring'];
+const BLEND_NAMES = { normal: 'Normal', multiply: 'Multiplizieren', screen: 'Negativ multipl.', overlay: 'Überlagern', add: 'Addieren', subtract: 'Subtrahieren', darken: 'Abdunkeln', lighten: 'Aufhellen', softlight: 'Weiches Licht' };
+
+const MATERIALS = {
+  eisen: { name: 'Eisen', fill: { pat: 1, colA: '#8c8f93', colB: '#6d7074', roughA: 0.42, roughB: 0.62, metalA: 1, metalB: 1, hAmt: 0.06, scale: 3, vari: 0.5 } },
+  stahl: { name: 'Gebürsteter Stahl', fill: { pat: 3, colA: '#c3c6ca', colB: '#9b9fa4', roughA: 0.28, roughB: 0.45, metalA: 1, metalB: 1, hAmt: 0.03, scale: 2, vari: 0.4 } },
+  chrom: { name: 'Chrom', fill: { pat: 0, colA: '#ececee', colB: '#ececee', roughA: 0.05, roughB: 0.05, metalA: 1, metalB: 1, hAmt: 0, scale: 2, vari: 0 } },
+  gold: { name: 'Gold', fill: { pat: 1, colA: '#ffcf5c', colB: '#e3ad3d', roughA: 0.22, roughB: 0.34, metalA: 1, metalB: 1, hAmt: 0.02, scale: 4, vari: 0.3 } },
+  kupfer: { name: 'Kupfer', fill: { pat: 1, colA: '#dc8f5f', colB: '#b46a42', roughA: 0.28, roughB: 0.45, metalA: 1, metalB: 1, hAmt: 0.03, scale: 4, vari: 0.4 } },
+  alu: { name: 'Aluminium', fill: { pat: 1, colA: '#d6d8db', colB: '#c2c5c9', roughA: 0.32, roughB: 0.42, metalA: 1, metalB: 1, hAmt: 0.02, scale: 5, vari: 0.3 } },
+  rost: { name: 'Rost', fill: { pat: 4, colA: '#8f4320', colB: '#4a2311', roughA: 0.82, roughB: 0.95, metalA: 0.1, metalB: 0, hAmt: 0.35, scale: 3, vari: 0.6 } },
+  holz: { name: 'Holz hell', fill: { pat: 2, colA: '#c89d6b', colB: '#8a5c35', roughA: 0.55, roughB: 0.7, metalA: 0, metalB: 0, hAmt: 0.18, scale: 2.2, vari: 0.5 } },
+  holz2: { name: 'Holz dunkel', fill: { pat: 2, colA: '#6c4529', colB: '#352012', roughA: 0.5, roughB: 0.65, metalA: 0, metalB: 0, hAmt: 0.18, scale: 2.2, vari: 0.5 } },
+  lack: { name: 'Lack rot', fill: { pat: 1, colA: '#c41f2b', colB: '#b01a25', roughA: 0.28, roughB: 0.34, metalA: 0, metalB: 0, hAmt: 0.01, scale: 6, vari: 0.1 } },
+  plastik: { name: 'Plastik glänzend', fill: { pat: 0, colA: '#2f7de1', colB: '#2f7de1', roughA: 0.2, roughB: 0.2, metalA: 0, metalB: 0, hAmt: 0, scale: 2, vari: 0 } },
+  plastik2: { name: 'Plastik matt', fill: { pat: 1, colA: '#3b3b40', colB: '#323236', roughA: 0.62, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.02, scale: 8, vari: 0.2 } },
+  gummi: { name: 'Gummi', fill: { pat: 1, colA: '#1e1e20', colB: '#29292b', roughA: 0.85, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.06, scale: 10, vari: 0.3 } },
+  leder: { name: 'Leder', fill: { pat: 5, colA: '#6d3c22', colB: '#3f1f10', roughA: 0.5, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.3, scale: 3, vari: 0.5 } },
+  stoff: { name: 'Stoff', fill: { pat: 6, colA: '#41598a', colB: '#22355a', roughA: 0.88, roughB: 0.96, metalA: 0, metalB: 0, hAmt: 0.35, scale: 3, vari: 0.5 } },
+  beton: { name: 'Beton', fill: { pat: 9, colA: '#9c9a94', colB: '#76746e', roughA: 0.88, roughB: 0.96, metalA: 0, metalB: 0, hAmt: 0.25, scale: 3, vari: 0.4 } },
+  ziegel: { name: 'Ziegel', fill: { pat: 7, colA: '#9e4b33', colB: '#cdc4b4', roughA: 0.82, roughB: 0.95, metalA: 0, metalB: 0, hAmt: 0.5, scale: 2, vari: 0.6 } },
+  karbon: { name: 'Karbon', fill: { pat: 8, colA: '#141416', colB: '#46474c', roughA: 0.22, roughB: 0.3, metalA: 0, metalB: 0.1, hAmt: 0.12, scale: 3, vari: 0.5 } },
+  stein: { name: 'Stein', fill: { pat: 9, colA: '#837f76', colB: '#57544d', roughA: 0.8, roughB: 0.92, metalA: 0, metalB: 0, hAmt: 0.45, scale: 2, vari: 0.8 } },
+  autolack: { name: 'Autolack Metallic', fill: { pat: 11, colA: '#1d4bcc', colB: '#a9c0ff', roughA: 0.24, roughB: 0.12, metalA: 0.55, metalB: 1, hAmt: 0, scale: 6, vari: 0.4 } },
+  schale: { name: 'Melonenschale', fill: { pat: 10, colA: '#2b6e2d', colB: '#9ccf63', roughA: 0.38, roughB: 0.48, metalA: 0, metalB: 0, hAmt: 0.05, scale: 1.2, vari: 0.4 } },
+  fleisch: { name: 'Melonen-Fruchtfleisch', fill: { pat: 1, colA: '#ff4f64', colB: '#ff8592', roughA: 0.5, roughB: 0.35, metalA: 0, metalB: 0, hAmt: 0.1, scale: 5, vari: 0.4 } },
+  schmutz: { name: 'Schmutz', fill: { pat: 1, colA: '#3b3026', colB: '#251d16', roughA: 0.92, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.05, scale: 4, vari: 0.5 } },
+  staub: { name: 'Staub', fill: { pat: 1, colA: '#bdb5a6', colB: '#a39b8c', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.02, scale: 6, vari: 0.4 } },
+  moos: { name: 'Moos', fill: { pat: 1, colA: '#506e22', colB: '#2d4612', roughA: 0.92, roughB: 1, metalA: 0, metalB: 0, hAmt: 0.22, scale: 6, vari: 0.6 } },
+};
+
+const M = (id, extra = {}) => ({ name: MATERIALS[id].name, ...extra, fill: { ...MATERIALS[id].fill, ...(extra.fill || {}) } });
+const SMART = {
+  rostEisen: { name: 'Rostiges Eisen', layers: [
+    M('eisen'),
+    { ...M('rost'), name: 'Rost (Ecken)', mask: { gen: 2, level: 0.55, width: 0.07, rough: 0.8, soft: 0.1, scale: 3 } },
+    { ...M('rost', { fill: { scale: 2 } }), name: 'Rost (Flecken)', mask: { gen: 4, level: 0.32, rough: 0.5, soft: 0.07, scale: 1.6, seed: 3 } },
+  ] },
+  lackAb: { name: 'Abgeplatzter Lack', layers: [
+    M('eisen'),
+    { ...M('lack'), name: 'Lack', mask: { gen: 1, inv: true, level: 0.42, width: 0.05, rough: 0.75, soft: 0.03, scale: 3 } },
+    { ...M('schmutz'), name: 'Schmutz', opacity: 0.7, mask: { gen: 2, level: 0.45, width: 0.05, rough: 0.6, soft: 0.12, scale: 3 } },
+  ] },
+  militaer: { name: 'Militär-Metall', layers: [
+    M('eisen'),
+    { name: 'Olive Farbe', fill: { pat: 1, colA: '#5d6437', colB: '#4a512b', roughA: 0.62, roughB: 0.72, metalA: 0, metalB: 0, hAmt: 0.03, scale: 4, vari: 0.4 }, mask: { gen: 1, inv: true, level: 0.35, width: 0.035, rough: 0.7, soft: 0.03, scale: 4 } },
+    { ...M('staub'), name: 'Staub', opacity: 0.75, mask: { gen: 5, level: 0.42, rough: 0.6, soft: 0.12, scale: 2 } },
+  ] },
+  altHolz: { name: 'Altes Holz', layers: [
+    M('holz'),
+    { ...M('schmutz'), name: 'Dreck in Ritzen', mask: { gen: 2, level: 0.55, width: 0.06, rough: 0.7, soft: 0.1, scale: 3 } },
+    { name: 'Helle Kanten', fill: { pat: 1, colA: '#dcbd93', colB: '#c7a477', roughA: 0.7, roughB: 0.8, metalA: 0, metalB: 0, hAmt: 0, scale: 4, vari: 0.3 }, opacity: 0.7, ch: { h: false }, mask: { gen: 1, level: 0.5, width: 0.03, rough: 0.5, soft: 0.05, scale: 4 } },
+  ] },
+  goldDreck: { name: 'Dreckiges Gold', layers: [
+    M('gold'),
+    { ...M('schmutz'), name: 'Schmutz', mask: { gen: 2, level: 0.6, width: 0.07, rough: 0.7, soft: 0.12, scale: 3 } },
+    { name: 'Polierte Kanten', fill: { pat: 0, colA: '#ffe08f', colB: '#ffe08f', roughA: 0.1, roughB: 0.1, metalA: 1, metalB: 1, hAmt: 0, scale: 2, vari: 0 }, ch: { h: false }, mask: { gen: 1, level: 0.5, width: 0.03, rough: 0.4, soft: 0.05, scale: 3 } },
+  ] },
+  staubPlastik: { name: 'Staubiges Plastik', layers: [
+    M('plastik2'),
+    { ...M('staub'), name: 'Staub', opacity: 0.85, mask: { gen: 5, level: 0.45, rough: 0.6, soft: 0.1, scale: 2 } },
+  ] },
+  moosStein: { name: 'Moosiger Stein', layers: [
+    M('stein'),
+    { ...M('schmutz'), name: 'Dreck', mask: { gen: 2, level: 0.5, width: 0.06, rough: 0.6, soft: 0.12, scale: 3 } },
+    { ...M('moos'), name: 'Moos', mask: { gen: 5, level: 0.4, rough: 0.8, soft: 0.06, scale: 2.5 } },
+  ] },
+  kratzLack: { name: 'Zerkratzter Autolack', layers: [
+    M('autolack'),
+    { ...M('alu'), name: 'Kratzer', ch: { h: false }, mask: { gen: 7, level: 0.5, rough: 0, soft: 0.1, scale: 2 } },
+    { ...M('alu'), name: 'Abgewetzte Kanten', mask: { gen: 1, level: 0.3, width: 0.03, rough: 0.8, soft: 0.04, scale: 4 } },
+  ] },
+  verbrannt: { name: 'Verbranntes Metall', layers: [
+    { name: 'Dunkles Metall', fill: { pat: 1, colA: '#3d3936', colB: '#262422', roughA: 0.55, roughB: 0.75, metalA: 1, metalB: 0.9, hAmt: 0.05, scale: 3, vari: 0.5 } },
+    { name: 'Anlauffarben', fill: { pat: 1, colA: '#5b3c7e', colB: '#c47b2d', roughA: 0.32, roughB: 0.4, metalA: 1, metalB: 1, hAmt: 0, scale: 1.5, vari: 0.9 }, ch: { h: false }, mask: { gen: 4, level: 0.45, soft: 0.25, scale: 1.2 } },
+    { name: 'Ruß', fill: { pat: 1, colA: '#121110', colB: '#1d1b19', roughA: 0.95, roughB: 1, metalA: 0, metalB: 0, hAmt: 0, scale: 5, vari: 0.3 }, mask: { gen: 2, level: 0.55, width: 0.07, rough: 0.7, soft: 0.15, scale: 3 } },
+  ] },
+  melone: { name: 'Melone', layers: [M('schale')] },
+};
+
+/* Ebenen aus einer Vorlage bauen */
+function layersFromSpec(spec, forPreview = false) {
+  const out = [];
+  for (const s of spec) {
+    const l = {
+      id: forPreview ? 'p' + uid() : uid(), name: s.name, kind: 'fill', visible: true, opacity: s.opacity != null ? s.opacity : 1, blend: 'normal', hblend: 'add',
+      ch: Object.assign({ c: true, r: true, m: true, h: true }, s.ch || {}), fill: Object.assign(defaultFill(), s.fill), mask: null, tex: null,
+    };
+    if (s.mask) { l.mask = Object.assign(defaultMask(), s.mask); l.mask.tex = forPreview ? null : newMaskTex(1); }
+    out.push(l);
+  }
+  return out;
+}
+function genPreviewSpec(gen) {
+  return [{ name: 'a', fill: { pat: 0, colA: '#26272b', colB: '#26272b', roughA: 0.7, roughB: 0.7 } },
+    { name: 'b', fill: { pat: 0, colA: '#f2f2f2', colB: '#f2f2f2', roughA: 0.5, roughB: 0.5 }, mask: Object.assign(defaultMask(gen), gen === 1 || gen === 2 ? { width: 0.06 } : {}, gen === 7 ? { rough: 0 } : {}) }];
+}
+
+/* Pinselspitzen als kleine Bilder */
+function shapeIcon(i) {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  g.fillStyle = '#1b1c20'; g.fillRect(0, 0, 64, 64);
+  const rg = (r0, r1) => { const gr = g.createRadialGradient(32, 32, r0, 32, 32, r1); gr.addColorStop(0, '#fff'); gr.addColorStop(1, 'rgba(255,255,255,0)'); return gr; };
+  g.fillStyle = '#fff';
+  if (i === 0) { g.fillStyle = rg(10, 24); g.beginPath(); g.arc(32, 32, 24, 0, 7); g.fill(); }
+  else if (i === 1) { g.fillRect(12, 12, 40, 40); }
+  else if (i === 2) { for (let k = 0; k < 260; k++) { const a = Math.random() * 7, r = Math.sqrt(Math.random()) * 22; g.globalAlpha = 0.6; g.fillRect(32 + Math.cos(a) * r, 32 + Math.sin(a) * r, 2, 2); } g.globalAlpha = 1; }
+  else if (i === 3) { g.beginPath(); g.arc(32, 32, 9, 0, 7); g.fill(); for (let k = 0; k < 14; k++) { const a = Math.random() * 7, r = 12 + Math.random() * 12; g.beginPath(); g.arc(32 + Math.cos(a) * r, 32 + Math.sin(a) * r, 1 + Math.random() * 2.5, 0, 7); g.fill(); } }
+  else if (i === 4) { g.strokeStyle = '#fff'; g.lineWidth = 1.2; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(10, 18 + k * 6 + Math.random() * 3); g.bezierCurveTo(25, 14 + k * 6, 40, 24 + k * 6, 54, 18 + k * 6); g.stroke(); } }
+  else if (i === 5) { g.strokeStyle = '#fff'; g.lineWidth = 4; g.beginPath(); g.arc(32, 32, 19, 0, 7); g.stroke(); }
+  return c.toDataURL();
+}
+
+'use strict';
+/* ================= Dateien: ZIP, PNG, Projekt, Export ================= */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8, c = 0xFFFFFFFF) { for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return c; }
+async function streamBytes(u8, ts) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(ts)).arrayBuffer()); }
+const deflateRaw = (u8) => streamBytes(u8, new CompressionStream('deflate-raw'));
+const inflateRaw = (u8) => streamBytes(u8, new DecompressionStream('deflate-raw'));
+const zlibDeflate = (u8) => streamBytes(u8, new CompressionStream('deflate'));
+const enc = new TextEncoder(), dec = new TextDecoder();
+
+async function makeZip(files) {
+  const parts = [], central = []; let off = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name); const data = f.data;
+    const crc = (crc32(data) ^ 0xFFFFFFFF) >>> 0;
+    const comp = f.store ? data : await deflateRaw(data);
+    const method = f.store ? 0 : 8;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, method, true);
+    h.setUint16(10, 0, true); h.setUint16(12, 0x21, true); h.setUint32(14, crc, true); h.setUint32(18, comp.length, true); h.setUint32(22, data.length, true);
+    h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+    parts.push(new Uint8Array(h.buffer), name, comp);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, method, true);
+    c.setUint16(12, 0, true); c.setUint16(14, 0x21, true); c.setUint32(16, crc, true); c.setUint32(20, comp.length, true); c.setUint32(24, data.length, true);
+    c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+    central.push(new Uint8Array(c.buffer), name);
+    off += 30 + name.length + comp.length;
+  }
+  const csize = central.reduce((s, p) => s + p.length, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csize, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/zip' });
+}
+async function readZip(buf) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  let e = u8.length - 22; while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('Die Datei ist keine gültige Projektdatei.');
+  const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true);
+  const out = new Map();
+  for (let i = 0; i < n; i++) {
+    const method = dv.getUint16(p + 10, true), csz = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), lo = dv.getUint32(p + 42, true);
+    const name = dec.decode(u8.subarray(p + 46, p + 46 + nl));
+    const lnl = dv.getUint16(lo + 26, true), lxl = dv.getUint16(lo + 28, true);
+    const data = u8.subarray(lo + 30 + lnl + lxl, lo + 30 + lnl + lxl + csz);
+    out.set(name, method === 8 ? await inflateRaw(data) : data.slice());
+    p += 46 + nl + xl + cl;
+  }
+  return out;
+}
+
+/* PNG schreiben (8 oder 16 Bit, 1/3/4 Kanäle) – exakt, ohne Browser-Farbumrechnung */
+async function encodePNG(w, h, rows, ch, bits) {
+  const bpp = ch * bits / 8, stride = w * bpp;
+  const raw = new Uint8Array((stride + 1) * h);
+  for (let y = 0; y < h; y++) {
+    raw[y * (stride + 1)] = 2; // Filter "Up"
+    const cur = rows.subarray(y * stride, (y + 1) * stride), prev = y ? rows.subarray((y - 1) * stride, y * stride) : null;
+    const o = y * (stride + 1) + 1;
+    if (prev) for (let i = 0; i < stride; i++) raw[o + i] = (cur[i] - prev[i]) & 255; else raw.set(cur, o);
+  }
+  const idat = await zlibDeflate(raw);
+  const chunk = (type, data) => {
+    const b = new Uint8Array(12 + data.length), d = new DataView(b.buffer);
+    d.setUint32(0, data.length); b.set(enc.encode(type), 4); b.set(data, 8);
+    d.setUint32(8 + data.length, (crc32(b.subarray(4, 8 + data.length)) ^ 0xFFFFFFFF) >>> 0);
+    return b;
+  };
+  const ihdr = new Uint8Array(13), id = new DataView(ihdr.buffer);
+  id.setUint32(0, w); id.setUint32(4, h); ihdr[8] = bits; ihdr[9] = { 1: 0, 3: 2, 4: 6 }[ch]; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', idat), chunk('IEND', new Uint8Array(0))];
+  const len = parts.reduce((s, p) => s + p.length, 0); const out = new Uint8Array(len); let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+async function saveBlob(name, blob, kind) {
+  if (NATIVE && NATIVE.saveFile) {
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    const r = await NATIVE.saveFile(name, buf, kind);
+    return r && r.status === 'saved' ? r.path : null;
+  }
+  const a = el('a', { href: URL.createObjectURL(blob), download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return name;
+}
+
+/* ---------- Projekt speichern / laden (.mtex) ---------- */
+function texToBytes(t) {
+  if (t.fmt === 'rgba16f') {
+    const f = readF32(t); const h = new Uint16Array(f.length);
+    for (let i = 0; i < f.length; i++) h[i] = f32ToF16(f[i]);
+    return new Uint8Array(h.buffer);
+  }
+  const px = readRGBA8(t);
+  if (t.fmt === 'r8') { const r = new Uint8Array(t.w * t.h); for (let i = 0; i < r.length; i++) r[i] = px[i * 4]; return r; }
+  return px;
+}
+function bytesToTex(bytes, fmt, res) {
+  if (fmt === 'rgba16f') {
+    const h = new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
+    const t = new Tex(res, res, 'rgba16f'); gl.bindTexture(gl.TEXTURE_2D, t.t);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, res, res, gl.RGBA, gl.HALF_FLOAT, h);
+    return trackTex(t);
+  }
+  if (fmt === 'r8') { gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); const t = new Tex(res, res, 'r8', bytes); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4); return trackTex(t); }
+  return trackTex(new Tex(res, res, 'rgba8', bytes));
+}
+async function buildProject() {
+  const files = [];
+  const s = S.mesh.soup;
+  const meshBin = new Uint8Array(s.pos.byteLength + s.nrm.byteLength + s.uv.byteLength);
+  meshBin.set(new Uint8Array(s.pos.buffer, s.pos.byteOffset, s.pos.byteLength), 0);
+  meshBin.set(new Uint8Array(s.nrm.buffer, s.nrm.byteOffset, s.nrm.byteLength), s.pos.byteLength);
+  meshBin.set(new Uint8Array(s.uv.buffer, s.uv.byteOffset, s.uv.byteLength), s.pos.byteLength + s.nrm.byteLength);
+  files.push({ name: 'mesh.bin', data: meshBin });
+  const layers = [];
+  for (const l of S.layers) {
+    const o = { ...l, tex: null, mask: l.mask ? { ...l.mask, tex: null } : null };
+    if (l.tex) { o.tex = { c: `L${l.id}_c.bin`, m: `L${l.id}_m.bin` }; files.push({ name: o.tex.c, data: texToBytes(l.tex.c) }, { name: o.tex.m, data: texToBytes(l.tex.m) }); }
+    if (l.mask && l.mask.tex) { o.mask.tex = `L${l.id}_mask.bin`; files.push({ name: o.mask.tex, data: texToBytes(l.mask.tex) }); }
+    layers.push(o);
+  }
+  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
+  files.unshift({ name: 'projekt.json', data: enc.encode(JSON.stringify(meta)) });
+  return makeZip(files);
+}
+async function saveProject() {
+  if (!S.mesh) return;
+  UI.busy('Projekt wird gespeichert …');
+  try {
+    await sleep(30);
+    const blob = await buildProject();
+    const name = (S.projectName || 'Projekt').replace(/[\\/:*?"<>|]/g, '_') + '.mtex';
+    const p = await saveBlob(name, blob, 'project');
+    if (p) { S.dirty = false; toast('Gespeichert: ' + name); }
+  } catch (e) { console.error('Speichern fehlgeschlagen', e); toast('Speichern fehlgeschlagen: ' + e.message, 'err'); }
+  finally { UI.busy(null); }
+}
+async function loadProjectBuffer(buf) {
+  const files = await readZip(buf);
+  const meta = JSON.parse(dec.decode(files.get('projekt.json')));
+  if (meta.app !== APP_NAME) throw new Error('Das ist keine Melonentextur-Projektdatei.');
+  const mb = files.get('mesh.bin'); const n = meta.nT * 3;
+  const f = new Float32Array(mb.buffer.slice(mb.byteOffset, mb.byteOffset + mb.byteLength));
+  const pos = f.subarray(0, n * 3), nrm = f.subarray(n * 3, n * 6), uv = f.subarray(n * 6, n * 8);
+  const idx = new Uint32Array(n); for (let i = 0; i < n; i++) idx[i] = i;
+  const mesh = finalizeMesh({ pos, nrm, uv, idx }, meta.meshName);
+  await startProject(mesh, meta.res, meta.name, () => {
+    S.hdepth = meta.hdepth ?? S.hdepth;
+    let maxId = 0;
+    S.layers = meta.layers.map((o) => {
+      const l = { ...o };
+      if (o.tex) l.tex = { c: bytesToTex(files.get(o.tex.c), 'rgba8', meta.res), m: bytesToTex(files.get(o.tex.m), 'rgba16f', meta.res) };
+      if (o.mask) { l.mask = { ...defaultMask(), ...o.mask }; l.mask.tex = o.mask.tex ? bytesToTex(files.get(o.mask.tex), 'r8', meta.res) : newMaskTex(1); }
+      if (l.fill) l.fill = { ...defaultFill(), ...l.fill };
+      maxId = Math.max(maxId, +l.id || 0);
+      return l;
+    });
+    _uid = maxId + 1;
+    S.sel = meta.sel; Object.assign(S.brush, meta.brush || {}); Object.assign(S.view, meta.view || {}); Object.assign(S.cam, meta.cam || {});
+  });
+}
+
+/* ---------- Texturen exportieren ---------- */
+const EXPORTS = {
+  roblox: { name: 'Roblox (SurfaceAppearance)', size: 1024, aoInBase: 0.6, maps: [['Color', 0], ['Metalness', 2], ['Roughness', 1], ['Normal', 5]],
+    hint: 'In Roblox Studio: SurfaceAppearance in das MeshPart einfügen und ColorMap, MetalnessMap, NormalMap und RoughnessMap zuweisen. Roblox erlaubt höchstens 1024 × 1024.' },
+  fivem: { name: 'FiveM / GTA V', size: 2048, aoInBase: 0.8, maps: [['d', 0], ['n', 6], ['s', 9]], sep: '_',
+    hint: 'Diffuse (_d), Normal im DirectX-Format (_n) und Glanz-Map (_s). In OpenIV oder CodeWalker in die .ytd einfügen (beim Import in DDS umwandeln lassen).' },
+  blender: { name: 'Blender / glTF', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['Roughness', 1], ['Metallic', 2], ['Normal', 5], ['Height', 3], ['AO', 4], ['ORM', 7]],
+    hint: 'Normal-Map im OpenGL-Format. In Blender die Normal-Map als „Non-Color“ laden. ORM = AO (Rot), Rauheit (Grün), Metall (Blau) für glTF.' },
+  unity: { name: 'Unity', size: 0, aoInBase: 0, maps: [['Albedo', 0], ['MetallicSmoothness', 8], ['Normal', 5], ['Occlusion', 4], ['Height', 3]],
+    hint: 'MetallicSmoothness: Metall in Rot, Glätte im Alpha-Kanal. Normal-Map im Inspector als „Normal map“ markieren.' },
+  unreal: { name: 'Unreal Engine', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['ORM', 7], ['Normal', 6]],
+    hint: 'ORM = AO, Rauheit, Metall. Normal-Map im DirectX-Format. ORM-Textur ohne sRGB importieren.' },
+  all: { name: 'Alle Einzel-Maps', size: 0, aoInBase: 0, maps: [['BaseColor', 0], ['Roughness', 1], ['Metallic', 2], ['Height', 3], ['AO', 4], ['Normal_OpenGL', 5], ['Normal_DirectX', 6], ['Glossiness', 10]], hint: '' },
+};
+async function exportTextures({ preset, size, name, aoInBase, height16 }) {
+  const ex = EXPORTS[preset]; const sz = size || S.res;
+  if (E.needComp) compositeMain();
+  const files = [];
+  const out8 = new Tex(sz, sz, 'rgba8');
+  const out16 = height16 ? new Tex(sz, sz, 'rgba16f') : null;
+  try {
+    for (const [suffix, kind] of ex.maps) {
+      const sixteen = kind === 3 && height16;
+      const tgt = sixteen ? out16 : out8;
+      bindTargets([tgt]); gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST);
+      E.P.export.use().tex('uC', E.fin.c).tex('uM', E.fin.m).tex('uN', E.fin.n).set('uKind', kind).set('uAOB', kind === 0 ? aoInBase : 0);
+      drawFull();
+      let rows, ch, bits;
+      const gray = [1, 2, 3, 4, 9, 10].includes(kind), alpha = kind === 8;
+      ch = gray ? 1 : alpha ? 4 : 3;
+      if (sixteen) {
+        const f = readF32(tgt); bits = 16; rows = new Uint8Array(sz * sz * 2);
+        for (let y = 0; y < sz; y++) for (let x = 0; x < sz; x++) {
+          const v = Math.round(clamp(f[((sz - 1 - y) * sz + x) * 4], 0, 1) * 65535), o = (y * sz + x) * 2;
+          rows[o] = v >> 8; rows[o + 1] = v & 255;
+        }
+      } else {
+        const px = readRGBA8(tgt); bits = 8; rows = new Uint8Array(sz * sz * ch);
+        for (let y = 0; y < sz; y++) {
+          const src = (sz - 1 - y) * sz * 4, dst = y * sz * ch;
+          for (let x = 0; x < sz; x++) for (let c = 0; c < ch; c++) rows[dst + x * ch + c] = px[src + x * 4 + c];
+        }
+      }
+      const png = await encodePNG(sz, sz, rows, ch, bits);
+      files.push({ name: `${name}${ex.sep || '_'}${suffix}.png`, data: png, store: true });
+    }
+  } finally { out8.free(); if (out16) out16.free(); cleanFBOs(); }
+  const blob = await makeZip(files);
+  return saveBlob(`${name}_${preset}.zip`, blob, 'export');
+}
+
+'use strict';
+/* ================= Oberfläche ================= */
+const CHANNELS = ['Material', 'Grundfarbe', 'Rauheit', 'Metall', 'Höhe', 'Normal', 'Verdeckung (AO)', 'Kanten / Krümmung', 'Maske der Ebene', 'UV-Prüfmuster'];
+const TOOLS = [
+  { id: 'paint', icon: '🖌', name: 'Pinsel', key: 'B' },
+  { id: 'erase', icon: '🧽', name: 'Radierer', key: 'E' },
+  { id: 'fill', icon: '🪣', name: 'Füllen (Flächen, UV-Inseln, Teile)', key: 'G' },
+  { id: 'pick', icon: '💧', name: 'Pipette', key: 'I' },
+];
+const FILL_MODES = [['tri', 'Dreieck'], ['planar', 'Ebene Fläche'], ['island', 'UV-Insel'], ['part', 'Modellteil'], ['all', 'Alles']];
+
+let _editOpen = false;
+function beginEdit() { if (!_editOpen) { pushUndo(); _editOpen = true; } }
+function endEdit() { _editOpen = false; }
+const fmtNum = (v, step) => { const d = step >= 1 ? 0 : step >= 0.1 ? 1 : 2; return (+v).toFixed(d); };
+
+function ctlSlider(label, obj, key, min, max, step, o = {}) {
+  const rng = el('input', { type: 'range', min, max, step, value: obj[key] });
+  const num = el('input', { type: 'number', min, max, step, value: fmtNum(obj[key], step) });
+  const apply = (v, final) => {
+    if (o.undo) beginEdit();
+    obj[key] = v; if (o.onchange) o.onchange(v);
+    if (final && o.undo) endEdit();
+  };
+  rng.addEventListener('input', () => { num.value = fmtNum(rng.value, step); apply(+rng.value, false); });
+  rng.addEventListener('change', () => apply(+rng.value, true));
+  num.addEventListener('change', () => { const v = clamp(+num.value || 0, min, max); rng.value = v; num.value = fmtNum(v, step); apply(v, true); });
+  if (o.compact) return el('span', { class: 'grp', title: o.tip || '' }, el('label', {}, label), rng, num);
+  return el('div', { class: 'row', title: o.tip || '' }, el('label', {}, label), rng, num);
+}
+function ctlColor(label, obj, key, o = {}) {
+  const inp = el('input', { type: 'color', value: obj[key] });
+  inp.addEventListener('input', () => { if (o.undo) beginEdit(); obj[key] = inp.value; if (o.onchange) o.onchange(inp.value); });
+  inp.addEventListener('change', () => { if (o.undo) endEdit(); });
+  return el('div', { class: 'row two' }, el('label', {}, label), inp);
+}
+function ctlSelect(label, obj, key, options, o = {}) {
+  const s = el('select', {}, options.map(([v, t]) => el('option', { value: v, selected: String(obj[key]) === String(v) }, t)));
+  s.addEventListener('change', () => {
+    if (o.undo) { beginEdit(); }
+    const v = typeof obj[key] === 'number' ? +s.value : s.value; obj[key] = v; if (o.onchange) o.onchange(v);
+    if (o.undo) endEdit();
+  });
+  if (o.compact) return el('span', { class: 'grp', title: o.tip || '' }, label ? el('label', {}, label) : null, s);
+  return el('div', { class: 'row two', title: o.tip || '' }, el('label', {}, label), s);
+}
+function ctlCheck(label, obj, key, o = {}) {
+  const c = el('input', { type: 'checkbox', checked: !!obj[key] });
+  c.addEventListener('change', () => { if (o.undo) beginEdit(); obj[key] = c.checked; if (o.onchange) o.onchange(c.checked); if (o.undo) endEdit(); });
+  return el('label', { title: o.tip || '' }, c, label);
+}
+
+const UI = {
+  shelfTab: 'smart',
+  previews: new Map(),
+  init() {
+    this.buildMenus();
+    $('#btnExport').onclick = () => this.exportDialog();
+    $('#btnReport').onclick = () => this.report();
+    if (NATIVE && NATIVE.openLauncher) $('#btnLauncher').onclick = () => NATIVE.openLauncher(); else $('#btnLauncher').style.display = 'none';
+    $('#layerBtns').append(
+      el('button', { title: 'Neue Mal-Ebene', onclick: () => this.addLayer('paint') }, '🖌'),
+      el('button', { title: 'Neue Füll-Ebene', onclick: () => this.addLayer('fill') }, '▦'),
+      el('button', { title: 'Weiße Maske hinzufügen', onclick: () => this.addMask(1) }, '◐'),
+      el('button', { title: 'Ebene duplizieren (Strg+D)', onclick: () => this.dupLayer() }, '⧉'),
+      el('button', { title: 'Ebene löschen (Entf)', onclick: () => this.delLayer() }, '🗑'),
+    );
+    $('#stHint').textContent = 'Linke Maus: malen · Rechte Maus: drehen · Mittlere Maus: verschieben · Mausrad: zoomen · [ ] Pinselgröße';
+  },
+  buildMenus() {
+    const menus = [
+      ['Datei', [
+        ['Neues Projekt …', 'Strg+N', () => this.welcome()],
+        ['Projekt öffnen …', 'Strg+O', () => this.openFile('.mtex')],
+        ['Projekt speichern', 'Strg+S', () => saveProject()],
+        ['Modell austauschen …', '', () => this.welcome()],
+        '-',
+        ['Texturen exportieren …', 'Strg+Umschalt+E', () => this.exportDialog()],
+      ]],
+      ['Bearbeiten', [
+        ['Rückgängig', 'Strg+Z', () => undo()],
+        ['Wiederholen', 'Strg+Y', () => redo()],
+        '-',
+        ['Projekt-Einstellungen …', '', () => this.settingsDialog()],
+      ]],
+      ['Ansicht', [
+        ['Nur 3D', 'F1', () => setLayout('3d')], ['Nur 2D (UV)', 'F2', () => setLayout('2d')], ['Geteilt', 'F3', () => setLayout('split')],
+        '-',
+        ['Kamera zentrieren', 'F', () => frameCamera()], ['Drahtgitter an/aus', 'W', () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; }],
+        ['Nächster Kanal', 'C', () => { S.view.chan = (S.view.chan + 1) % CHANNELS.length; this.renderVbar(); E.needDraw = true; }],
+      ]],
+      ['Hilfe', [['Tastenkürzel', '', () => this.helpDialog()], ['Über Melonentextur', '', () => this.about()]]],
+    ];
+    const nav = $('#menus');
+    for (const [title, items] of menus) {
+      const dd = el('div', { class: 'dd' });
+      for (const it of items) {
+        if (it === '-') { dd.append(el('hr')); continue; }
+        dd.append(el('button', { onclick: () => { closeMenus(); it[2](); } }, el('span', {}, it[0]), el('kbd', {}, it[1])));
+      }
+      const m = el('div', { class: 'menu' }, el('button', { onclick: (e) => { e.stopPropagation(); const o = m.classList.contains('open'); closeMenus(); if (!o) m.classList.add('open'); } }, title), dd);
+      m.addEventListener('mouseenter', () => { if ($('.menu.open') && !m.classList.contains('open')) { closeMenus(); m.classList.add('open'); } });
+      nav.append(m);
+    }
+    const closeMenus = () => $$('.menu.open').forEach((m) => m.classList.remove('open'));
+    document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.menu')) closeMenus(); });
+  },
+  refreshAll() { this.renderTools(); this.renderCtx(); this.renderLayers(); this.renderProps(); this.renderVbar(); this.renderBadge(); this.renderInfo(); E.needDraw = true; },
+  layerThumbsSoon() { },
+
+  /* ---------- Werkzeuge ---------- */
+  renderTools() {
+    const t = $('#tools'); t.innerHTML = '';
+    for (const tl of TOOLS) t.append(el('button', { class: S.tool === tl.id ? 'on' : '', title: `${tl.name} (${tl.key})`, onclick: () => setTool(tl.id) }, tl.icon));
+    t.append(el('div', { class: 'sep' }),
+      el('button', { title: 'Kamera zentrieren (F)', onclick: () => frameCamera() }, '⌖'),
+      el('button', { class: S.brush.mirror ? 'on' : '', title: 'Symmetrie an/aus (X)', onclick: () => { S.brush.mirror = S.brush.mirror ? 0 : 1; this.renderTools(); this.renderCtx(); } }, '⇋'),
+      el('button', { title: 'Rückgängig (Strg+Z)', onclick: () => undo() }, '↶'),
+      el('button', { title: 'Wiederholen (Strg+Y)', onclick: () => redo() }, '↷'));
+  },
+  renderCtx() {
+    const c = $('#ctx'); c.innerHTML = ''; const b = S.brush;
+    const sep = () => el('span', { class: 'sep' });
+    const tool = TOOLS.find((t) => t.id === S.tool);
+    c.append(el('b', {}, tool.icon + ' ' + tool.name), sep());
+    if (S.tool === 'paint' || S.tool === 'erase') {
+      c.append(
+        ctlSlider('Größe', b, 'size', 1, 400, 1, { compact: true, tip: 'Pinselgröße in Bildschirm-Pixeln – Tasten [ und ]', onchange: () => drawOverlay() }),
+        ctlSlider('Fluss', b, 'flow', 0.01, 1, 0.01, { compact: true, tip: 'Wie stark jeder einzelne Tupfer deckt' }),
+        ctlSlider('Deckkraft', b, 'opacity', 0.01, 1, 0.01, { compact: true, tip: 'Maximale Deckkraft eines Strichs' }),
+        ctlSlider('Härte', b, 'hard', 0, 1, 0.01, { compact: true, tip: 'Weicher oder harter Rand (Umschalt + [ ])' }),
+        ctlSlider('Abstand', b, 'spacing', 0.02, 1, 0.01, { compact: true, tip: 'Abstand der Tupfer im Strich' }),
+        sep(),
+        ctlSelect('Spitze', b, 'shape', SHAPES.map((s, i) => [i, s]), { compact: true }),
+        ctlSlider('Winkel', b, 'angle', 0, 360, 1, { compact: true }),
+        ctlSlider('Zufall Winkel', b, 'jitAng', 0, 1, 0.01, { compact: true }),
+        ctlSlider('Zufall Größe', b, 'jitSize', 0, 1, 0.01, { compact: true }),
+        sep(),
+        ctlSelect('Symmetrie', b, 'mirror', [[0, 'Aus'], [1, 'X'], [2, 'Y'], [3, 'Z']], { compact: true, onchange: () => this.renderTools() }),
+        el('span', { class: 'grp' }, ctlCheck('Durchmalen', b, 'through', { tip: 'Auch verdeckte und abgewandte Stellen bemalen' })),
+        el('span', { class: 'grp', title: 'Grafiktablett: Stiftdruck steuert …' }, el('label', {}, 'Stiftdruck:'), ctlCheck('Größe', b, 'pSize'), ctlCheck('Deckkraft', b, 'pOpac')),
+      );
+    } else if (S.tool === 'fill') {
+      c.append(ctlSelect('Füllt', b, 'fillMode', FILL_MODES, { compact: true, tip: 'Was mit einem Klick gefüllt wird' }),
+        ctlSlider('Deckkraft', b, 'opacity', 0.01, 1, 0.01, { compact: true }),
+        el('span', { class: 'note' }, 'Klick aufs Modell füllt die gewählte Fläche mit dem Pinsel-Material. Rechtsklick + Alt = mit Radierer.'));
+    } else {
+      c.append(el('span', { class: 'note' }, 'Klick aufs Modell übernimmt Farbe, Rauheit und Metall in den Pinsel.'));
+    }
+  },
+  renderBadge() {
+    const l = curLayer(); const b = $('#targetBadge');
+    if (!l) { b.innerHTML = 'Keine Ebene'; b.className = ''; return; }
+    const m = S.target === 'mask' && l.mask;
+    b.className = m ? 'mask' : '';
+    b.innerHTML = '';
+    b.append(m ? 'Malt auf: Maske von ' : (l.kind === 'paint' ? 'Malt auf: ' : 'Ausgewählt: '), el('b', {}, l.name));
+  },
+  renderInfo() {
+    let bytes = 0; for (const t of TEX_LIVE) bytes += t.bytes;
+    $('#projName').textContent = S.projectName + (S.dirty ? ' •' : '');
+    $('#stInfo').textContent = S.mesh ? `${S.mesh.name} · ${S.mesh.nT.toLocaleString('de-DE')} Dreiecke · Textur ${S.res}×${S.res} · Grafikspeicher ca. ${Math.round(bytes / 1048576)} MB · v${APP_VERSION}` : '';
+  },
+
+  /* ---------- Ansicht-Leiste ---------- */
+  renderVbar() {
+    const v = $('#vbar'); v.innerHTML = '';
+    const seg = el('div', { class: 'seg' }, [['3d', '3D'], ['split', '3D | 2D'], ['2d', '2D']].map(([k, t]) => el('button', { class: S.view.layout === k ? 'on' : '', onclick: () => setLayout(k) }, t)));
+    const chan = el('select', { title: 'Kanal-Ansicht (C)' }, CHANNELS.map((n, i) => el('option', { value: i, selected: S.view.chan === i }, n)));
+    chan.onchange = () => { S.view.chan = +chan.value; E.needDraw = true; };
+    const env = el('select', { title: 'Licht-Umgebung' }, ENVS.map((e, i) => el('option', { value: i, selected: S.view.env === i }, '☀ ' + e.name)));
+    env.onchange = () => { S.view.env = +env.value; E.needDraw = true; };
+    const ex = el('input', { type: 'range', min: 0.2, max: 2.5, step: 0.01, value: S.view.exposure, title: 'Belichtung' });
+    ex.oninput = () => { S.view.exposure = +ex.value; E.needDraw = true; };
+    v.append(chan, seg, env, el('span', { title: 'Belichtung' }, '◐'), ex,
+      el('button', { class: S.view.bg ? 'on' : '', title: 'Umgebung als Hintergrund', onclick: () => { S.view.bg = S.view.bg ? 0 : 1; this.renderVbar(); E.needDraw = true; } }, '🌄'),
+      el('button', { class: S.view.wire ? 'on' : '', title: 'Drahtgitter (W)', onclick: () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; } }, '#'));
+  },
+
+  /* ---------- Ebenen ---------- */
+  renderLayers() {
+    const list = $('#layerList'); list.innerHTML = '';
+    if (!S.layers.length) list.append(el('div', { class: 'note', style: 'padding:12px' }, 'Noch keine Ebenen. Lege oben eine Mal- oder Füll-Ebene an oder klicke unten auf ein Material.'));
+    for (let i = S.layers.length - 1; i >= 0; i--) {
+      const l = S.layers[i];
+      const sel = l.id === S.sel;
+      const th = el('div', { class: 'th' + (sel && S.target === 'layer' ? ' act' : ''), title: 'Ebene bemalen / auswählen' });
+      if (l.kind === 'fill') { th.style.background = `linear-gradient(135deg,${l.fill.colA} 55%,${PAT_USES_B[l.fill.pat] ? l.fill.colB : l.fill.colA} 55%)`; }
+      else { th.style.background = '#2a2c32'; th.textContent = '🖌'; }
+      const mk = l.mask ? el('div', { class: 'mk' + (sel && S.target === 'mask' ? ' act' : ''), title: 'Maske bemalen (M)' }, l.mask.gen ? '⚙' : '◐') : null;
+      if (mk) mk.addEventListener('click', (e) => { e.stopPropagation(); S.sel = l.id; S.target = 'mask'; this.refreshAll(); });
+      const eye = el('button', { class: 'eye' + (l.visible ? '' : ' off'), title: 'Ein-/Ausblenden' }, '👁');
+      eye.addEventListener('click', (e) => { e.stopPropagation(); pushUndo(); l.visible = !l.visible; E.needComp = true; this.renderLayers(); });
+      const sub = (l.kind === 'paint' ? 'Malen' : PATTERNS[l.fill.pat]) + (l.opacity < 1 ? ` · ${Math.round(l.opacity * 100)} %` : '') + (l.blend !== 'normal' ? ' · ' + BLEND_NAMES[l.blend] : '');
+      const nm = el('div', { class: 'nm' }, l.name, el('small', {}, sub));
+      const row = el('div', { class: 'lrow' + (sel ? ' sel' : ''), draggable: 'true' }, eye, th, mk, nm);
+      row.addEventListener('click', () => { S.sel = l.id; S.target = 'layer'; this.refreshAll(); });
+      nm.addEventListener('dblclick', (e) => { e.stopPropagation(); this.rename(l, nm); });
+      row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/layer', String(l.id)); });
+      row.addEventListener('dragover', (e) => { e.preventDefault(); row.classList.add('drop'); });
+      row.addEventListener('dragleave', () => row.classList.remove('drop'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault(); row.classList.remove('drop');
+        const id = +e.dataTransfer.getData('text/layer'); if (!id || id === l.id) return;
+        pushUndo();
+        const from = S.layers.findIndex((x) => x.id === id); const [m] = S.layers.splice(from, 1);
+        const to = S.layers.indexOf(l); S.layers.splice(to + 1, 0, m);
+        E.needComp = true; this.renderLayers();
+      });
+      list.append(row);
+    }
+    this.renderInfo();
+  },
+  rename(l, nmEl) {
+    const inp = el('input', { type: 'text', value: l.name, style: 'width:100%' });
+    nmEl.replaceWith(inp); inp.focus(); inp.select();
+    const done = (ok) => { if (ok && inp.value.trim() && inp.value !== l.name) { pushUndo(); l.name = inp.value.trim(); } this.refreshAll(); };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); e.stopPropagation(); });
+    inp.addEventListener('blur', () => done(true));
+  },
+  addLayer(kind, opts) {
+    if (!S.mesh) return;
+    pushUndo(); insertLayers([newLayer(kind, opts)]); this.refreshAll();
+  },
+  addMask(val, gen = 0) {
+    const l = curLayer(); if (!l) { toast('Wähle zuerst eine Ebene aus.'); return; }
+    pushUndo();
+    if (!l.mask) { l.mask = defaultMask(gen); l.mask.tex = newMaskTex(val); }
+    else if (gen) { Object.assign(l.mask, defaultMask(gen), { tex: l.mask.tex }); }
+    if (gen === 1 || gen === 2) l.mask.width = 0.05;
+    S.target = gen ? 'layer' : 'mask'; E.needComp = true; this.refreshAll();
+  },
+  dupLayer() {
+    const l = curLayer(); if (!l) return;
+    pushUndo();
+    const c = cloneLayer(l); c.id = uid(); c.name = l.name + ' Kopie';
+    if (l.tex) c.tex = { c: trackTex(copyTex(l.tex.c)), m: trackTex(copyTex(l.tex.m)) };
+    if (l.mask) c.mask.tex = trackTex(copyTex(l.mask.tex));
+    insertLayers([c]); this.refreshAll();
+  },
+  delLayer() {
+    const l = curLayer(); if (!l) return;
+    pushUndo();
+    const i = S.layers.indexOf(l); S.layers.splice(i, 1);
+    const n = S.layers[Math.min(i, S.layers.length - 1)] || S.layers[i - 1];
+    S.sel = n ? n.id : null; S.target = 'layer'; E.needComp = true; this.refreshAll();
+  },
+
+  /* ---------- Eigenschaften ---------- */
+  renderProps() {
+    const P = $('#props'); const keepScroll = P.scrollTop; P.innerHTML = '';
+    const l = curLayer();
+    const recomp = () => { E.needComp = true; };
+    const recompL = () => { E.needComp = true; this.renderLayersSoon(); };
+    const sec = (title, ...kids) => el('div', { class: 'sec' }, el('h4', {}, title), el('div', { class: 'body' }, ...kids));
+
+    // Pinsel
+    if (S.tool === 'paint' || S.tool === 'fill') {
+      const b = S.brush; const kids = [];
+      if (l && S.target === 'mask' && l.mask) {
+        kids.push(el('div', { class: 'note' }, 'Du malst auf die Maske: Weiß zeigt die Ebene, Schwarz versteckt sie. Der Radierer malt Schwarz.'));
+        kids.push(ctlSlider('Masken-Wert', b, 'maskVal', 0, 1, 0.01));
+        kids.push(el('div', { class: 'btnrow' }, el('button', { class: 'btn', onclick: () => { b.maskVal = 1; this.renderProps(); } }, '⬜ Weiß'), el('button', { class: 'btn', onclick: () => { b.maskVal = 0; this.renderProps(); } }, '⬛ Schwarz')));
+      } else {
+        const opts = [['', 'Eigene Farbe & Werte'], ...Object.entries(MATERIALS).map(([k, m]) => [k, m.name])];
+        kids.push(ctlSelect('Material', b, 'mat', opts, { onchange: () => this.renderProps() }));
+        if (!b.mat) {
+          kids.push(ctlColor('Farbe', b, 'color'));
+          const sw = el('div', { class: 'btnrow', style: 'margin:2px 0 6px 104px;gap:4px' });
+          ['#ff4f64', '#ffffff', '#1a1a1a', '#8c8f93', '#ffcf5c', '#2f7de1', '#3fae5a', '#7a4a2a', '#e86b1f', '#9d4edd'].forEach((c) => sw.append(el('button', { style: `width:18px;height:18px;border-radius:4px;border:1px solid #fff3;background:${c};cursor:pointer;padding:0`, title: c, onclick: () => { b.color = c; this.renderProps(); } })));
+          kids.push(sw);
+          kids.push(ctlSlider('Rauheit', b, 'rough', 0, 1, 0.01), ctlSlider('Metall', b, 'metal', 0, 1, 0.01), ctlSlider('Höhe', b, 'height', -1, 1, 0.01, { tip: 'Positiv = erhaben, negativ = eingedrückt' }));
+        } else kids.push(el('div', { class: 'note' }, 'Der Pinsel malt das komplette Material (Farbe, Rauheit, Metall, Höhe).'));
+        if (l && l.kind === 'fill' && !l.mask) kids.push(el('div', { class: 'note warn' }, 'Die gewählte Ebene ist eine Füll-Ebene. Zum Malen wähle eine Mal-Ebene oder füge eine Maske hinzu.'));
+      }
+      P.append(sec('Pinsel', ...kids));
+    } else if (S.tool === 'erase') {
+      P.append(sec('Radierer', el('div', { class: 'note' }, l && S.target === 'mask' && l.mask ? 'Der Radierer malt die Maske schwarz (versteckt die Ebene).' : 'Der Radierer entfernt Farbe von der Mal-Ebene. Für Füll-Ebenen: Maske hinzufügen und darauf radieren.')));
+    }
+
+    if (!l) { P.append(sec('Ebene', el('div', { class: 'note' }, 'Keine Ebene ausgewählt.'))); P.scrollTop = keepScroll; return; }
+
+    // Ebene
+    const nameIn = el('input', { type: 'text', value: l.name });
+    nameIn.addEventListener('change', () => { pushUndo(); l.name = nameIn.value.trim() || l.name; this.renderLayers(); this.renderBadge(); });
+    const chk = el('div', { class: 'chk' },
+      ctlCheck('Farbe', l.ch, 'c', { undo: true, onchange: recomp }), ctlCheck('Rauheit', l.ch, 'r', { undo: true, onchange: recomp }),
+      ctlCheck('Metall', l.ch, 'm', { undo: true, onchange: recomp }), ctlCheck('Höhe', l.ch, 'h', { undo: true, onchange: recomp }));
+    P.append(sec(l.kind === 'paint' ? 'Mal-Ebene' : 'Füll-Ebene',
+      el('div', { class: 'row two' }, el('label', {}, 'Name'), nameIn),
+      ctlSlider('Deckkraft', l, 'opacity', 0, 1, 0.01, { undo: true, onchange: recompL }),
+      ctlSelect('Mischmodus', l, 'blend', BLENDS.map((k) => [k, BLEND_NAMES[k]]), { undo: true, onchange: recompL, tip: 'Wie die Farbe mit den Ebenen darunter gemischt wird' }),
+      ctlSelect('Höhe', l, 'hblend', [['add', 'Addieren'], ['normal', 'Ersetzen']], { undo: true, onchange: recomp, tip: 'Addieren: Höhe kommt zur Höhe darunter dazu' }),
+      el('div', { class: 'row two' }, el('label', {}, 'Kanäle'), chk),
+    ));
+
+    if (l.kind === 'fill') {
+      const f = l.fill; const k = [];
+      const matSel = el('select', {}, el('option', { value: '' }, 'Material übernehmen …'), Object.entries(MATERIALS).map(([id, m]) => el('option', { value: id }, m.name)));
+      matSel.onchange = () => { if (!matSel.value) return; pushUndo(); Object.assign(f, MATERIALS[matSel.value].fill); l.name = MATERIALS[matSel.value].name; E.needComp = true; this.refreshAll(); };
+      k.push(el('div', { class: 'row two' }, el('label', {}, 'Vorlage'), matSel));
+      k.push(ctlSelect('Muster', f, 'pat', PATTERNS.map((p, i) => [i, p]), { undo: true, onchange: () => { recompL(); this.renderProps(); } }));
+      const two = PAT_USES_B[f.pat];
+      k.push(ctlColor(two ? 'Farbe A' : 'Farbe', f, 'colA', { undo: true, onchange: recompL }));
+      if (two) k.push(ctlColor('Farbe B', f, 'colB', { undo: true, onchange: recompL }));
+      k.push(ctlSlider(two ? 'Rauheit A' : 'Rauheit', f, 'roughA', 0, 1, 0.01, { undo: true, onchange: (v) => { if (!two) f.roughB = v; recomp(); } }));
+      if (two) k.push(ctlSlider('Rauheit B', f, 'roughB', 0, 1, 0.01, { undo: true, onchange: recomp }));
+      k.push(ctlSlider(two ? 'Metall A' : 'Metall', f, 'metalA', 0, 1, 0.01, { undo: true, onchange: (v) => { if (!two) f.metalB = v; recomp(); } }));
+      if (two) k.push(ctlSlider('Metall B', f, 'metalB', 0, 1, 0.01, { undo: true, onchange: recomp }));
+      k.push(ctlSlider('Höhe', f, 'hAmt', -1, 1, 0.01, { undo: true, onchange: recomp, tip: f.pat === 0 ? 'Fester Höhenwert' : 'Stärke der Struktur' }));
+      if (f.pat) {
+        k.push(ctlSlider('Größe', f, 'scale', 0.2, 12, 0.05, { undo: true, onchange: recomp, tip: 'Größer = feineres Muster' }));
+        k.push(ctlSlider('Variation', f, 'vari', 0, 1, 0.01, { undo: true, onchange: recomp }));
+        k.push(el('div', { class: 'row two' }, el('label', {}, 'Zufall'), el('button', { class: 'btn', onclick: () => { pushUndo(); f.seed = Math.round(Math.random() * 1000); E.needComp = true; } }, '🎲 Neu würfeln')));
+      }
+      P.append(sec('Material', ...k));
+    }
+
+    // Maske
+    if (!l.mask) {
+      P.append(sec('Maske', el('div', { class: 'note' }, 'Mit einer Maske bestimmst du, wo die Ebene sichtbar ist – von Hand gemalt oder automatisch (Kanten, Schmutz, Staub …).'),
+        el('div', { class: 'btnrow' },
+          el('button', { class: 'btn', onclick: () => this.addMask(1) }, '⬜ Weiße Maske'),
+          el('button', { class: 'btn', onclick: () => this.addMask(0) }, '⬛ Schwarze Maske'),
+          el('button', { class: 'btn', onclick: () => this.addMask(1, 1) }, '⚙ Kanten-Maske'))));
+    } else {
+      const m = l.mask; const k = [];
+      const onMask = S.target === 'mask';
+      k.push(el('div', { class: 'btnrow', style: 'margin-top:0' },
+        el('button', { class: 'btn' + (onMask ? ' on' : ''), onclick: () => { S.target = onMask ? 'layer' : 'mask'; if (!onMask && S.tool === 'pick') setTool('paint'); this.refreshAll(); } }, onMask ? '✓ Maske wird bemalt' : '🖌 Maske bemalen'),
+        el('button', { class: 'btn', title: 'Gemalte Maske auf Weiß setzen', onclick: () => this.fillMask(1) }, '⬜'),
+        el('button', { class: 'btn', title: 'Gemalte Maske auf Schwarz setzen', onclick: () => this.fillMask(0) }, '⬛'),
+        el('button', { class: 'btn', title: 'Maske entfernen', onclick: () => { pushUndo(); l.mask = null; S.target = 'layer'; E.needComp = true; this.refreshAll(); } }, '✕ Entfernen')));
+      k.push(ctlSelect('Generator', m, 'gen', GENS.map((g, i) => [i, g]), { undo: true, onchange: (v) => { if ((v === 1 || v === 2) && m.width < 0.01) m.width = 0.05; recompL(); this.renderProps(); } }));
+      if (m.gen) {
+        k.push(ctlSlider('Stärke', m, 'level', 0, 1, 0.01, { undo: true, onchange: recomp, tip: 'Wie viel Fläche die Maske bedeckt' }));
+        if (m.gen === 1 || m.gen === 2) k.push(ctlSlider('Breite', m, 'width', 0.005, 0.25, 0.005, { undo: true, onchange: recomp }));
+        if (m.gen !== 4 && m.gen !== 7) k.push(ctlSlider('Unregelmäßig', m, 'rough', 0, 1, 0.01, { undo: true, onchange: recomp }));
+        k.push(ctlSlider('Weichheit', m, 'soft', 0, 0.5, 0.01, { undo: true, onchange: recomp }));
+        k.push(ctlSlider('Muster-Größe', m, 'scale', 0.2, 12, 0.05, { undo: true, onchange: recomp }));
+        k.push(el('div', { class: 'row two' }, el('label', {}, 'Optionen'), el('div', { class: 'chk' }, ctlCheck('Umkehren', m, 'inv', { undo: true, onchange: recomp }),
+          el('button', { class: 'btn', style: 'padding:2px 8px', onclick: () => { pushUndo(); m.seed = Math.round(Math.random() * 1000); E.needComp = true; } }, '🎲'))));
+        k.push(el('div', { class: 'note' }, 'Der Generator wird mit der gemalten Maske multipliziert – mit Schwarz kannst du Stellen von Hand wegnehmen.'));
+      }
+      P.append(sec('Maske', ...k));
+    }
+    P.scrollTop = keepScroll;
+  },
+  renderLayersSoon() { clearTimeout(this._rl); this._rl = setTimeout(() => this.renderLayers(), 120); },
+  fillMask(v) {
+    const l = curLayer(); if (!l || !l.mask) return;
+    pushUndo(); l.mask.tex = newMaskTex(v); E.needComp = true;
+  },
+
+  /* ---------- Regal ---------- */
+  renderShelf() {
+    const tabs = $('#shelf .tabs'); tabs.innerHTML = '';
+    const T = [['smart', 'Smart-Materialien'], ['mat', 'Materialien'], ['mask', 'Masken-Generatoren'], ['shape', 'Pinselspitzen']];
+    for (const [k, t] of T) tabs.append(el('button', { class: this.shelfTab === k ? 'on' : '', onclick: () => { this.shelfTab = k; this.renderShelf(); } }, t));
+    const hints = { smart: 'Klick: als Ebenen einfügen', mat: 'Klick: neue Füll-Ebene · Rechtsklick: als Pinsel-Material', mask: 'Klick: Maske für die gewählte Ebene', shape: 'Klick: Pinselspitze wählen' };
+    tabs.append(el('span', { class: 'hint' }, hints[this.shelfTab]));
+    const it = $('#shelf .items'); it.innerHTML = '';
+    const tile = (key, name, onclick, oncontext, on) => {
+      const img = this.previews.get(key);
+      const t = el('button', { class: 'tile' + (on ? ' on' : ''), title: name, onclick }, img ? el('img', { src: img, alt: '' }) : el('div', { class: 'ph' }), el('span', {}, name));
+      if (oncontext) t.addEventListener('contextmenu', (e) => { e.preventDefault(); oncontext(); });
+      return t;
+    };
+    if (this.shelfTab === 'smart') for (const [k, s] of Object.entries(SMART)) it.append(tile('s:' + k, s.name, () => this.applySmart(k)));
+    if (this.shelfTab === 'mat') for (const [k, m] of Object.entries(MATERIALS)) it.append(tile('m:' + k, m.name, () => this.applyMat(k), () => { S.brush.mat = k; if (S.tool !== 'paint' && S.tool !== 'fill') setTool('paint'); this.renderProps(); toast('Pinsel malt jetzt: ' + m.name); }, S.brush.mat === k));
+    if (this.shelfTab === 'mask') GENS.forEach((g, i) => { if (i) it.append(tile('g:' + i, g, () => this.addMask(1, i))); });
+    if (this.shelfTab === 'shape') SHAPES.forEach((s, i) => { if (!this.previews.has('b:' + i)) this.previews.set('b:' + i, shapeIcon(i)); it.append(tile('b:' + i, s, () => { S.brush.shape = i; this.renderCtx(); this.renderShelf(); if (S.tool !== 'paint' && S.tool !== 'erase') setTool('paint'); }, null, S.brush.shape === i)); });
+  },
+  async buildPreviews() {
+    const jobs = [];
+    for (const [k, s] of Object.entries(SMART)) jobs.push(['s:' + k, () => layersFromSpec(s.layers, true)]);
+    for (const [k, m] of Object.entries(MATERIALS)) jobs.push(['m:' + k, () => layersFromSpec([m], true)]);
+    GENS.forEach((g, i) => { if (i) jobs.push(['g:' + i, () => layersFromSpec(genPreviewSpec(i), true)]); });
+    for (const [key, mk] of jobs) {
+      if (this.previews.has(key)) continue;
+      try { this.previews.set(key, renderPreview(mk())); } catch (e) { console.error('Vorschau', key, e); }
+      if (jobs.indexOf(jobs.find((j) => j[0] === key)) % 4 === 3) { this.renderShelf(); await sleep(0); }
+    }
+    this.renderShelf();
+  },
+  applySmart(k) {
+    if (!S.mesh) return;
+    pushUndo(); const ls = layersFromSpec(SMART[k].layers);
+    ls[0].name = SMART[k].name + ' – ' + ls[0].name;
+    insertLayers(ls); this.refreshAll(); toast(`„${SMART[k].name}“ eingefügt (${ls.length} Ebenen)`);
+  },
+  applyMat(k) {
+    if (!S.mesh) return;
+    pushUndo(); insertLayers(layersFromSpec([MATERIALS[k]])); this.refreshAll();
+  },
+
+  /* ---------- Fenster ---------- */
+  modal(box, closable = true) {
+    const m = $('#modal'); m.innerHTML = ''; m.append(box); m.classList.remove('hidden');
+    m.onclick = (e) => { if (closable && e.target === m) this.closeModal(); };
+    this._modalClosable = closable;
+  },
+  closeModal() { $('#modal').classList.add('hidden'); $('#modal').innerHTML = ''; },
+  busy(msg) { $('#busy').classList.toggle('on', !!msg); $('#busyMsg').textContent = msg || ''; },
+  openFile(accept) {
+    const f = $('#fileIn'); f.value = ''; f.accept = accept || '.obj,.glb,.gltf,.mtex';
+    f.onchange = () => { if (f.files[0]) handleFile(f.files[0]); };
+    f.click();
+  },
+  welcome() {
+    if (S.mesh && S.dirty && !confirm('Ungespeicherte Änderungen gehen verloren. Trotzdem ein neues Projekt anfangen?')) return;
+    const st = { res: S.res || 2048 };
+    const prims = el('div', { class: 'prims' });
+    const icons = { rbox: '🧊', box: '⬛', sphere: '⚪', cyl: '🥫', barrel: '🛢', torus: '🍩', melon: '🍉', plane: '▭' };
+    for (const [k, p] of Object.entries(PRIMS)) prims.append(el('button', { class: 'prim', onclick: async () => { this.closeModal(); const m = finalizeMesh(p.make(), p.name); await startProject(m, st.res, p.name); } }, el('span', { class: 'ic' }, icons[k]), p.name));
+    const drop = el('div', { class: 'drop', onclick: () => this.openFile('.obj,.glb,.gltf') }, el('div', { style: 'font-size:15px;color:var(--tx)' }, '📂 Eigenes Modell laden'), el('div', {}, '.obj oder .glb hierher ziehen oder klicken – z. B. aus Blender oder Roblox Studio („Export Selection“)'));
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) { handleFile(e.dataTransfer.files[0], st.res); } });
+    const box = el('div', { class: 'mbox welcome' },
+      el('div', { class: 'hero' }, el('span', { class: 'logo' }), el('div', {}, el('h1', {}, 'Melonentextur'), el('div', { class: 'sub', style: 'margin:0' }, 'Male Texturen direkt auf deine 3D-Modelle – für Roblox, FiveM, Blender und mehr.'))),
+      drop,
+      el('div', { style: 'font-weight:700;margin-top:4px' }, 'Oder mit einem Grundkörper üben:'),
+      prims,
+      el('div', { class: 'wrow' },
+        ctlSelect('Textur-Auflösung', st, 'res', [[512, '512 × 512'], [1024, '1024 × 1024'], [2048, '2048 × 2048 (empfohlen)'], [4096, '4096 × 4096 (braucht viel Grafikspeicher)']]),
+        el('span', { style: 'flex:1' }),
+        el('button', { class: 'btn', onclick: () => this.openFile('.mtex') }, '📁 Projekt öffnen (.mtex)'),
+        S.mesh ? el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Abbrechen') : null));
+    this.modal(box, !!S.mesh);
+    this._welcomeRes = st;
+  },
+  exportDialog() {
+    if (!S.mesh) return;
+    const st = { preset: this._lastPreset || 'blender', size: 0, name: (S.projectName || 'Textur').replace(/[\\/:*?"<>|\s]+/g, '_'), aoInBase: 0, height16: false };
+    const body = el('div');
+    const render = () => {
+      const ex = EXPORTS[st.preset];
+      body.innerHTML = '';
+      const nameIn = el('input', { type: 'text', value: st.name }); nameIn.oninput = () => { st.name = nameIn.value.replace(/[\\/:*?"<>|]+/g, '_'); };
+      body.append(
+        ctlSelect('Vorlage', st, 'preset', Object.entries(EXPORTS).map(([k, e]) => [k, e.name]), { onchange: () => { const e = EXPORTS[st.preset]; st.size = e.size; st.aoInBase = e.aoInBase; render(); } }),
+        ctlSelect('Größe', st, 'size', [[0, `Wie Projekt (${S.res})`], [512, '512'], [1024, '1024'], [2048, '2048'], [4096, '4096']]),
+        el('div', { class: 'row two' }, el('label', {}, 'Dateiname'), nameIn),
+        ctlSlider('AO in Farbe', st, 'aoInBase', 0, 1, 0.05, { tip: 'Rechnet die Verdeckung (dunkle Ecken) in die Grundfarbe ein – gut für Spiele ohne AO-Map' }),
+        ex.maps.some((m) => m[1] === 3) ? el('div', { class: 'row two' }, el('label', {}, 'Höhe'), ctlCheck('16 Bit (feiner)', st, 'height16')) : null,
+        el('div', { class: 'note' }, 'Dateien: ' + ex.maps.map((m) => `${st.name}${ex.sep || '_'}${m[0]}.png`).join(', ')),
+        ex.hint ? el('div', { class: 'note' }, 'ℹ ' + ex.hint) : null,
+      );
+    };
+    st.size = EXPORTS[st.preset].size; st.aoInBase = EXPORTS[st.preset].aoInBase;
+    render();
+    const go = el('button', { class: 'btn pri', onclick: async () => {
+      this._lastPreset = st.preset; this.closeModal(); this.busy('Texturen werden exportiert …'); await sleep(40);
+      try { const p = await exportTextures(st); if (p) toast('Exportiert: ' + p); }
+      catch (e) { console.error('Export fehlgeschlagen', e); toast('Export fehlgeschlagen: ' + e.message, 'err'); }
+      finally { this.busy(null); }
+    } }, '⤓ Exportieren (ZIP)');
+    this.modal(el('div', { class: 'mbox', style: 'width:560px' }, el('h2', {}, 'Texturen exportieren'), el('p', { class: 'sub' }, 'Alle Karten kommen zusammen in eine ZIP-Datei.'), body,
+      el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Abbrechen'), go)));
+  },
+  settingsDialog() {
+    if (!S.mesh) return;
+    const st = { res: S.res, name: S.projectName };
+    const nameIn = el('input', { type: 'text', value: st.name }); nameIn.oninput = () => { st.name = nameIn.value; };
+    const box = el('div', { class: 'mbox', style: 'width:520px' }, el('h2', {}, 'Projekt-Einstellungen'), el('p', { class: 'sub' }, ''),
+      el('div', { class: 'row two' }, el('label', {}, 'Projektname'), nameIn),
+      ctlSelect('Auflösung', st, 'res', [[512, '512'], [1024, '1024'], [2048, '2048'], [4096, '4096']]),
+      el('div', { class: 'note' }, 'Beim Wechsel der Auflösung werden gemalte Ebenen umgerechnet. Der Rückgängig-Verlauf wird geleert.'),
+      ctlSlider('Höhen-Tiefe', S, 'hdepth', 0, 0.3, 0.005, { onchange: () => { E.needComp = true; }, tip: 'Wie stark Höhen als Relief (Normal-Map) wirken' }),
+      ctlSlider('AO in Ansicht', S.view, 'ao', 0, 1, 0.01, { onchange: () => { E.needDraw = true; } }),
+      el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' },
+        el('button', { class: 'btn pri', onclick: async () => {
+          this.closeModal(); S.projectName = st.name.trim() || S.projectName;
+          if (st.res !== S.res) { this.busy('Auflösung wird geändert …'); await sleep(40); try { changeResolution(st.res); } catch (e) { console.error(e); toast('Fehler: ' + e.message, 'err'); } this.busy(null); }
+          this.refreshAll();
+        } }, 'Übernehmen')));
+    this.modal(box);
+  },
+  helpDialog() {
+    const k = [['B', 'Pinsel'], ['E', 'Radierer'], ['G', 'Füllen'], ['I', 'Pipette'], ['[  ]', 'Pinsel kleiner / größer'], ['Umschalt + [  ]', 'Härte ändern'],
+      ['Umschalt + Klick', 'Gerade Linie vom letzten Punkt'], ['X', 'Symmetrie an/aus'], ['M', 'Zwischen Ebene und Maske wechseln'],
+      ['Rechte Maus / Alt + Linke', 'Kamera drehen'], ['Mittlere Maus', 'Verschieben'], ['Mausrad / Alt + Rechte', 'Zoomen'], ['Umschalt + Rechte Maus', 'Licht drehen'],
+      ['F', 'Kamera zentrieren'], ['W', 'Drahtgitter'], ['C', 'Kanal-Ansicht wechseln'], ['F1 / F2 / F3', '3D / 2D / Geteilt'],
+      ['Strg + Z / Y', 'Rückgängig / Wiederholen'], ['Strg + S', 'Speichern'], ['Strg + O', 'Öffnen'], ['Strg + Umschalt + E', 'Exportieren'], ['Strg + D', 'Ebene duplizieren'], ['Entf', 'Ebene löschen']];
+    this.modal(el('div', { class: 'mbox', style: 'width:520px' }, el('h2', {}, 'Tastenkürzel'), el('p', { class: 'sub' }, ''),
+      el('div', { class: 'keys' }, k.flatMap(([a, b]) => [el('kbd', {}, a), el('span', {}, b)])),
+      el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Schließen'))));
+  },
+  about() {
+    this.modal(el('div', { class: 'mbox', style: 'width:440px' }, el('h2', {}, 'Melonentextur ' + APP_VERSION), el('p', { class: 'sub' }, 'Textur-Malprogramm für 3D-Modelle.'),
+      el('div', { class: 'note' }, 'Grafik: ' + (gl.getParameter(gl.VERSION) || '')),
+      el('div', { class: 'btnrow', style: 'justify-content:flex-end' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'OK'))));
+  },
+  async report() {
+    if (NATIVE && NATIVE.copyLog) { await NATIVE.copyLog(); toast('Fehlerprotokoll kopiert – jetzt in Discord einfügen (Strg+V)'); return; }
+    const txt = `Melonentextur ${APP_VERSION} – ${navigator.userAgent}\n` + (window._errLog || []).slice(-50).join('\n');
+    try { await navigator.clipboard.writeText(txt); toast('Fehlerprotokoll kopiert'); } catch (e) { toast('Kopieren nicht möglich'); }
+  },
+};
+
+function setTool(t) {
+  S.tool = t;
+  if (t === 'pick' && S.target === 'mask') S.target = 'layer';
+  UI.renderTools(); UI.renderCtx(); UI.renderProps(); drawOverlay();
+}
+
+'use strict';
+/* ================= Start, Eingabe, Hauptschleife ================= */
+window._errLog = [];
+window.addEventListener('error', (e) => { const m = `FEHLER ${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`; window._errLog.push(m); console.error(m); });
+window.addEventListener('unhandledrejection', (e) => { const m = 'FEHLER (async) ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason); window._errLog.push(m); console.error(m); });
+
+const cv = () => $('#gl');
+let dpr = window.devicePixelRatio || 1;
+
+function setLayout(k) { S.view.layout = k; S.uv2d.zoom = 0; resize(); UI.renderVbar(); }
+function resize() {
+  const c = cv(), r = c.getBoundingClientRect(); dpr = window.devicePixelRatio || 1;
+  const W = Math.max(2, Math.round(r.width * dpr)), H = Math.max(2, Math.round(r.height * dpr));
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const ov = $('#ov'); ov.width = Math.round(r.width * dpr); ov.height = Math.round(r.height * dpr);
+  const L = S.view.layout;
+  if (L === 'split') { const h = Math.floor(W / 2); E.regions = [{ type: '3d', x: 0, y: 0, w: h - 1, h: H }, { type: '2d', x: h + 1, y: 0, w: W - h - 1, h: H }]; }
+  else E.regions = [{ type: L, x: 0, y: 0, w: W, h: H }];
+  E.gbDirty = true; E.needDraw = true;
+  drawOverlay();
+}
+/* Maus (CSS-Pixel) -> Region + lokale Gerätepixel (Ursprung unten links) */
+function hitRegion(cx, cy) {
+  const H = cv().height, dx = cx * dpr, dy = H - cy * dpr;
+  for (const r of E.regions) if (dx >= r.x && dx < r.x + r.w && dy >= r.y && dy < r.y + r.h) return { r, x: dx - r.x, y: dy - r.y };
+  return null;
+}
+
+/* ---------- Pinsel-Kreis ---------- */
+let mouse = null;
+function drawOverlay() {
+  const ov = $('#ov'); if (!ov) return; const g = ov.getContext('2d');
+  g.clearRect(0, 0, ov.width, ov.height);
+  if (S.view.layout === 'split' && E.regions[1]) { g.fillStyle = '#2f3138'; g.fillRect(E.regions[1].x - 2, 0, 3, ov.height); }
+  if (!mouse || !mouse.inside || !(S.tool === 'paint' || S.tool === 'erase') || mouse.nav) return;
+  const r = S.brush.size * dpr;
+  g.lineWidth = 1.5 * dpr;
+  g.strokeStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.arc(mouse.x * dpr, mouse.y * dpr, r + dpr, 0, 7); g.stroke();
+  g.strokeStyle = S.tool === 'erase' ? 'rgba(160,200,255,.95)' : 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(mouse.x * dpr, mouse.y * dpr, r, 0, 7); g.stroke();
+  if (S.brush.hard < 0.95) { g.setLineDash([3 * dpr, 4 * dpr]); g.strokeStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.arc(mouse.x * dpr, mouse.y * dpr, r * Math.max(0.05, S.brush.hard), 0, 7); g.stroke(); g.setLineDash([]); }
+}
+
+/* ---------- Maus & Stift ---------- */
+let drag = null, lastStrokeEnd = null;
+function setupInput() {
+  const c = cv();
+  c.addEventListener('contextmenu', (e) => e.preventDefault());
+  c.addEventListener('pointerdown', (e) => {
+    if (!S.mesh) return;
+    const h = hitRegion(e.offsetX, e.offsetY); if (!h) return;
+    c.setPointerCapture(e.pointerId);
+    const nav = e.button === 2 || e.button === 1 || (e.button === 0 && e.altKey);
+    if (nav) {
+      let mode = 'rot';
+      if (e.button === 1) mode = 'pan';
+      if (e.button === 2 && e.shiftKey) mode = 'env';
+      if (e.button === 2 && e.altKey) mode = 'zoom';
+      if (h.r.type === '2d' && mode !== 'zoom') mode = 'pan2d';
+      drag = { mode, r: h.r, x: e.clientX, y: e.clientY };
+      if (mouse) { mouse.nav = true; drawOverlay(); }
+      return;
+    }
+    if (e.button !== 0) return;
+    if (S.tool === 'pick') {
+      const p = pipetteAt(h.r, h.x, h.y);
+      if (p) { Object.assign(S.brush, p, { mat: '' }); UI.renderProps(); toast('Farbe übernommen'); }
+      return;
+    }
+    if (S.tool === 'fill') { fillAt(h.r, h.x, h.y, e.ctrlKey); UI.renderInfo(); return; }
+    // Malen
+    if (!strokeBegin(h.r, S.tool === 'erase')) return;
+    drag = { mode: 'paint', r: h.r };
+    const isPen = e.pointerType === 'pen';
+    if (e.shiftKey && lastStrokeEnd && lastStrokeEnd.r === h.r) { strokeTo(lastStrokeEnd.x, lastStrokeEnd.y, 1, false); }
+    strokeTo(h.x, h.y, e.pressure, isPen);
+  });
+  c.addEventListener('pointermove', (e) => {
+    mouse = { x: e.offsetX, y: e.offsetY, inside: true, nav: !!(drag && drag.mode !== 'paint') };
+    drawOverlay();
+    if (!drag) return;
+    if (drag.mode === 'paint') {
+      const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      for (const ev of (evs.length ? evs : [e])) {
+        const rect = c.getBoundingClientRect();
+        const ox = ev.clientX - rect.left, oy = ev.clientY - rect.top;
+        const H = c.height, r = drag.r;
+        strokeTo(ox * dpr - r.x, H - oy * dpr - r.y, ev.pressure, ev.pointerType === 'pen');
+      }
+      return;
+    }
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+    const cam = S.cam;
+    if (drag.mode === 'rot') { cam.yaw -= dx * 0.008; cam.pitch = clamp(cam.pitch + dy * 0.008, -1.55, 1.55); E.gbDirty = true; }
+    else if (drag.mode === 'pan') {
+      const cm = camMatrices(drag.r); const k = cam.dist * 0.0018;
+      const right = [cm.view[0], cm.view[4], cm.view[8]], up = [cm.view[1], cm.view[5], cm.view[9]];
+      cam.target = V3.add(cam.target, V3.add(V3.mul(right, -dx * k), V3.mul(up, dy * k))); E.gbDirty = true;
+    } else if (drag.mode === 'zoom') { cam.dist = clamp(cam.dist * Math.exp(dy * 0.01), 0.2, 50); E.gbDirty = true; }
+    else if (drag.mode === 'env') { S.view.envRot += dx * 0.01; }
+    else if (drag.mode === 'pan2d') { S.uv2d.pan = [S.uv2d.pan[0] + dx * dpr, S.uv2d.pan[1] - dy * dpr]; }
+    E.needDraw = true;
+  });
+  const up = (e) => {
+    if (!drag) return;
+    if (drag.mode === 'paint') {
+      strokeEnd();
+      if (ST.last === null || true) { const h = hitRegion(e.offsetX, e.offsetY); if (h) lastStrokeEnd = { r: h.r, x: h.x, y: h.y }; }
+      UI.renderInfo(); $('#projName').textContent = S.projectName + ' •';
+    }
+    drag = null; if (mouse) mouse.nav = false; drawOverlay();
+  };
+  c.addEventListener('pointerup', up);
+  c.addEventListener('pointercancel', up);
+  c.addEventListener('pointerleave', () => { if (mouse) mouse.inside = false; drawOverlay(); });
+  c.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const h = hitRegion(e.offsetX, e.offsetY); if (!h) return;
+    const f = Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0012);
+    if (h.r.type === '3d') { S.cam.dist = clamp(S.cam.dist * f, 0.2, 50); E.gbDirty = true; }
+    else {
+      const z0 = S.uv2d.zoom, z1 = clamp(z0 / f, 50, 40000);
+      S.uv2d.pan = [h.x - (h.x - S.uv2d.pan[0]) * z1 / z0, h.y - (h.y - S.uv2d.pan[1]) * z1 / z0]; S.uv2d.zoom = z1;
+    }
+    E.needDraw = true;
+  }, { passive: false });
+  window.addEventListener('resize', resize);
+  new ResizeObserver(resize).observe($('#view'));
+
+  // Tastatur
+  window.addEventListener('keydown', (e) => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (e.key === 'Escape') { if (!$('#modal').classList.contains('hidden') && UI._modalClosable !== false && S.mesh) UI.closeModal(); return; }
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    if (!$('#modal').classList.contains('hidden')) return;
+    const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl) {
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+      else if (k === 's') { e.preventDefault(); saveProject(); }
+      else if (k === 'o') { e.preventDefault(); UI.openFile('.mtex,.obj,.glb,.gltf'); }
+      else if (k === 'n') { e.preventDefault(); UI.welcome(); }
+      else if (k === 'e' && e.shiftKey) { e.preventDefault(); UI.exportDialog(); }
+      else if (k === 'd') { e.preventDefault(); UI.dupLayer(); }
+      return;
+    }
+    if (!S.mesh) return;
+    const b = S.brush;
+    switch (e.key) {
+      case 'b': case 'B': setTool('paint'); break;
+      case 'e': case 'E': setTool('erase'); break;
+      case 'g': case 'G': setTool('fill'); break;
+      case 'i': case 'I': setTool('pick'); break;
+      case '[': case '{': if (e.shiftKey) b.hard = clamp(b.hard - 0.1, 0, 1); else b.size = clamp(Math.round(b.size / 1.15), 1, 400); UI.renderCtx(); drawOverlay(); break;
+      case ']': case '}': if (e.shiftKey) b.hard = clamp(b.hard + 0.1, 0, 1); else b.size = clamp(Math.round(b.size * 1.15 + 0.5), 1, 400); UI.renderCtx(); drawOverlay(); break;
+      case 'f': case 'F': frameCamera(); S.uv2d.zoom = 0; break;
+      case 'w': case 'W': S.view.wire = !S.view.wire; UI.renderVbar(); E.needDraw = true; break;
+      case 'c': case 'C': S.view.chan = (S.view.chan + 1) % CHANNELS.length; UI.renderVbar(); E.needDraw = true; break;
+      case 'x': case 'X': b.mirror = b.mirror ? 0 : 1; UI.renderTools(); UI.renderCtx(); toast(b.mirror ? 'Symmetrie X an' : 'Symmetrie aus'); break;
+      case 'm': case 'M': { const l = curLayer(); if (l && l.mask) { S.target = S.target === 'mask' ? 'layer' : 'mask'; UI.refreshAll(); } break; }
+      case 'F1': e.preventDefault(); setLayout('3d'); break;
+      case 'F2': e.preventDefault(); setLayout('2d'); break;
+      case 'F3': e.preventDefault(); setLayout('split'); break;
+      case 'Delete': UI.delLayer(); break;
+      default: return;
+    }
+  });
+
+  // Dateien aufs Fenster ziehen
+  window.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); });
+  window.addEventListener('drop', (e) => { if (e.dataTransfer.files && e.dataTransfer.files[0]) { e.preventDefault(); handleFile(e.dataTransfer.files[0]); } });
+}
+
+/* ---------- Dateien öffnen ---------- */
+async function handleFile(file, res) {
+  const name = file.name.replace(/\.[^.]+$/, '');
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (!['obj', 'glb', 'gltf', 'mtex'].includes(ext)) { toast('Unterstützt werden .obj, .glb, .gltf und .mtex', 'err'); return; }
+  if (S.mesh && S.dirty && $('#modal').classList.contains('hidden') && !confirm('Ungespeicherte Änderungen gehen verloren. Trotzdem öffnen?')) return;
+  UI.closeModal();
+  UI.busy('Datei wird geladen …'); await sleep(40);
+  try {
+    if (ext === 'mtex') { await loadProjectBuffer(await file.arrayBuffer()); toast('Projekt geöffnet'); return; }
+    const src = ext === 'obj' ? parseOBJ(await file.text()) : parseGLB(await file.arrayBuffer());
+    UI.busy('Modell wird vorbereitet …'); await sleep(20);
+    const mesh = finalizeMesh(src, name);
+    await startProject(mesh, res || (UI._welcomeRes && UI._welcomeRes.res) || S.res || 2048, name);
+  } catch (e) {
+    console.error('Datei konnte nicht geladen werden', e);
+    UI.busy(null);
+    toast('Konnte die Datei nicht laden: ' + e.message, 'err');
+    if (!S.mesh) UI.welcome();
+  } finally { UI.busy(null); }
+}
+
+async function startProject(mesh, res, name, setup) {
+  UI.busy('Modell wird gebacken (Kanten, Verdeckung) …'); await sleep(40);
+  if (mesh.nT > 2000000) toast('Sehr großes Modell – das kann langsam werden.', 'warn');
+  S.layers = []; S.sel = null; S.target = 'layer'; resetUndo();
+  S.mesh = mesh; S.res = res; S.projectName = name || mesh.name;
+  uploadMesh(mesh);
+  bakeMesh((m) => UI.busy(m));
+  if (setup) setup();
+  else { const l = newLayer('paint'); S.layers.push(l); S.sel = l.id; }
+  if (!setup) frameCamera();
+  S.uv2d.zoom = 0; E.gbDirty = true; E.needComp = true; S.dirty = false;
+  resetUndo();
+  UI.refreshAll(); UI.renderShelf();
+  UI.busy(null);
+  if (mesh.autoUV) toast('Das Modell hatte keine UVs – sie wurden automatisch erstellt.', 'warn');
+  document.title = `${APP_NAME} – ${S.projectName}`;
+}
+
+/* ---------- Hauptschleife ---------- */
+function loop() {
+  requestAnimationFrame(loop);
+  try {
+    if (ST.on && ST.pending.length) strokeFlush();
+    if (E.needComp || E.needDraw) renderAll();
+  } catch (e) { console.error('Zeichenfehler', e); E.needComp = false; E.needDraw = false; }
+}
+
+async function main() {
+  try {
+    document.title = APP_NAME + ' ' + APP_VERSION;
+    initGL(cv());
+    compilePrograms();
+  } catch (e) {
+    console.error(e);
+    document.body.innerHTML = '';
+    document.body.append(el('div', { style: 'padding:40px;max-width:700px;margin:auto;font:15px system-ui;color:#eee' }, el('h2', {}, 'Melonentextur kann nicht starten'), el('p', {}, e.message), el('pre', { style: 'white-space:pre-wrap;color:#999;font-size:11px' }, e.stack || '')));
+    return;
+  }
+  UI.init();
+  setupInput();
+  resize();
+  UI.refreshAll();
+  UI.renderShelf();
+  requestAnimationFrame(loop);
+  UI.welcome();
+  setTimeout(() => UI.buildPreviews(), 50);
+  setInterval(() => UI.renderInfo(), 3000);
+}
+window.addEventListener('DOMContentLoaded', main);
+
+</script>
+</body>
+</html>

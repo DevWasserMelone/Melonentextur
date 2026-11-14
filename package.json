@@ -1,0 +1,54 @@
+{
+  "name": "melonentextur",
+  "productName": "Melonentextur",
+  "version": "1.0.0",
+  "description": "Melonentextur – Texturen direkt auf 3D-Modelle malen",
+  "main": "electron/main.js",
+  "author": "DevWasserMelone",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "de.devwassermelone.melonentextur",
+    "productName": "Melonentextur",
+    "files": [
+      "electron/**/*",
+      "launcher/**/*",
+      "app/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.png",
+      "artifactName": "Melonentextur-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Melonentextur",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      { "provider": "github", "owner": "DevWasserMelone", "repo": "Melonentextur", "releaseType": "release" }
+    ]
+  }
+}
