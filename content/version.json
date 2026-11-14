@@ -1,5 +1,5 @@
 {
-  "version": "2.2.1",
-  "notes": "- Malen deutlich flüssiger: nur noch der bemalte Bereich und die geänderten Ebenen werden neu berechnet",
+  "version": "2.2.3",
+  "notes": "- Schnelle Pinselstriche deutlich flüssiger",
   "date": "2026-11-14"
 }
