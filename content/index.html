@@ -116,14 +116,15 @@ input[type=checkbox]{accent-color:var(--ac)}
 .mbox .sub{color:var(--mu);margin:0 0 16px}
 .welcome{width:860px}
 .welcome .hero{display:flex;align-items:center;gap:14px;margin-bottom:14px}
-.welcome .hero .logo{width:44px;height:44px}
-.welcome h1{margin:0;font-size:30px;background:linear-gradient(120deg,#fff,#ff8a98 60%,#7fe6a2);-webkit-background-clip:text;background-clip:text;color:transparent}
+.welcome .hero .logo{width:30px;height:30px}
+.welcome h1{margin:0;font-size:24px;font-weight:700}
 .prims{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0 16px}
 .prim{background:var(--p2);border:1px solid var(--line);border-radius:10px;padding:12px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px}
 .prim:hover{border-color:var(--ac)}
-.prim .ic{font-size:26px}
+.prim svg{color:#c9cbd2}
 .wrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.drop{border:2px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--mu);margin:6px 0 14px;cursor:pointer}
+.drop{border:1px dashed #44474f;border-radius:8px;padding:22px;text-align:center;color:var(--mu);margin:6px 0 16px;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.drop b{color:var(--tx);font-size:14px}
 .drop:hover,.drop.over{border-color:var(--ac);color:var(--tx)}
 #busy{position:fixed;inset:0;background:#07080ab0;z-index:300;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-size:15px}
 #busy.on{display:flex}
@@ -133,6 +134,47 @@ input[type=checkbox]{accent-color:var(--ac)}
 .keys kbd{background:var(--p3);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font:11.5px system-ui;justify-self:start}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#33363e;border-radius:6px;border:2px solid var(--p1)}::-webkit-scrollbar-track{background:transparent}
 .welcome .row{grid-template-columns:120px 300px}
+
+/* schlichter Stil */
+.mbox{border-radius:10px}
+.prim{border-radius:8px;padding:14px 8px 10px}
+.lbl{color:var(--mu);margin:2px 0 0}
+#ctx .tname{min-width:110px}
+#ctx .hint,.hint{color:var(--mu)}
+.chip{background:var(--p2);border:1px solid var(--line);border-radius:5px;padding:3px 10px;cursor:pointer}
+.chip:hover{border-color:#555963}
+.chip.on{border-color:var(--ac);color:#fff}
+#tools button{color:#b8bac2}
+#tools button.on{color:#fff;background:#3a2328}
+#vbar{gap:6px}
+#vbar button{padding:3px 9px}
+.ph .btns button.txt{width:auto;padding:0 8px;font-size:12px}
+.ph .btns button{display:flex;align-items:center;justify-content:center;color:#c9cbd2}
+.lrow .eye{display:flex;align-items:center;justify-content:center;color:#c9cbd2;opacity:1}
+.lrow .eye.off{opacity:.35}
+.lrow .th.paint{background:#2a2c32;color:#c9cbd2}
+.lrow .mk{background:linear-gradient(90deg,#fff 50%,#111 50%);border-color:#555}
+.lrow .mk.gen{background:repeating-linear-gradient(45deg,#ddd 0 3px,#222 3px 6px)}
+.lrow .nm small{font-size:10.5px}
+.sec h4{text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--tx);padding:10px 10px 4px}
+details.adv{margin-top:6px}
+details.adv summary{cursor:pointer;color:var(--mu);padding:4px 0;user-select:none}
+details.adv summary:hover{color:var(--tx)}
+.swatches{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 6px 104px}
+.swatches button{width:18px;height:18px;border-radius:3px;border:1px solid #ffffff30;padding:0;cursor:pointer}
+.seg2{display:flex;margin:6px 0}
+.seg2 button{flex:1;background:var(--p2);border:1px solid var(--line);padding:5px;cursor:pointer}
+.seg2 button:first-child{border-radius:5px 0 0 5px}.seg2 button:last-child{border-radius:0 5px 5px 0}
+.seg2 button.on{border-color:var(--ac);color:#fff}
+.btn.wide{width:100%;margin:4px 0 6px}
+.btn.small{padding:3px 8px;font-size:12px}
+.btn.on{border-color:var(--ac);background:#3a2328}
+#targetBadge{font-size:12px;color:var(--mu)}
+#targetBadge b{color:var(--tx);font-weight:600}
+#targetBadge.mask b{color:#fff}
+#btnExport{display:flex;align-items:center;gap:6px}
+#shelf .tabs button{font-size:12.5px}
+.tile span{font-size:11.5px;color:#c9cbd2}
 </style>
 </head>
 <body>
@@ -142,8 +184,8 @@ input[type=checkbox]{accent-color:var(--ac)}
     <nav id="menus" style="display:flex;gap:2px"></nav>
     <div class="sp"></div>
     <span id="projName"></span>
-    <button class="tbtn" id="btnExport" title="Texturen exportieren (Strg+Umschalt+E)">⤓ Exportieren</button>
-    <button class="tbtn" id="btnReport" title="Kopiert das Fehlerprotokoll – dann in Discord einfügen">🐞 Fehler melden</button>
+    <button class="tbtn" id="btnExport" title="Texturen exportieren (Strg+Umschalt+E)">Exportieren</button>
+    <button class="tbtn" id="btnReport" title="Kopiert das Fehlerprotokoll – dann in Discord einfügen">Fehler melden</button>
     <button class="tbtn" id="btnLauncher" title="Launcher öffnen">Launcher</button>
   </header>
   <div id="ctx"></div>
@@ -169,7 +211,7 @@ input[type=checkbox]{accent-color:var(--ac)}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1674,10 +1716,10 @@ function insertLayers(list, select = true) {
 const ST = { on: false };
 function strokeBegin(r, erase) {
   const l = curLayer();
-  if (!l) { toast('Lege zuerst eine Ebene an.'); return false; }
+  if (!l) { toast('Leg zuerst eine Ebene an (+ Malen).'); return false; }
   const onMask = S.target === 'mask' && l.mask;
-  if (!onMask && l.kind !== 'paint') { toast(l.mask ? 'Füll-Ebene: Klicke auf das Masken-Symbol, um die Maske zu bemalen.' : 'Auf Füll-Ebenen malst du über eine Maske – oder wähle eine Mal-Ebene.', 'warn'); return false; }
-  if (!l.visible) toast('Hinweis: Die Ebene ist ausgeblendet.');
+  if (!onMask && l.kind !== 'paint') { toast(l.mask ? 'Klick rechts auf „Maske bemalen“.' : 'Hier kann man nicht malen. Nimm eine Mal-Ebene (+ Malen).', 'warn'); return false; }
+  if (!l.visible) toast('Die Ebene ist gerade ausgeblendet.');
   pushUndo();
   if (onMask) { const old = l.mask.tex; l.mask.tex = trackTex(copyTex(old)); Object.assign(ST, { before: { mask: old } }); }
   else { const o = l.tex; l.tex = { c: trackTex(copyTex(o.c)), m: trackTex(copyTex(o.m)) }; Object.assign(ST, { before: { c: o.c, m: o.m } }); }
@@ -1758,7 +1800,7 @@ function fillAt(r, x, y, erase) {
   const g = S.mesh.groups, nT = S.mesh.nT, mode = S.brush.fillMode;
   if (mode === 'all') tris = null;
   else {
-    if (!hit || hit.tri < 0) { if (r.type === '2d') toast('Im 2D-Fenster füllt das Werkzeug nur „Alles“.'); return; }
+    if (!hit || hit.tri < 0) { if (r.type === '2d') toast('In 2D geht nur „Alles“.'); return; }
     const t0 = hit.tri;
     if (mode === 'tri') tris = [t0];
     else { const arr = mode === 'planar' ? g.planar : mode === 'part' ? g.part : g.island; const id = arr[t0]; tris = []; for (let t = 0; t < nT; t++) if (arr[t] === id) tris.push(t); }
@@ -1836,11 +1878,11 @@ function renderPreview(layers) {
 
 'use strict';
 /* ================= Materialien, Smart-Materialien, Masken, Pinsel ================= */
-const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder (Körnung)', 'Stoff', 'Ziegel / Kacheln', 'Karbon', 'Beton / Stein', 'Streifen (Melone)', 'Metallic-Lack'];
+const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack'];
 const PAT_USES_B = [false, true, true, true, true, true, true, true, true, true, true, true];
-const GENS = ['Kein Generator', 'Kanten (Abnutzung)', 'Vertiefungen (Schmutz)', 'Umgebungsverdeckung (AO)', 'Rauschen', 'Von oben (Staub)', 'Von unten (Verlauf)', 'Kratzer', 'Flecken'];
+const GENS = ['Aus', 'Kanten', 'Ecken und Ritzen', 'Schattige Stellen', 'Wolkig', 'Von oben', 'Von unten', 'Kratzer', 'Flecken'];
 const SHAPES = ['Rund', 'Quadrat', 'Kreide', 'Spritzer', 'Kratzer', 'Ring'];
-const BLEND_NAMES = { normal: 'Normal', multiply: 'Multiplizieren', screen: 'Negativ multipl.', overlay: 'Überlagern', add: 'Addieren', subtract: 'Subtrahieren', darken: 'Abdunkeln', lighten: 'Aufhellen', softlight: 'Weiches Licht' };
+const BLEND_NAMES = { normal: 'Normal', multiply: 'Multiplizieren', screen: 'Aufhellen (Screen)', overlay: 'Überlagern', add: 'Addieren', subtract: 'Subtrahieren', darken: 'Abdunkeln', lighten: 'Aufhellen', softlight: 'Weiches Licht' };
 
 const MATERIALS = {
   eisen: { name: 'Eisen', fill: { pat: 1, colA: '#8c8f93', colB: '#6d7074', roughA: 0.42, roughB: 0.62, metalA: 1, metalB: 1, hAmt: 0.06, scale: 3, vari: 0.5 } },
@@ -2170,14 +2212,39 @@ async function exportTextures({ preset, size, name, aoInBase, height16 }) {
 
 'use strict';
 /* ================= Oberfläche ================= */
-const CHANNELS = ['Material', 'Grundfarbe', 'Rauheit', 'Metall', 'Höhe', 'Normal', 'Verdeckung (AO)', 'Kanten / Krümmung', 'Maske der Ebene', 'UV-Prüfmuster'];
+const CHANNELS = ['Fertiges Material', 'Nur Farbe', 'Rauheit', 'Metall', 'Höhe', 'Normal-Map', 'Schatten in Ecken (AO)', 'Kanten', 'Maske der Ebene', 'UV-Prüfmuster'];
 const TOOLS = [
-  { id: 'paint', icon: '🖌', name: 'Pinsel', key: 'B' },
-  { id: 'erase', icon: '🧽', name: 'Radierer', key: 'E' },
-  { id: 'fill', icon: '🪣', name: 'Füllen (Flächen, UV-Inseln, Teile)', key: 'G' },
-  { id: 'pick', icon: '💧', name: 'Pipette', key: 'I' },
+  { id: 'paint', icon: 'brush', name: 'Pinsel', key: 'B' },
+  { id: 'erase', icon: 'eraser', name: 'Radierer', key: 'E' },
+  { id: 'fill', icon: 'bucket', name: 'Füllen', key: 'G' },
+  { id: 'pick', icon: 'pipette', name: 'Farbe aufnehmen', key: 'I' },
 ];
-const FILL_MODES = [['tri', 'Dreieck'], ['planar', 'Ebene Fläche'], ['island', 'UV-Insel'], ['part', 'Modellteil'], ['all', 'Alles']];
+const FILL_MODES = [['planar', 'Fläche'], ['island', 'UV-Insel'], ['part', 'Ganzes Teil'], ['all', 'Alles'], ['tri', 'Einzelnes Dreieck']];
+
+/* schlichte Linien-Symbole */
+const ICONS = {
+  brush: 'M4 20c2.5 0 4.5-1.2 4.5-3.3A2.2 2.2 0 0 0 6.3 14.5C4 14.5 4 17.5 4 20z M9.6 14.4 19.2 4.8a1.6 1.6 0 0 1 2.2 2.2l-9.6 9.6',
+  eraser: 'M8 20h12 M4.6 15.4l9-9a1.4 1.4 0 0 1 2 0l3.9 3.9a1.4 1.4 0 0 1 0 2L12 20H8.8z M9 11l5.5 5.5',
+  bucket: 'M5 11.5 12 4.5l7 7-7 7z M5 11.5h14 M20.5 16.5c0 1.3-.7 2.2-1.5 2.2s-1.5-.9-1.5-2.2 1.5-3 1.5-3 1.5 1.7 1.5 3z',
+  pipette: 'M14.5 4.5l5 5 M17 7l-9.5 9.5L4 20l3.5-3.5 M12.5 6.5l5 5',
+  frame: 'M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 10v4 M10 12h4',
+  mirror: 'M12 3v18 M8.5 7.5 4 12l4.5 4.5z M15.5 7.5 20 12l-4.5 4.5z',
+  undo: 'M9 13 4.5 8.5 9 4 M4.5 8.5H14a5.5 5.5 0 0 1 0 11h-3',
+  redo: 'M15 13l4.5-4.5L15 4 M19.5 8.5H10a5.5 5.5 0 0 0 0 11h3',
+  eye: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z M12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z',
+  eyeOff: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z M4 4l16 16',
+  trash: 'M4.5 7h15 M9.5 7V4.5h5V7 M6.5 7l1 12.5h9l1-12.5',
+  copy: 'M8.5 8.5h11v11h-11z M15.5 8.5V4.5h-11v11h4',
+  down: 'M12 4v11 M7.5 10.5 12 15l4.5-4.5 M5 20h14',
+};
+function ico(name, size = 18) {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('width', size); s.setAttribute('height', size);
+  s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.7');
+  s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICONS[name]); s.append(p);
+  return s;
+}
 
 let _editOpen = false;
 function beginEdit() { if (!_editOpen) { pushUndo(); _editOpen = true; } }
@@ -2207,7 +2274,7 @@ function ctlColor(label, obj, key, o = {}) {
 function ctlSelect(label, obj, key, options, o = {}) {
   const s = el('select', {}, options.map(([v, t]) => el('option', { value: v, selected: String(obj[key]) === String(v) }, t)));
   s.addEventListener('change', () => {
-    if (o.undo) { beginEdit(); }
+    if (o.undo) beginEdit();
     const v = typeof obj[key] === 'number' ? +s.value : s.value; obj[key] = v; if (o.onchange) o.onchange(v);
     if (o.undo) endEdit();
   });
@@ -2223,27 +2290,28 @@ function ctlCheck(label, obj, key, o = {}) {
 const UI = {
   shelfTab: 'smart',
   previews: new Map(),
+  adv: {},
+  more: false,
   init() {
     this.buildMenus();
+    $('#btnExport').prepend(ico('down', 15));
     $('#btnExport').onclick = () => this.exportDialog();
     $('#btnReport').onclick = () => this.report();
     if (NATIVE && NATIVE.openLauncher) $('#btnLauncher').onclick = () => NATIVE.openLauncher(); else $('#btnLauncher').style.display = 'none';
     $('#layerBtns').append(
-      el('button', { title: 'Neue Mal-Ebene', onclick: () => this.addLayer('paint') }, '🖌'),
-      el('button', { title: 'Neue Füll-Ebene', onclick: () => this.addLayer('fill') }, '▦'),
-      el('button', { title: 'Weiße Maske hinzufügen', onclick: () => this.addMask(1) }, '◐'),
-      el('button', { title: 'Ebene duplizieren (Strg+D)', onclick: () => this.dupLayer() }, '⧉'),
-      el('button', { title: 'Ebene löschen (Entf)', onclick: () => this.delLayer() }, '🗑'),
+      el('button', { class: 'txt', title: 'Neue Ebene zum Malen', onclick: () => this.addLayer('paint') }, '+ Malen'),
+      el('button', { class: 'txt', title: 'Neue Ebene mit einem Material', onclick: () => this.addLayer('fill') }, '+ Füllen'),
+      el('button', { title: 'Ebene kopieren (Strg+D)', onclick: () => this.dupLayer() }, ico('copy', 15)),
+      el('button', { title: 'Ebene löschen (Entf)', onclick: () => this.delLayer() }, ico('trash', 15)),
     );
-    $('#stHint').textContent = 'Linke Maus: malen · Rechte Maus: drehen · Mittlere Maus: verschieben · Mausrad: zoomen · [ ] Pinselgröße';
+    $('#stHint').textContent = 'Linksklick: malen   ·   Rechtsklick: drehen   ·   Mausrad: zoomen   ·   [ und ]: Pinselgröße';
   },
   buildMenus() {
     const menus = [
       ['Datei', [
-        ['Neues Projekt …', 'Strg+N', () => this.welcome()],
-        ['Projekt öffnen …', 'Strg+O', () => this.openFile('.mtex')],
-        ['Projekt speichern', 'Strg+S', () => saveProject()],
-        ['Modell austauschen …', '', () => this.welcome()],
+        ['Neues Projekt', 'Strg+N', () => this.welcome()],
+        ['Öffnen …', 'Strg+O', () => this.openFile('.mtex,.obj,.glb,.gltf')],
+        ['Speichern', 'Strg+S', () => saveProject()],
         '-',
         ['Texturen exportieren …', 'Strg+Umschalt+E', () => this.exportDialog()],
       ]],
@@ -2251,17 +2319,17 @@ const UI = {
         ['Rückgängig', 'Strg+Z', () => undo()],
         ['Wiederholen', 'Strg+Y', () => redo()],
         '-',
-        ['Projekt-Einstellungen …', '', () => this.settingsDialog()],
+        ['Einstellungen …', '', () => this.settingsDialog()],
       ]],
       ['Ansicht', [
-        ['Nur 3D', 'F1', () => setLayout('3d')], ['Nur 2D (UV)', 'F2', () => setLayout('2d')], ['Geteilt', 'F3', () => setLayout('split')],
+        ['3D', 'F1', () => setLayout('3d')], ['3D und 2D', 'F3', () => setLayout('split')], ['2D (UV)', 'F2', () => setLayout('2d')],
         '-',
-        ['Kamera zentrieren', 'F', () => frameCamera()], ['Drahtgitter an/aus', 'W', () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; }],
-        ['Nächster Kanal', 'C', () => { S.view.chan = (S.view.chan + 1) % CHANNELS.length; this.renderVbar(); E.needDraw = true; }],
+        ['Kamera zurücksetzen', 'F', () => frameCamera()], ['Gitternetz', 'W', () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; }],
       ]],
-      ['Hilfe', [['Tastenkürzel', '', () => this.helpDialog()], ['Über Melonentextur', '', () => this.about()]]],
+      ['Hilfe', [['Tastenkürzel', '', () => this.helpDialog()], ['Über', '', () => this.about()]]],
     ];
     const nav = $('#menus');
+    const closeMenus = () => $$('.menu.open').forEach((m) => m.classList.remove('open'));
     for (const [title, items] of menus) {
       const dd = el('div', { class: 'dd' });
       for (const it of items) {
@@ -2272,7 +2340,6 @@ const UI = {
       m.addEventListener('mouseenter', () => { if ($('.menu.open') && !m.classList.contains('open')) { closeMenus(); m.classList.add('open'); } });
       nav.append(m);
     }
-    const closeMenus = () => $$('.menu.open').forEach((m) => m.classList.remove('open'));
     document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.menu')) closeMenus(); });
   },
   refreshAll() { this.renderTools(); this.renderCtx(); this.renderLayers(); this.renderProps(); this.renderVbar(); this.renderBadge(); this.renderInfo(); E.needDraw = true; },
@@ -2281,88 +2348,91 @@ const UI = {
   /* ---------- Werkzeuge ---------- */
   renderTools() {
     const t = $('#tools'); t.innerHTML = '';
-    for (const tl of TOOLS) t.append(el('button', { class: S.tool === tl.id ? 'on' : '', title: `${tl.name} (${tl.key})`, onclick: () => setTool(tl.id) }, tl.icon));
+    for (const tl of TOOLS) t.append(el('button', { class: S.tool === tl.id ? 'on' : '', title: `${tl.name} (${tl.key})`, onclick: () => setTool(tl.id) }, ico(tl.icon, 20)));
     t.append(el('div', { class: 'sep' }),
-      el('button', { title: 'Kamera zentrieren (F)', onclick: () => frameCamera() }, '⌖'),
-      el('button', { class: S.brush.mirror ? 'on' : '', title: 'Symmetrie an/aus (X)', onclick: () => { S.brush.mirror = S.brush.mirror ? 0 : 1; this.renderTools(); this.renderCtx(); } }, '⇋'),
-      el('button', { title: 'Rückgängig (Strg+Z)', onclick: () => undo() }, '↶'),
-      el('button', { title: 'Wiederholen (Strg+Y)', onclick: () => redo() }, '↷'));
+      el('button', { class: S.brush.mirror ? 'on' : '', title: 'Spiegeln (X)', onclick: () => { S.brush.mirror = S.brush.mirror ? 0 : 1; this.renderTools(); this.renderCtx(); } }, ico('mirror', 20)),
+      el('button', { title: 'Kamera zurücksetzen (F)', onclick: () => frameCamera() }, ico('frame', 20)),
+      el('div', { class: 'sep' }),
+      el('button', { title: 'Rückgängig (Strg+Z)', onclick: () => undo() }, ico('undo', 20)),
+      el('button', { title: 'Wiederholen (Strg+Y)', onclick: () => redo() }, ico('redo', 20)));
   },
   renderCtx() {
     const c = $('#ctx'); c.innerHTML = ''; const b = S.brush;
     const sep = () => el('span', { class: 'sep' });
     const tool = TOOLS.find((t) => t.id === S.tool);
-    c.append(el('b', {}, tool.icon + ' ' + tool.name), sep());
+    c.append(el('b', { class: 'tname' }, tool.name), sep());
     if (S.tool === 'paint' || S.tool === 'erase') {
       c.append(
-        ctlSlider('Größe', b, 'size', 1, 400, 1, { compact: true, tip: 'Pinselgröße in Bildschirm-Pixeln – Tasten [ und ]', onchange: () => drawOverlay() }),
-        ctlSlider('Fluss', b, 'flow', 0.01, 1, 0.01, { compact: true, tip: 'Wie stark jeder einzelne Tupfer deckt' }),
-        ctlSlider('Deckkraft', b, 'opacity', 0.01, 1, 0.01, { compact: true, tip: 'Maximale Deckkraft eines Strichs' }),
-        ctlSlider('Härte', b, 'hard', 0, 1, 0.01, { compact: true, tip: 'Weicher oder harter Rand (Umschalt + [ ])' }),
-        ctlSlider('Abstand', b, 'spacing', 0.02, 1, 0.01, { compact: true, tip: 'Abstand der Tupfer im Strich' }),
-        sep(),
-        ctlSelect('Spitze', b, 'shape', SHAPES.map((s, i) => [i, s]), { compact: true }),
-        ctlSlider('Winkel', b, 'angle', 0, 360, 1, { compact: true }),
-        ctlSlider('Zufall Winkel', b, 'jitAng', 0, 1, 0.01, { compact: true }),
-        ctlSlider('Zufall Größe', b, 'jitSize', 0, 1, 0.01, { compact: true }),
-        sep(),
-        ctlSelect('Symmetrie', b, 'mirror', [[0, 'Aus'], [1, 'X'], [2, 'Y'], [3, 'Z']], { compact: true, onchange: () => this.renderTools() }),
-        el('span', { class: 'grp' }, ctlCheck('Durchmalen', b, 'through', { tip: 'Auch verdeckte und abgewandte Stellen bemalen' })),
-        el('span', { class: 'grp', title: 'Grafiktablett: Stiftdruck steuert …' }, el('label', {}, 'Stiftdruck:'), ctlCheck('Größe', b, 'pSize'), ctlCheck('Deckkraft', b, 'pOpac')),
-      );
-    } else if (S.tool === 'fill') {
-      c.append(ctlSelect('Füllt', b, 'fillMode', FILL_MODES, { compact: true, tip: 'Was mit einem Klick gefüllt wird' }),
+        ctlSlider('Größe', b, 'size', 1, 400, 1, { compact: true, tip: 'Tasten [ und ]', onchange: () => drawOverlay() }),
         ctlSlider('Deckkraft', b, 'opacity', 0.01, 1, 0.01, { compact: true }),
-        el('span', { class: 'note' }, 'Klick aufs Modell füllt die gewählte Fläche mit dem Pinsel-Material. Rechtsklick + Alt = mit Radierer.'));
+        ctlSlider('Härte', b, 'hard', 0, 1, 0.01, { compact: true, tip: 'Weicher oder harter Rand' }),
+        ctlSelect('Spitze', b, 'shape', SHAPES.map((s, i) => [i, s]), { compact: true }),
+        el('button', { class: 'chip' + (b.mirror ? ' on' : ''), title: 'Auf beiden Seiten gleichzeitig malen (X)', onclick: () => { b.mirror = b.mirror ? 0 : 1; this.renderTools(); this.renderCtx(); } }, 'Spiegeln'),
+        el('button', { class: 'chip' + (this.more ? ' on' : ''), onclick: () => { this.more = !this.more; this.renderCtx(); } }, this.more ? 'Weniger' : 'Mehr'),
+      );
+      if (this.more) {
+        c.append(sep(),
+          ctlSlider('Fluss', b, 'flow', 0.01, 1, 0.01, { compact: true, tip: 'Wie stark ein einzelner Tupfer deckt' }),
+          ctlSlider('Abstand', b, 'spacing', 0.02, 1, 0.01, { compact: true }),
+          ctlSlider('Winkel', b, 'angle', 0, 360, 1, { compact: true }),
+          ctlSlider('Zufall', b, 'jitAng', 0, 1, 0.01, { compact: true, tip: 'Dreht jeden Tupfer zufällig' }),
+          b.mirror ? ctlSelect('Achse', b, 'mirror', [[1, 'X'], [2, 'Y'], [3, 'Z']], { compact: true }) : null,
+          el('span', { class: 'grp' }, ctlCheck('Durchmalen', b, 'through', { tip: 'Auch Stellen bemalen, die man gerade nicht sieht' })),
+          el('span', { class: 'grp', title: 'Nur mit Grafiktablett' }, el('label', {}, 'Stiftdruck:'), ctlCheck('Größe', b, 'pSize'), ctlCheck('Deckkraft', b, 'pOpac')));
+      }
+    } else if (S.tool === 'fill') {
+      c.append(ctlSelect('Füllt', b, 'fillMode', FILL_MODES, { compact: true }),
+        ctlSlider('Deckkraft', b, 'opacity', 0.01, 1, 0.01, { compact: true }),
+        el('span', { class: 'hint' }, 'Klick aufs Modell'));
     } else {
-      c.append(el('span', { class: 'note' }, 'Klick aufs Modell übernimmt Farbe, Rauheit und Metall in den Pinsel.'));
+      c.append(el('span', { class: 'hint' }, 'Klick aufs Modell nimmt Farbe, Rauheit und Metall auf.'));
     }
   },
   renderBadge() {
     const l = curLayer(); const b = $('#targetBadge');
-    if (!l) { b.innerHTML = 'Keine Ebene'; b.className = ''; return; }
+    b.innerHTML = '';
+    if (!l) { b.style.display = 'none'; return; }
+    b.style.display = '';
     const m = S.target === 'mask' && l.mask;
     b.className = m ? 'mask' : '';
-    b.innerHTML = '';
-    b.append(m ? 'Malt auf: Maske von ' : (l.kind === 'paint' ? 'Malt auf: ' : 'Ausgewählt: '), el('b', {}, l.name));
+    b.append(m ? 'Maske von ' : '', el('b', {}, l.name));
   },
   renderInfo() {
-    let bytes = 0; for (const t of TEX_LIVE) bytes += t.bytes;
-    $('#projName').textContent = S.projectName + (S.dirty ? ' •' : '');
-    $('#stInfo').textContent = S.mesh ? `${S.mesh.name} · ${S.mesh.nT.toLocaleString('de-DE')} Dreiecke · Textur ${S.res}×${S.res} · Grafikspeicher ca. ${Math.round(bytes / 1048576)} MB · v${APP_VERSION}` : '';
+    $('#projName').textContent = S.projectName + (S.dirty ? ' *' : '');
+    $('#stInfo').textContent = S.mesh ? `${S.mesh.nT.toLocaleString('de-DE')} Dreiecke   ·   ${S.res} × ${S.res}   ·   v${APP_VERSION}` : 'v' + APP_VERSION;
   },
 
   /* ---------- Ansicht-Leiste ---------- */
   renderVbar() {
     const v = $('#vbar'); v.innerHTML = '';
-    const seg = el('div', { class: 'seg' }, [['3d', '3D'], ['split', '3D | 2D'], ['2d', '2D']].map(([k, t]) => el('button', { class: S.view.layout === k ? 'on' : '', onclick: () => setLayout(k) }, t)));
-    const chan = el('select', { title: 'Kanal-Ansicht (C)' }, CHANNELS.map((n, i) => el('option', { value: i, selected: S.view.chan === i }, n)));
+    const seg = el('div', { class: 'seg' }, [['3d', '3D'], ['split', '3D + 2D'], ['2d', '2D']].map(([k, t]) => el('button', { class: S.view.layout === k ? 'on' : '', onclick: () => setLayout(k) }, t)));
+    const chan = el('select', { title: 'Was angezeigt wird' }, CHANNELS.map((n, i) => el('option', { value: i, selected: S.view.chan === i }, n)));
     chan.onchange = () => { S.view.chan = +chan.value; E.needDraw = true; };
-    const env = el('select', { title: 'Licht-Umgebung' }, ENVS.map((e, i) => el('option', { value: i, selected: S.view.env === i }, '☀ ' + e.name)));
+    const env = el('select', { title: 'Licht' }, ENVS.map((e, i) => el('option', { value: i, selected: S.view.env === i }, 'Licht: ' + e.name)));
     env.onchange = () => { S.view.env = +env.value; E.needDraw = true; };
-    const ex = el('input', { type: 'range', min: 0.2, max: 2.5, step: 0.01, value: S.view.exposure, title: 'Belichtung' });
-    ex.oninput = () => { S.view.exposure = +ex.value; E.needDraw = true; };
-    v.append(chan, seg, env, el('span', { title: 'Belichtung' }, '◐'), ex,
-      el('button', { class: S.view.bg ? 'on' : '', title: 'Umgebung als Hintergrund', onclick: () => { S.view.bg = S.view.bg ? 0 : 1; this.renderVbar(); E.needDraw = true; } }, '🌄'),
-      el('button', { class: S.view.wire ? 'on' : '', title: 'Drahtgitter (W)', onclick: () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; } }, '#'));
+    v.append(chan, seg, env,
+      el('button', { class: S.view.wire ? 'on' : '', title: 'Gitternetz anzeigen (W)', onclick: () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; } }, 'Gitter'));
   },
 
   /* ---------- Ebenen ---------- */
   renderLayers() {
     const list = $('#layerList'); list.innerHTML = '';
-    if (!S.layers.length) list.append(el('div', { class: 'note', style: 'padding:12px' }, 'Noch keine Ebenen. Lege oben eine Mal- oder Füll-Ebene an oder klicke unten auf ein Material.'));
+    if (!S.layers.length) list.append(el('div', { class: 'note', style: 'padding:12px' }, 'Keine Ebenen. Klick oben auf „+ Malen“ oder unten auf ein Material.'));
     for (let i = S.layers.length - 1; i >= 0; i--) {
       const l = S.layers[i];
       const sel = l.id === S.sel;
-      const th = el('div', { class: 'th' + (sel && S.target === 'layer' ? ' act' : ''), title: 'Ebene bemalen / auswählen' });
-      if (l.kind === 'fill') { th.style.background = `linear-gradient(135deg,${l.fill.colA} 55%,${PAT_USES_B[l.fill.pat] ? l.fill.colB : l.fill.colA} 55%)`; }
-      else { th.style.background = '#2a2c32'; th.textContent = '🖌'; }
-      const mk = l.mask ? el('div', { class: 'mk' + (sel && S.target === 'mask' ? ' act' : ''), title: 'Maske bemalen (M)' }, l.mask.gen ? '⚙' : '◐') : null;
-      if (mk) mk.addEventListener('click', (e) => { e.stopPropagation(); S.sel = l.id; S.target = 'mask'; this.refreshAll(); });
-      const eye = el('button', { class: 'eye' + (l.visible ? '' : ' off'), title: 'Ein-/Ausblenden' }, '👁');
+      const th = el('div', { class: 'th' + (sel && S.target === 'layer' && l.mask ? ' act' : ''), title: 'Ebene' });
+      if (l.kind === 'fill') th.style.background = PAT_USES_B[l.fill.pat] ? `linear-gradient(135deg,${l.fill.colA} 50%,${l.fill.colB} 50%)` : l.fill.colA;
+      else { th.classList.add('paint'); th.append(ico('brush', 15)); }
+      let mk = null;
+      if (l.mask) {
+        mk = el('div', { class: 'mk' + (l.mask.gen ? ' gen' : '') + (sel && S.target === 'mask' ? ' act' : ''), title: 'Maske bemalen (M)' });
+        mk.addEventListener('click', (e) => { e.stopPropagation(); S.sel = l.id; S.target = 'mask'; this.refreshAll(); });
+      }
+      const eye = el('button', { class: 'eye' + (l.visible ? '' : ' off'), title: 'Ein- / ausblenden' }, ico(l.visible ? 'eye' : 'eyeOff', 16));
       eye.addEventListener('click', (e) => { e.stopPropagation(); pushUndo(); l.visible = !l.visible; E.needComp = true; this.renderLayers(); });
-      const sub = (l.kind === 'paint' ? 'Malen' : PATTERNS[l.fill.pat]) + (l.opacity < 1 ? ` · ${Math.round(l.opacity * 100)} %` : '') + (l.blend !== 'normal' ? ' · ' + BLEND_NAMES[l.blend] : '');
-      const nm = el('div', { class: 'nm' }, l.name, el('small', {}, sub));
+      const extra = [l.opacity < 1 ? `${Math.round(l.opacity * 100)} %` : '', l.blend !== 'normal' ? BLEND_NAMES[l.blend] : ''].filter(Boolean).join(' · ');
+      const nm = el('div', { class: 'nm' }, l.name, extra ? el('small', {}, extra) : null);
       const row = el('div', { class: 'lrow' + (sel ? ' sel' : ''), draggable: 'true' }, eye, th, mk, nm);
       row.addEventListener('click', () => { S.sel = l.id; S.target = 'layer'; this.refreshAll(); });
       nm.addEventListener('dblclick', (e) => { e.stopPropagation(); this.rename(l, nm); });
@@ -2393,7 +2463,7 @@ const UI = {
     pushUndo(); insertLayers([newLayer(kind, opts)]); this.refreshAll();
   },
   addMask(val, gen = 0) {
-    const l = curLayer(); if (!l) { toast('Wähle zuerst eine Ebene aus.'); return; }
+    const l = curLayer(); if (!l) { toast('Wähl zuerst eine Ebene aus.'); return; }
     pushUndo();
     if (!l.mask) { l.mask = defaultMask(gen); l.mask.tex = newMaskTex(val); }
     else if (gen) { Object.assign(l.mask, defaultMask(gen), { tex: l.mask.tex }); }
@@ -2403,7 +2473,7 @@ const UI = {
   dupLayer() {
     const l = curLayer(); if (!l) return;
     pushUndo();
-    const c = cloneLayer(l); c.id = uid(); c.name = l.name + ' Kopie';
+    const c = cloneLayer(l); c.id = uid(); c.name = l.name + ' (Kopie)';
     if (l.tex) c.tex = { c: trackTex(copyTex(l.tex.c)), m: trackTex(copyTex(l.tex.m)) };
     if (l.mask) c.mask.tex = trackTex(copyTex(l.mask.tex));
     insertLayers([c]); this.refreshAll();
@@ -2423,32 +2493,37 @@ const UI = {
     const recomp = () => { E.needComp = true; };
     const recompL = () => { E.needComp = true; this.renderLayersSoon(); };
     const sec = (title, ...kids) => el('div', { class: 'sec' }, el('h4', {}, title), el('div', { class: 'body' }, ...kids));
+    const adv = (key, ...kids) => {
+      const d = el('details', { class: 'adv', open: !!this.adv[key] }, el('summary', {}, 'Mehr Einstellungen'), ...kids);
+      d.addEventListener('toggle', () => { this.adv[key] = d.open; });
+      return d;
+    };
 
     // Pinsel
     if (S.tool === 'paint' || S.tool === 'fill') {
       const b = S.brush; const kids = [];
       if (l && S.target === 'mask' && l.mask) {
-        kids.push(el('div', { class: 'note' }, 'Du malst auf die Maske: Weiß zeigt die Ebene, Schwarz versteckt sie. Der Radierer malt Schwarz.'));
-        kids.push(ctlSlider('Masken-Wert', b, 'maskVal', 0, 1, 0.01));
-        kids.push(el('div', { class: 'btnrow' }, el('button', { class: 'btn', onclick: () => { b.maskVal = 1; this.renderProps(); } }, '⬜ Weiß'), el('button', { class: 'btn', onclick: () => { b.maskVal = 0; this.renderProps(); } }, '⬛ Schwarz')));
+        kids.push(el('div', { class: 'note' }, 'Weiß zeigt die Ebene, Schwarz versteckt sie.'));
+        kids.push(el('div', { class: 'seg2' },
+          el('button', { class: b.maskVal >= 0.5 ? 'on' : '', onclick: () => { b.maskVal = 1; this.renderProps(); } }, 'Weiß'),
+          el('button', { class: b.maskVal < 0.5 ? 'on' : '', onclick: () => { b.maskVal = 0; this.renderProps(); } }, 'Schwarz')));
       } else {
-        const opts = [['', 'Eigene Farbe & Werte'], ...Object.entries(MATERIALS).map(([k, m]) => [k, m.name])];
-        kids.push(ctlSelect('Material', b, 'mat', opts, { onchange: () => this.renderProps() }));
+        const opts = [['', 'Nur Farbe'], ...Object.entries(MATERIALS).map(([k, m]) => [k, m.name])];
+        kids.push(ctlSelect('Malt mit', b, 'mat', opts, { onchange: () => this.renderProps() }));
         if (!b.mat) {
           kids.push(ctlColor('Farbe', b, 'color'));
-          const sw = el('div', { class: 'btnrow', style: 'margin:2px 0 6px 104px;gap:4px' });
-          ['#ff4f64', '#ffffff', '#1a1a1a', '#8c8f93', '#ffcf5c', '#2f7de1', '#3fae5a', '#7a4a2a', '#e86b1f', '#9d4edd'].forEach((c) => sw.append(el('button', { style: `width:18px;height:18px;border-radius:4px;border:1px solid #fff3;background:${c};cursor:pointer;padding:0`, title: c, onclick: () => { b.color = c; this.renderProps(); } })));
+          const sw = el('div', { class: 'swatches' });
+          ['#ff4f64', '#ffffff', '#1a1a1a', '#8c8f93', '#ffcf5c', '#2f7de1', '#3fae5a', '#7a4a2a', '#e86b1f'].forEach((c) => sw.append(el('button', { style: `background:${c}`, title: c, onclick: () => { b.color = c; this.renderProps(); } })));
           kids.push(sw);
-          kids.push(ctlSlider('Rauheit', b, 'rough', 0, 1, 0.01), ctlSlider('Metall', b, 'metal', 0, 1, 0.01), ctlSlider('Höhe', b, 'height', -1, 1, 0.01, { tip: 'Positiv = erhaben, negativ = eingedrückt' }));
-        } else kids.push(el('div', { class: 'note' }, 'Der Pinsel malt das komplette Material (Farbe, Rauheit, Metall, Höhe).'));
-        if (l && l.kind === 'fill' && !l.mask) kids.push(el('div', { class: 'note warn' }, 'Die gewählte Ebene ist eine Füll-Ebene. Zum Malen wähle eine Mal-Ebene oder füge eine Maske hinzu.'));
+          kids.push(ctlSlider('Rauheit', b, 'rough', 0, 1, 0.01, { tip: '0 = glänzend, 1 = matt' }), ctlSlider('Metall', b, 'metal', 0, 1, 0.01),
+            ctlSlider('Höhe', b, 'height', -1, 1, 0.01, { tip: 'Plus = erhaben, Minus = eingedrückt' }));
+        }
+        if (l && l.kind === 'fill' && !l.mask) kids.push(el('div', { class: 'note warn' }, 'Auf diese Ebene kann man nicht malen. Wähl eine Mal-Ebene aus oder füg unten eine Maske hinzu.'));
       }
-      P.append(sec('Pinsel', ...kids));
-    } else if (S.tool === 'erase') {
-      P.append(sec('Radierer', el('div', { class: 'note' }, l && S.target === 'mask' && l.mask ? 'Der Radierer malt die Maske schwarz (versteckt die Ebene).' : 'Der Radierer entfernt Farbe von der Mal-Ebene. Für Füll-Ebenen: Maske hinzufügen und darauf radieren.')));
+      P.append(sec(S.target === 'mask' && l && l.mask ? 'Pinsel (Maske)' : 'Pinsel', ...kids));
     }
 
-    if (!l) { P.append(sec('Ebene', el('div', { class: 'note' }, 'Keine Ebene ausgewählt.'))); P.scrollTop = keepScroll; return; }
+    if (!l) { P.scrollTop = keepScroll; return; }
 
     // Ebene
     const nameIn = el('input', { type: 'text', value: l.name });
@@ -2456,62 +2531,62 @@ const UI = {
     const chk = el('div', { class: 'chk' },
       ctlCheck('Farbe', l.ch, 'c', { undo: true, onchange: recomp }), ctlCheck('Rauheit', l.ch, 'r', { undo: true, onchange: recomp }),
       ctlCheck('Metall', l.ch, 'm', { undo: true, onchange: recomp }), ctlCheck('Höhe', l.ch, 'h', { undo: true, onchange: recomp }));
-    P.append(sec(l.kind === 'paint' ? 'Mal-Ebene' : 'Füll-Ebene',
+    P.append(sec('Ebene',
       el('div', { class: 'row two' }, el('label', {}, 'Name'), nameIn),
       ctlSlider('Deckkraft', l, 'opacity', 0, 1, 0.01, { undo: true, onchange: recompL }),
-      ctlSelect('Mischmodus', l, 'blend', BLENDS.map((k) => [k, BLEND_NAMES[k]]), { undo: true, onchange: recompL, tip: 'Wie die Farbe mit den Ebenen darunter gemischt wird' }),
-      ctlSelect('Höhe', l, 'hblend', [['add', 'Addieren'], ['normal', 'Ersetzen']], { undo: true, onchange: recomp, tip: 'Addieren: Höhe kommt zur Höhe darunter dazu' }),
-      el('div', { class: 'row two' }, el('label', {}, 'Kanäle'), chk),
+      adv('layer',
+        ctlSelect('Mischmodus', l, 'blend', BLENDS.map((k) => [k, BLEND_NAMES[k]]), { undo: true, onchange: recompL }),
+        ctlSelect('Höhe', l, 'hblend', [['add', 'Dazurechnen'], ['normal', 'Ersetzen']], { undo: true, onchange: recomp }),
+        el('div', { class: 'row two' }, el('label', {}, 'Wirkt auf'), chk)),
     ));
 
     if (l.kind === 'fill') {
       const f = l.fill; const k = [];
-      const matSel = el('select', {}, el('option', { value: '' }, 'Material übernehmen …'), Object.entries(MATERIALS).map(([id, m]) => el('option', { value: id }, m.name)));
+      const matSel = el('select', {}, el('option', { value: '' }, 'Material wählen …'), Object.entries(MATERIALS).map(([id, m]) => el('option', { value: id }, m.name)));
       matSel.onchange = () => { if (!matSel.value) return; pushUndo(); Object.assign(f, MATERIALS[matSel.value].fill); l.name = MATERIALS[matSel.value].name; E.needComp = true; this.refreshAll(); };
       k.push(el('div', { class: 'row two' }, el('label', {}, 'Vorlage'), matSel));
       k.push(ctlSelect('Muster', f, 'pat', PATTERNS.map((p, i) => [i, p]), { undo: true, onchange: () => { recompL(); this.renderProps(); } }));
       const two = PAT_USES_B[f.pat];
-      k.push(ctlColor(two ? 'Farbe A' : 'Farbe', f, 'colA', { undo: true, onchange: recompL }));
-      if (two) k.push(ctlColor('Farbe B', f, 'colB', { undo: true, onchange: recompL }));
-      k.push(ctlSlider(two ? 'Rauheit A' : 'Rauheit', f, 'roughA', 0, 1, 0.01, { undo: true, onchange: (v) => { if (!two) f.roughB = v; recomp(); } }));
-      if (two) k.push(ctlSlider('Rauheit B', f, 'roughB', 0, 1, 0.01, { undo: true, onchange: recomp }));
-      k.push(ctlSlider(two ? 'Metall A' : 'Metall', f, 'metalA', 0, 1, 0.01, { undo: true, onchange: (v) => { if (!two) f.metalB = v; recomp(); } }));
-      if (two) k.push(ctlSlider('Metall B', f, 'metalB', 0, 1, 0.01, { undo: true, onchange: recomp }));
-      k.push(ctlSlider('Höhe', f, 'hAmt', -1, 1, 0.01, { undo: true, onchange: recomp, tip: f.pat === 0 ? 'Fester Höhenwert' : 'Stärke der Struktur' }));
-      if (f.pat) {
-        k.push(ctlSlider('Größe', f, 'scale', 0.2, 12, 0.05, { undo: true, onchange: recomp, tip: 'Größer = feineres Muster' }));
-        k.push(ctlSlider('Variation', f, 'vari', 0, 1, 0.01, { undo: true, onchange: recomp }));
-        k.push(el('div', { class: 'row two' }, el('label', {}, 'Zufall'), el('button', { class: 'btn', onclick: () => { pushUndo(); f.seed = Math.round(Math.random() * 1000); E.needComp = true; } }, '🎲 Neu würfeln')));
-      }
+      k.push(ctlColor('Farbe', f, 'colA', { undo: true, onchange: recompL }));
+      k.push(ctlSlider('Rauheit', f, 'roughA', 0, 1, 0.01, { undo: true, onchange: (v) => { if (!two) f.roughB = v; recomp(); } }));
+      k.push(ctlSlider('Metall', f, 'metalA', 0, 1, 0.01, { undo: true, onchange: (v) => { if (!two) f.metalB = v; recomp(); } }));
+      if (f.pat) k.push(ctlSlider('Größe', f, 'scale', 0.2, 12, 0.05, { undo: true, onchange: recomp, tip: 'Größere Zahl = feineres Muster' }));
+      const a = [];
+      if (two) a.push(ctlColor('Farbe 2', f, 'colB', { undo: true, onchange: recompL }), ctlSlider('Rauheit 2', f, 'roughB', 0, 1, 0.01, { undo: true, onchange: recomp }), ctlSlider('Metall 2', f, 'metalB', 0, 1, 0.01, { undo: true, onchange: recomp }));
+      a.push(ctlSlider('Höhe', f, 'hAmt', -1, 1, 0.01, { undo: true, onchange: recomp }));
+      if (f.pat) a.push(ctlSlider('Variation', f, 'vari', 0, 1, 0.01, { undo: true, onchange: recomp }),
+        el('div', { class: 'row two' }, el('label', {}, ''), el('button', { class: 'btn', onclick: () => { pushUndo(); f.seed = Math.round(Math.random() * 1000); E.needComp = true; } }, 'Muster neu würfeln')));
+      k.push(adv('fill', ...a));
       P.append(sec('Material', ...k));
     }
 
     // Maske
     if (!l.mask) {
-      P.append(sec('Maske', el('div', { class: 'note' }, 'Mit einer Maske bestimmst du, wo die Ebene sichtbar ist – von Hand gemalt oder automatisch (Kanten, Schmutz, Staub …).'),
+      P.append(sec('Maske', el('div', { class: 'note' }, 'Damit legst du fest, wo die Ebene zu sehen ist.'),
         el('div', { class: 'btnrow' },
-          el('button', { class: 'btn', onclick: () => this.addMask(1) }, '⬜ Weiße Maske'),
-          el('button', { class: 'btn', onclick: () => this.addMask(0) }, '⬛ Schwarze Maske'),
-          el('button', { class: 'btn', onclick: () => this.addMask(1, 1) }, '⚙ Kanten-Maske'))));
+          el('button', { class: 'btn', onclick: () => this.addMask(1) }, 'Maske hinzufügen'),
+          el('button', { class: 'btn', onclick: () => this.addMask(1, 1) }, 'Nur an Kanten'))));
     } else {
       const m = l.mask; const k = [];
       const onMask = S.target === 'mask';
-      k.push(el('div', { class: 'btnrow', style: 'margin-top:0' },
-        el('button', { class: 'btn' + (onMask ? ' on' : ''), onclick: () => { S.target = onMask ? 'layer' : 'mask'; if (!onMask && S.tool === 'pick') setTool('paint'); this.refreshAll(); } }, onMask ? '✓ Maske wird bemalt' : '🖌 Maske bemalen'),
-        el('button', { class: 'btn', title: 'Gemalte Maske auf Weiß setzen', onclick: () => this.fillMask(1) }, '⬜'),
-        el('button', { class: 'btn', title: 'Gemalte Maske auf Schwarz setzen', onclick: () => this.fillMask(0) }, '⬛'),
-        el('button', { class: 'btn', title: 'Maske entfernen', onclick: () => { pushUndo(); l.mask = null; S.target = 'layer'; E.needComp = true; this.refreshAll(); } }, '✕ Entfernen')));
-      k.push(ctlSelect('Generator', m, 'gen', GENS.map((g, i) => [i, g]), { undo: true, onchange: (v) => { if ((v === 1 || v === 2) && m.width < 0.01) m.width = 0.05; recompL(); this.renderProps(); } }));
+      k.push(el('button', { class: 'btn wide' + (onMask ? ' on' : ''), onclick: () => { S.target = onMask ? 'layer' : 'mask'; if (!onMask && (S.tool === 'pick')) setTool('paint'); this.refreshAll(); } }, onMask ? 'Fertig mit Masken-Malen' : 'Maske bemalen'));
+      k.push(ctlSelect('Automatisch', m, 'gen', GENS.map((g, i) => [i, i ? g : 'Aus']), { undo: true, onchange: (v) => { if ((v === 1 || v === 2) && m.width < 0.01) m.width = 0.05; recompL(); this.renderProps(); } }));
       if (m.gen) {
-        k.push(ctlSlider('Stärke', m, 'level', 0, 1, 0.01, { undo: true, onchange: recomp, tip: 'Wie viel Fläche die Maske bedeckt' }));
+        k.push(ctlSlider('Stärke', m, 'level', 0, 1, 0.01, { undo: true, onchange: recomp }));
         if (m.gen === 1 || m.gen === 2) k.push(ctlSlider('Breite', m, 'width', 0.005, 0.25, 0.005, { undo: true, onchange: recomp }));
-        if (m.gen !== 4 && m.gen !== 7) k.push(ctlSlider('Unregelmäßig', m, 'rough', 0, 1, 0.01, { undo: true, onchange: recomp }));
-        k.push(ctlSlider('Weichheit', m, 'soft', 0, 0.5, 0.01, { undo: true, onchange: recomp }));
-        k.push(ctlSlider('Muster-Größe', m, 'scale', 0.2, 12, 0.05, { undo: true, onchange: recomp }));
-        k.push(el('div', { class: 'row two' }, el('label', {}, 'Optionen'), el('div', { class: 'chk' }, ctlCheck('Umkehren', m, 'inv', { undo: true, onchange: recomp }),
-          el('button', { class: 'btn', style: 'padding:2px 8px', onclick: () => { pushUndo(); m.seed = Math.round(Math.random() * 1000); E.needComp = true; } }, '🎲'))));
-        k.push(el('div', { class: 'note' }, 'Der Generator wird mit der gemalten Maske multipliziert – mit Schwarz kannst du Stellen von Hand wegnehmen.'));
       }
+      const a = [];
+      if (m.gen) {
+        if (m.gen !== 4 && m.gen !== 7) a.push(ctlSlider('Unregelmäßig', m, 'rough', 0, 1, 0.01, { undo: true, onchange: recomp }));
+        a.push(ctlSlider('Weicher Rand', m, 'soft', 0, 0.5, 0.01, { undo: true, onchange: recomp }), ctlSlider('Muster-Größe', m, 'scale', 0.2, 12, 0.05, { undo: true, onchange: recomp }),
+          el('div', { class: 'row two' }, el('label', {}, ''), el('div', { class: 'chk' }, ctlCheck('Umkehren', m, 'inv', { undo: true, onchange: recomp }),
+            el('button', { class: 'btn small', onclick: () => { pushUndo(); m.seed = Math.round(Math.random() * 1000); E.needComp = true; } }, 'Neu würfeln'))));
+      }
+      a.push(el('div', { class: 'btnrow' },
+        el('button', { class: 'btn small', onclick: () => this.fillMask(1) }, 'Ganz weiß'),
+        el('button', { class: 'btn small', onclick: () => this.fillMask(0) }, 'Ganz schwarz'),
+        el('button', { class: 'btn small', onclick: () => { pushUndo(); l.mask = null; S.target = 'layer'; E.needComp = true; this.refreshAll(); } }, 'Maske löschen')));
+      k.push(adv('mask', ...a));
       P.append(sec('Maske', ...k));
     }
     P.scrollTop = keepScroll;
@@ -2525,9 +2600,9 @@ const UI = {
   /* ---------- Regal ---------- */
   renderShelf() {
     const tabs = $('#shelf .tabs'); tabs.innerHTML = '';
-    const T = [['smart', 'Smart-Materialien'], ['mat', 'Materialien'], ['mask', 'Masken-Generatoren'], ['shape', 'Pinselspitzen']];
+    const T = [['smart', 'Fertige Looks'], ['mat', 'Materialien'], ['mask', 'Masken'], ['shape', 'Pinselspitzen']];
     for (const [k, t] of T) tabs.append(el('button', { class: this.shelfTab === k ? 'on' : '', onclick: () => { this.shelfTab = k; this.renderShelf(); } }, t));
-    const hints = { smart: 'Klick: als Ebenen einfügen', mat: 'Klick: neue Füll-Ebene · Rechtsklick: als Pinsel-Material', mask: 'Klick: Maske für die gewählte Ebene', shape: 'Klick: Pinselspitze wählen' };
+    const hints = { smart: 'Klick fügt den Look als Ebenen ein', mat: 'Klick: neue Ebene   ·   Rechtsklick: damit malen', mask: 'Klick: Maske für die ausgewählte Ebene', shape: '' };
     tabs.append(el('span', { class: 'hint' }, hints[this.shelfTab]));
     const it = $('#shelf .items'); it.innerHTML = '';
     const tile = (key, name, onclick, oncontext, on) => {
@@ -2537,7 +2612,7 @@ const UI = {
       return t;
     };
     if (this.shelfTab === 'smart') for (const [k, s] of Object.entries(SMART)) it.append(tile('s:' + k, s.name, () => this.applySmart(k)));
-    if (this.shelfTab === 'mat') for (const [k, m] of Object.entries(MATERIALS)) it.append(tile('m:' + k, m.name, () => this.applyMat(k), () => { S.brush.mat = k; if (S.tool !== 'paint' && S.tool !== 'fill') setTool('paint'); this.renderProps(); toast('Pinsel malt jetzt: ' + m.name); }, S.brush.mat === k));
+    if (this.shelfTab === 'mat') for (const [k, m] of Object.entries(MATERIALS)) it.append(tile('m:' + k, m.name, () => this.applyMat(k), () => { S.brush.mat = k; if (S.tool !== 'paint' && S.tool !== 'fill') setTool('paint'); this.renderProps(); this.renderShelf(); toast('Pinsel malt jetzt mit ' + m.name); }, S.brush.mat === k));
     if (this.shelfTab === 'mask') GENS.forEach((g, i) => { if (i) it.append(tile('g:' + i, g, () => this.addMask(1, i))); });
     if (this.shelfTab === 'shape') SHAPES.forEach((s, i) => { if (!this.previews.has('b:' + i)) this.previews.set('b:' + i, shapeIcon(i)); it.append(tile('b:' + i, s, () => { S.brush.shape = i; this.renderCtx(); this.renderShelf(); if (S.tool !== 'paint' && S.tool !== 'erase') setTool('paint'); }, null, S.brush.shape === i)); });
   },
@@ -2546,18 +2621,19 @@ const UI = {
     for (const [k, s] of Object.entries(SMART)) jobs.push(['s:' + k, () => layersFromSpec(s.layers, true)]);
     for (const [k, m] of Object.entries(MATERIALS)) jobs.push(['m:' + k, () => layersFromSpec([m], true)]);
     GENS.forEach((g, i) => { if (i) jobs.push(['g:' + i, () => layersFromSpec(genPreviewSpec(i), true)]); });
+    let n = 0;
     for (const [key, mk] of jobs) {
       if (this.previews.has(key)) continue;
       try { this.previews.set(key, renderPreview(mk())); } catch (e) { console.error('Vorschau', key, e); }
-      if (jobs.indexOf(jobs.find((j) => j[0] === key)) % 4 === 3) { this.renderShelf(); await sleep(0); }
+      if (++n % 4 === 0) { this.renderShelf(); await sleep(0); }
     }
     this.renderShelf();
   },
   applySmart(k) {
     if (!S.mesh) return;
     pushUndo(); const ls = layersFromSpec(SMART[k].layers);
-    ls[0].name = SMART[k].name + ' – ' + ls[0].name;
-    insertLayers(ls); this.refreshAll(); toast(`„${SMART[k].name}“ eingefügt (${ls.length} Ebenen)`);
+    ls[0].name = SMART[k].name + ': ' + ls[0].name;
+    insertLayers(ls); this.refreshAll();
   },
   applyMat(k) {
     if (!S.mesh) return;
@@ -2578,24 +2654,23 @@ const UI = {
     f.click();
   },
   welcome() {
-    if (S.mesh && S.dirty && !confirm('Ungespeicherte Änderungen gehen verloren. Trotzdem ein neues Projekt anfangen?')) return;
+    if (S.mesh && S.dirty && !confirm('Ungespeicherte Änderungen gehen verloren. Trotzdem weiter?')) return;
     const st = { res: S.res || 2048 };
     const prims = el('div', { class: 'prims' });
-    const icons = { rbox: '🧊', box: '⬛', sphere: '⚪', cyl: '🥫', barrel: '🛢', torus: '🍩', melon: '🍉', plane: '▭' };
-    for (const [k, p] of Object.entries(PRIMS)) prims.append(el('button', { class: 'prim', onclick: async () => { this.closeModal(); const m = finalizeMesh(p.make(), p.name); await startProject(m, st.res, p.name); } }, el('span', { class: 'ic' }, icons[k]), p.name));
-    const drop = el('div', { class: 'drop', onclick: () => this.openFile('.obj,.glb,.gltf') }, el('div', { style: 'font-size:15px;color:var(--tx)' }, '📂 Eigenes Modell laden'), el('div', {}, '.obj oder .glb hierher ziehen oder klicken – z. B. aus Blender oder Roblox Studio („Export Selection“)'));
+    for (const [k, p] of Object.entries(PRIMS)) prims.append(el('button', { class: 'prim', onclick: async () => { this.closeModal(); const m = finalizeMesh(p.make(), p.name); await startProject(m, st.res, p.name); } }, primIcon(k), el('span', {}, p.name)));
+    const drop = el('div', { class: 'drop', onclick: () => this.openFile('.obj,.glb,.gltf') }, el('b', {}, 'Modell öffnen'), el('span', {}, '.obj oder .glb – reinziehen oder klicken'));
     drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) { handleFile(e.dataTransfer.files[0], st.res); } });
+    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0], st.res); });
     const box = el('div', { class: 'mbox welcome' },
-      el('div', { class: 'hero' }, el('span', { class: 'logo' }), el('div', {}, el('h1', {}, 'Melonentextur'), el('div', { class: 'sub', style: 'margin:0' }, 'Male Texturen direkt auf deine 3D-Modelle – für Roblox, FiveM, Blender und mehr.'))),
+      el('div', { class: 'hero' }, el('span', { class: 'logo' }), el('h1', {}, 'Melonentextur')),
       drop,
-      el('div', { style: 'font-weight:700;margin-top:4px' }, 'Oder mit einem Grundkörper üben:'),
+      el('div', { class: 'lbl' }, 'Oder zum Ausprobieren:'),
       prims,
       el('div', { class: 'wrow' },
-        ctlSelect('Textur-Auflösung', st, 'res', [[512, '512 × 512'], [1024, '1024 × 1024'], [2048, '2048 × 2048 (empfohlen)'], [4096, '4096 × 4096 (braucht viel Grafikspeicher)']]),
+        ctlSelect('Texturgröße', st, 'res', [[512, '512'], [1024, '1024'], [2048, '2048 (Standard)'], [4096, '4096 (sehr detailliert)']]),
         el('span', { style: 'flex:1' }),
-        el('button', { class: 'btn', onclick: () => this.openFile('.mtex') }, '📁 Projekt öffnen (.mtex)'),
+        el('button', { class: 'btn', onclick: () => this.openFile('.mtex') }, 'Projekt öffnen'),
         S.mesh ? el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Abbrechen') : null));
     this.modal(box, !!S.mesh);
     this._welcomeRes = st;
@@ -2609,65 +2684,86 @@ const UI = {
       body.innerHTML = '';
       const nameIn = el('input', { type: 'text', value: st.name }); nameIn.oninput = () => { st.name = nameIn.value.replace(/[\\/:*?"<>|]+/g, '_'); };
       body.append(
-        ctlSelect('Vorlage', st, 'preset', Object.entries(EXPORTS).map(([k, e]) => [k, e.name]), { onchange: () => { const e = EXPORTS[st.preset]; st.size = e.size; st.aoInBase = e.aoInBase; render(); } }),
-        ctlSelect('Größe', st, 'size', [[0, `Wie Projekt (${S.res})`], [512, '512'], [1024, '1024'], [2048, '2048'], [4096, '4096']]),
+        ctlSelect('Für', st, 'preset', Object.entries(EXPORTS).map(([k, e]) => [k, e.name]), { onchange: () => { const e = EXPORTS[st.preset]; st.size = e.size; st.aoInBase = e.aoInBase; render(); } }),
+        ctlSelect('Größe', st, 'size', [[0, `Wie im Projekt (${S.res})`], [512, '512'], [1024, '1024'], [2048, '2048'], [4096, '4096']]),
         el('div', { class: 'row two' }, el('label', {}, 'Dateiname'), nameIn),
-        ctlSlider('AO in Farbe', st, 'aoInBase', 0, 1, 0.05, { tip: 'Rechnet die Verdeckung (dunkle Ecken) in die Grundfarbe ein – gut für Spiele ohne AO-Map' }),
-        ex.maps.some((m) => m[1] === 3) ? el('div', { class: 'row two' }, el('label', {}, 'Höhe'), ctlCheck('16 Bit (feiner)', st, 'height16')) : null,
-        el('div', { class: 'note' }, 'Dateien: ' + ex.maps.map((m) => `${st.name}${ex.sep || '_'}${m[0]}.png`).join(', ')),
-        ex.hint ? el('div', { class: 'note' }, 'ℹ ' + ex.hint) : null,
+        ex.hint ? el('div', { class: 'note' }, ex.hint) : null,
+        el('details', { class: 'adv' }, el('summary', {}, 'Mehr Einstellungen'),
+          ctlSlider('Schatten in Farbe', st, 'aoInBase', 0, 1, 0.05, { tip: 'Macht Ecken in der Farbtextur etwas dunkler' }),
+          ex.maps.some((m) => m[1] === 3) ? el('div', { class: 'row two' }, el('label', {}, 'Höhe'), ctlCheck('16 Bit', st, 'height16')) : null,
+          el('div', { class: 'note' }, ex.maps.map((m) => `${st.name}${ex.sep || '_'}${m[0]}.png`).join(', '))),
       );
     };
     st.size = EXPORTS[st.preset].size; st.aoInBase = EXPORTS[st.preset].aoInBase;
     render();
     const go = el('button', { class: 'btn pri', onclick: async () => {
       this._lastPreset = st.preset; this.closeModal(); this.busy('Texturen werden exportiert …'); await sleep(40);
-      try { const p = await exportTextures(st); if (p) toast('Exportiert: ' + p); }
+      try { const p = await exportTextures(st); if (p) toast('Gespeichert: ' + p); }
       catch (e) { console.error('Export fehlgeschlagen', e); toast('Export fehlgeschlagen: ' + e.message, 'err'); }
       finally { this.busy(null); }
-    } }, '⤓ Exportieren (ZIP)');
-    this.modal(el('div', { class: 'mbox', style: 'width:560px' }, el('h2', {}, 'Texturen exportieren'), el('p', { class: 'sub' }, 'Alle Karten kommen zusammen in eine ZIP-Datei.'), body,
+    } }, 'Exportieren');
+    this.modal(el('div', { class: 'mbox', style: 'width:520px' }, el('h2', {}, 'Texturen exportieren'), body,
       el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Abbrechen'), go)));
   },
   settingsDialog() {
     if (!S.mesh) return;
     const st = { res: S.res, name: S.projectName };
     const nameIn = el('input', { type: 'text', value: st.name }); nameIn.oninput = () => { st.name = nameIn.value; };
-    const box = el('div', { class: 'mbox', style: 'width:520px' }, el('h2', {}, 'Projekt-Einstellungen'), el('p', { class: 'sub' }, ''),
+    const box = el('div', { class: 'mbox', style: 'width:500px' }, el('h2', {}, 'Einstellungen'),
       el('div', { class: 'row two' }, el('label', {}, 'Projektname'), nameIn),
-      ctlSelect('Auflösung', st, 'res', [[512, '512'], [1024, '1024'], [2048, '2048'], [4096, '4096']]),
-      el('div', { class: 'note' }, 'Beim Wechsel der Auflösung werden gemalte Ebenen umgerechnet. Der Rückgängig-Verlauf wird geleert.'),
-      ctlSlider('Höhen-Tiefe', S, 'hdepth', 0, 0.3, 0.005, { onchange: () => { E.needComp = true; }, tip: 'Wie stark Höhen als Relief (Normal-Map) wirken' }),
-      ctlSlider('AO in Ansicht', S.view, 'ao', 0, 1, 0.01, { onchange: () => { E.needDraw = true; } }),
+      ctlSelect('Texturgröße', st, 'res', [[512, '512'], [1024, '1024'], [2048, '2048'], [4096, '4096']]),
+      ctlSlider('Höhen-Tiefe', S, 'hdepth', 0, 0.3, 0.005, { onchange: () => { E.needComp = true; }, tip: 'Wie stark Höhen als Relief wirken' }),
+      ctlSlider('Helligkeit', S.view, 'exposure', 0.2, 2.5, 0.01, { onchange: () => { E.needDraw = true; } }),
+      ctlSlider('Schatten (AO)', S.view, 'ao', 0, 1, 0.01, { onchange: () => { E.needDraw = true; } }),
+      el('div', { class: 'row two' }, el('label', {}, 'Hintergrund'), ctlCheck('Licht-Umgebung zeigen', S.view, 'bg', { onchange: () => { E.needDraw = true; } })),
       el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' },
         el('button', { class: 'btn pri', onclick: async () => {
           this.closeModal(); S.projectName = st.name.trim() || S.projectName;
-          if (st.res !== S.res) { this.busy('Auflösung wird geändert …'); await sleep(40); try { changeResolution(st.res); } catch (e) { console.error(e); toast('Fehler: ' + e.message, 'err'); } this.busy(null); }
+          if (st.res !== S.res) { this.busy('Texturgröße wird geändert …'); await sleep(40); try { changeResolution(st.res); } catch (e) { console.error(e); toast('Fehler: ' + e.message, 'err'); } this.busy(null); }
           this.refreshAll();
-        } }, 'Übernehmen')));
+        } }, 'OK')));
     this.modal(box);
   },
   helpDialog() {
-    const k = [['B', 'Pinsel'], ['E', 'Radierer'], ['G', 'Füllen'], ['I', 'Pipette'], ['[  ]', 'Pinsel kleiner / größer'], ['Umschalt + [  ]', 'Härte ändern'],
-      ['Umschalt + Klick', 'Gerade Linie vom letzten Punkt'], ['X', 'Symmetrie an/aus'], ['M', 'Zwischen Ebene und Maske wechseln'],
-      ['Rechte Maus / Alt + Linke', 'Kamera drehen'], ['Mittlere Maus', 'Verschieben'], ['Mausrad / Alt + Rechte', 'Zoomen'], ['Umschalt + Rechte Maus', 'Licht drehen'],
-      ['F', 'Kamera zentrieren'], ['W', 'Drahtgitter'], ['C', 'Kanal-Ansicht wechseln'], ['F1 / F2 / F3', '3D / 2D / Geteilt'],
-      ['Strg + Z / Y', 'Rückgängig / Wiederholen'], ['Strg + S', 'Speichern'], ['Strg + O', 'Öffnen'], ['Strg + Umschalt + E', 'Exportieren'], ['Strg + D', 'Ebene duplizieren'], ['Entf', 'Ebene löschen']];
-    this.modal(el('div', { class: 'mbox', style: 'width:520px' }, el('h2', {}, 'Tastenkürzel'), el('p', { class: 'sub' }, ''),
+    const k = [['B', 'Pinsel'], ['E', 'Radierer'], ['G', 'Füllen'], ['I', 'Farbe aufnehmen'], ['[  ]', 'Pinsel kleiner / größer'],
+      ['Umschalt + Klick', 'Gerade Linie'], ['X', 'Spiegeln an / aus'], ['M', 'Maske bemalen an / aus'],
+      ['Rechte Maustaste', 'Drehen'], ['Mittlere Maustaste', 'Verschieben'], ['Mausrad', 'Zoomen'], ['Umschalt + Rechte Maustaste', 'Licht drehen'],
+      ['F', 'Kamera zurücksetzen'], ['W', 'Gitternetz'], ['F1 / F2 / F3', '3D / 2D / beides'],
+      ['Strg + Z / Y', 'Rückgängig / Wiederholen'], ['Strg + S', 'Speichern'], ['Strg + D', 'Ebene kopieren'], ['Entf', 'Ebene löschen']];
+    this.modal(el('div', { class: 'mbox', style: 'width:480px' }, el('h2', {}, 'Tastenkürzel'),
       el('div', { class: 'keys' }, k.flatMap(([a, b]) => [el('kbd', {}, a), el('span', {}, b)])),
       el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Schließen'))));
   },
   about() {
-    this.modal(el('div', { class: 'mbox', style: 'width:440px' }, el('h2', {}, 'Melonentextur ' + APP_VERSION), el('p', { class: 'sub' }, 'Textur-Malprogramm für 3D-Modelle.'),
-      el('div', { class: 'note' }, 'Grafik: ' + (gl.getParameter(gl.VERSION) || '')),
+    this.modal(el('div', { class: 'mbox', style: 'width:400px' }, el('h2', {}, 'Melonentextur ' + APP_VERSION),
+      el('div', { class: 'note' }, gl.getParameter(gl.VERSION) || ''),
       el('div', { class: 'btnrow', style: 'justify-content:flex-end' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'OK'))));
   },
   async report() {
-    if (NATIVE && NATIVE.copyLog) { await NATIVE.copyLog(); toast('Fehlerprotokoll kopiert – jetzt in Discord einfügen (Strg+V)'); return; }
+    if (NATIVE && NATIVE.copyLog) { await NATIVE.copyLog(); toast('Fehlerprotokoll kopiert. Einfach in Discord einfügen.'); return; }
     const txt = `Melonentextur ${APP_VERSION} – ${navigator.userAgent}\n` + (window._errLog || []).slice(-50).join('\n');
     try { await navigator.clipboard.writeText(txt); toast('Fehlerprotokoll kopiert'); } catch (e) { toast('Kopieren nicht möglich'); }
   },
 };
+
+/* kleine Umriss-Bilder für die Grundkörper */
+function primIcon(k) {
+  const P = {
+    rbox: '<rect x="9" y="12" width="26" height="26" rx="6"/><path d="M9 18 17 10h20a4 4 0 0 1 4 4v20l-6 6"/><path d="M35 12v.5"/>',
+    box: '<path d="M8 16h26v24H8z M8 16l8-8h26v24l-8 8 M34 16l8-8"/>',
+    sphere: '<circle cx="24" cy="24" r="16"/><ellipse cx="24" cy="24" rx="16" ry="5"/>',
+    cyl: '<ellipse cx="24" cy="11" rx="12" ry="4"/><path d="M12 11v26c0 2.2 5.4 4 12 4s12-1.8 12-4V11"/>',
+    barrel: '<ellipse cx="24" cy="9" rx="10" ry="3.5"/><path d="M14 9c-4 9-4 21 0 30 M34 9c4 9 4 21 0 30 M14 39c2 2 18 2 20 0 M11 18h26 M11 30h26"/>',
+    torus: '<ellipse cx="24" cy="24" rx="17" ry="11"/><ellipse cx="24" cy="23" rx="7" ry="3.5"/>',
+    melon: '<ellipse cx="24" cy="24" rx="13" ry="17"/><path d="M24 7v34 M17 9c-3 9-3 21 0 30 M31 9c3 9 3 21 0 30"/>',
+    plane: '<path d="M6 32 18 18h24L30 32z"/>',
+  };
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('viewBox', '0 0 48 48'); s.setAttribute('width', 40); s.setAttribute('height', 40);
+  s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.6'); s.setAttribute('stroke-linejoin', 'round');
+  s.innerHTML = P[k] || '';
+  return s;
+}
 
 function setTool(t) {
   S.tool = t;
@@ -2832,7 +2928,7 @@ function setupInput() {
       case 'f': case 'F': frameCamera(); S.uv2d.zoom = 0; break;
       case 'w': case 'W': S.view.wire = !S.view.wire; UI.renderVbar(); E.needDraw = true; break;
       case 'c': case 'C': S.view.chan = (S.view.chan + 1) % CHANNELS.length; UI.renderVbar(); E.needDraw = true; break;
-      case 'x': case 'X': b.mirror = b.mirror ? 0 : 1; UI.renderTools(); UI.renderCtx(); toast(b.mirror ? 'Symmetrie X an' : 'Symmetrie aus'); break;
+      case 'x': case 'X': b.mirror = b.mirror ? 0 : 1; UI.renderTools(); UI.renderCtx(); toast(b.mirror ? 'Spiegeln an' : 'Spiegeln aus'); break;
       case 'm': case 'M': { const l = curLayer(); if (l && l.mask) { S.target = S.target === 'mask' ? 'layer' : 'mask'; UI.refreshAll(); } break; }
       case 'F1': e.preventDefault(); setLayout('3d'); break;
       case 'F2': e.preventDefault(); setLayout('2d'); break;
@@ -2851,7 +2947,7 @@ function setupInput() {
 async function handleFile(file, res) {
   const name = file.name.replace(/\.[^.]+$/, '');
   const ext = (file.name.split('.').pop() || '').toLowerCase();
-  if (!['obj', 'glb', 'gltf', 'mtex'].includes(ext)) { toast('Unterstützt werden .obj, .glb, .gltf und .mtex', 'err'); return; }
+  if (!['obj', 'glb', 'gltf', 'mtex'].includes(ext)) { toast('Diese Datei kann Melonentextur nicht öffnen. Geht: .obj, .glb, .mtex', 'err'); return; }
   if (S.mesh && S.dirty && $('#modal').classList.contains('hidden') && !confirm('Ungespeicherte Änderungen gehen verloren. Trotzdem öffnen?')) return;
   UI.closeModal();
   UI.busy('Datei wird geladen …'); await sleep(40);
@@ -2870,8 +2966,8 @@ async function handleFile(file, res) {
 }
 
 async function startProject(mesh, res, name, setup) {
-  UI.busy('Modell wird gebacken (Kanten, Verdeckung) …'); await sleep(40);
-  if (mesh.nT > 2000000) toast('Sehr großes Modell – das kann langsam werden.', 'warn');
+  UI.busy('Modell wird vorbereitet …'); await sleep(40);
+  if (mesh.nT > 2000000) toast('Sehr großes Modell, das kann langsam werden.', 'warn');
   S.layers = []; S.sel = null; S.target = 'layer'; resetUndo();
   S.mesh = mesh; S.res = res; S.projectName = name || mesh.name;
   uploadMesh(mesh);
@@ -2883,7 +2979,7 @@ async function startProject(mesh, res, name, setup) {
   resetUndo();
   UI.refreshAll(); UI.renderShelf();
   UI.busy(null);
-  if (mesh.autoUV) toast('Das Modell hatte keine UVs – sie wurden automatisch erstellt.', 'warn');
+  if (mesh.autoUV) toast('Das Modell hatte keine UVs. Melonentextur hat selbst welche erstellt.', 'warn');
   document.title = `${APP_NAME} – ${S.projectName}`;
 }
 
