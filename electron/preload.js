@@ -25,5 +25,6 @@ contextBridge.exposeInMainWorld('melonenNative', {
   openLauncher: () => ipcRenderer.invoke('launcher:open'),
   copyLog: () => ipcRenderer.invoke('log:copy'),
   openLog: () => ipcRenderer.invoke('log:open'),
+  fetchBuf: (url) => ipcRenderer.invoke('net:get', url),
   saveFile: (name, data, kind) => ipcRenderer.invoke('file:save', { name, data, kind }),
 });

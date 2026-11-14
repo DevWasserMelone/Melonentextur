@@ -247,9 +247,17 @@ ipcMain.handle('log:open', () => {
   shell.showItemInFolder(LOG_FILE);
 });
 const lastDir = {};
+// Texturen aus der Online-Bibliothek laden (nur freigegebene Seiten)
+ipcMain.handle('net:get', async (_e, url) => {
+  const u = new URL(url);
+  if (u.protocol !== 'https:' || !/(^|\.)(ambientcg\.com|struffelproductions\.com)$/i.test(u.hostname)) throw new Error('Adresse nicht erlaubt');
+  const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Melonentextur' } });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return new Uint8Array(await r.arrayBuffer());
+});
 ipcMain.handle('file:save', async (e, { name, data, kind }) => {
   const w = BrowserWindow.fromWebContents(e.sender);
-  const filters = kind === 'project' ? [{ name: 'Melonentextur-Projekt', extensions: ['mtex'] }] : [{ name: 'ZIP-Archiv', extensions: ['zip'] }];
+  const filters = kind === 'project' ? [{ name: 'Melonentextur-Projekt', extensions: ['mtex'] }] : kind === 'glb' ? [{ name: 'glTF-Binär (für Blender)', extensions: ['glb'] }] : [{ name: 'ZIP-Archiv', extensions: ['zip'] }];
   const dir = lastDir[kind] || app.getPath('documents');
   const r = await dialog.showSaveDialog(w, { defaultPath: path.join(dir, name), filters });
   if (r.canceled || !r.filePath) return { status: 'declined' };
