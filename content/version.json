@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
-  "notes": "1.2.0\n- Pinsel malt Farbe, Rauheit, Metall und Höhe getrennt: jeden Kanal einzeln an-/ausschaltbar (auch beim Radieren)\n- Fluss und Strich-Deckkraft getrennt\n- Strg + Rechts ziehen = Größe/Härte, Strg + Links ziehen = Fluss/Winkel\n- Pinselgröße wahlweise „Am Modell“ (bleibt beim Zoomen gleich)\n- Pinsel-Kreis legt sich an die Oberfläche an\n- Neu: Schablone – Bild vor die Kamera legen und durchmalen (S halten zum Verschieben/Drehen/Skalieren)\n- Neu: Nachziehen (ruhige Linien), „Folgt dem Strich“, Zufall für Größe/Fluss/Winkel/Streuung\n- Neuer Reiter „Pinsel“ mit 11 Pinsel-Vorlagen\n- Neue Spitzen: Weich, Fleckig, Borsten, Eigenes Bild\n- Fehler behoben: In der Werkzeugleiste stand manchmal „null“\n- Fehler behoben: Hinweisfenster auf den Material-Kacheln zeigten interne Namen",
+  "version": "1.3.0",
+  "notes": "1.3.0\n- Neue Aufteilung: Ebenen oben rechts, Eigenschaften darunter, Ablage unten mit Kategorien-Liste links\n- Materialien nach Unterkategorien sortiert, mit Anzahl\n- Größe der Vorschaubilder einstellbar\n- Bereiche mit der Maus verstellbar (Seitenleiste, Ablage, Ebenen-Liste), Doppelklick = zurücksetzen\n- Abschnitte in den Eigenschaften zuklappbar\n- Achsen-Anzeige (X/Y/Z) unten links in der 3D-Ansicht",
   "date": "2026-11-14"
 }
