@@ -1,5 +1,5 @@
 {
-  "version": "1.6.0",
-  "notes": "1.6.0\n- Über 2000 Materialien direkt eingebaut (2129), kein Internet nötig\n- 263 fertige Looks (vorher 93)\n- 12 neue Muster: Rauputz, Dachziegel, Gehwegplatten, Korbgeflecht, Sichtbeton, Kork, Sandrippen, Risse, Gitterrost, U-Bahn-Fliesen, Mosaik, Holzpaneele\n- Material-Auswahl nach Kategorien sortiert\n- Online-Bibliothek entfernt\n- Fehler behoben: Achsen-Anzeige folgte beim Zoomen nicht\n- Fehler behoben: Fehler beim Vorwärmen der Shader beim Start",
+  "version": "2.1.0",
+  "notes": "2.1.0\n- Neu: Partikel-Pinsel (N) – Laufspuren, Regen-Streifen, Spritzer, Staub/Sand, Lecks; mit Menge, Länge, Schwerkraft, Zittern\n- Neu: Fenster „Mesh-Karten berechnen“ mit wählbarer Qualität (24–160 Richtungen)\n- Neu: Schwarzpunkt/Weißpunkt für jede Maske",
   "date": "2026-11-14"
 }
