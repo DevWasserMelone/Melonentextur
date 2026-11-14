@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
-  "notes": "2.1.0\n- Neu: Partikel-Pinsel (N) – Laufspuren, Regen-Streifen, Spritzer, Staub/Sand, Lecks; mit Menge, Länge, Schwerkraft, Zittern\n- Neu: Fenster „Mesh-Karten berechnen“ mit wählbarer Qualität (24–160 Richtungen)\n- Neu: Schwarzpunkt/Weißpunkt für jede Maske",
+  "version": "2.2.0",
+  "notes": "2.2.0\n- Neu: Kanal „Leuchten“ – malen oder per Füll-Ebene, leuchtet in der eigenen Farbe\n- Neu: Kanal „Transparenz“ – Löcher, Gitter, Glas; im 3D-Fenster durchsichtig\n- Ebenen: Leuchten/Transparenz unter „Wirkt auf“ ein- und ausschaltbar\n- Ansicht: neue Kanäle „Leuchten“ und „Transparenz“, Leuchtkraft einstellbar\n- Export: Emission- und Opacity-Karten für Blender, Unity, Unreal und Roblox (nur wenn benutzt)",
   "date": "2026-11-14"
 }
