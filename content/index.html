@@ -329,6 +329,20 @@ html.pro #status{background:#1a1b1d}
 .hrow.now{background:var(--sel);font-weight:600}
 .hrow.fut{opacity:.45}
 .hrow small{color:var(--mu)}
+
+#setList .sets{display:flex;flex-direction:column;max-height:calc(150px*var(--u));overflow-y:auto;border-bottom:calc(1px*var(--u)) solid var(--line)}
+.setrow{display:flex;align-items:center;gap:calc(8px*var(--u));padding:calc(5px*var(--u)) calc(10px*var(--u));background:none;border:none;color:var(--tx);cursor:pointer;text-align:left;font:inherit}
+.setrow:hover{background:var(--p3)}
+.setrow.on{background:var(--sel);font-weight:600}
+.setrow .sw{width:calc(12px*var(--u));height:calc(12px*var(--u));border-radius:calc(3px*var(--u));flex:0 0 calc(12px*var(--u))}
+.setrow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.setrow small{color:var(--mu)}
+.tname.qm{color:#ff6a78}
+#tools button.half{box-shadow:inset 0 0 0 calc(1px*var(--u)) #ff6a78}
+.expgrid{display:grid;grid-template-columns:1fr calc(170px*var(--u));gap:calc(4px*var(--u)) calc(10px*var(--u));align-items:center;margin:calc(8px*var(--u)) 0;max-height:calc(260px*var(--u));overflow:auto;padding-right:calc(4px*var(--u))}
+.expi{display:flex;gap:calc(6px*var(--u));align-items:center;font-size:calc(12px*var(--u))}
+.expgrid input[type=text]{width:100%}
+.mbox h3{font-size:calc(12px*var(--u));margin:calc(14px*var(--u)) 0 calc(6px*var(--u));color:var(--mu);text-transform:uppercase;letter-spacing:.05em}
 </style>
 </head>
 <body>
@@ -357,10 +371,11 @@ html.pro #status{background:#1a1b1d}
   <section id="shelf"><div class="split" id="splitShelf" title="Ziehen = Höhe ändern"></div><div class="cats"></div><div class="smain"><div class="tabs"></div><div class="items"></div></div></section>
   <aside id="side">
     <div class="split v" id="splitSide" title="Ziehen = Breite ändern"></div>
+    <div id="setList"></div>
     <div class="ph">Ebenen <span class="btns" id="layerBtns"></span></div>
     <div id="layerList"></div>
     <div class="split h" id="splitLayers" title="Ziehen = Größe ändern"></div>
-    <div class="ph sub">Eigenschaften</div>
+    <div class="ph sub" id="propTabs">Eigenschaften</div>
     <div id="props"></div>
   </aside>
   <footer id="status"><span id="stHint"></span><span class="sp"></span><span id="stPerf" style="margin-right:14px;color:var(--mu)"></span><span id="stInfo"></span></footer>
@@ -373,7 +388,7 @@ html.pro #status{background:#1a1b1d}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.8.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -882,8 +897,10 @@ float genMask(vec3 p, vec3 n, vec4 bk){
 
 const G_ENV = `
 uniform vec3 uSkyTop,uSkyHor,uGround,uL1Dir,uL1Col,uL2Dir,uL2Col; uniform float uEnvRot, uExposure;
+uniform sampler2D uEnvTex; uniform bool uEnvOn; uniform float uEnvLod, uEnvInt; uniform int uTM; uniform float uSatO, uConO;
 vec3 env(vec3 d, float r){
   float cs=cos(uEnvRot), sn=sin(uEnvRot); d=vec3(cs*d.x-sn*d.z, d.y, sn*d.x+cs*d.z);
+  if(uEnvOn){ float u=atan(d.z,d.x)*0.15915494+0.5; float v=acos(clamp(d.y,-1.0,1.0))*0.31830989; return textureLod(uEnvTex,vec2(u,v),uEnvLod*pow(clamp(r,0.0,1.0),0.75)).rgb*uEnvInt; }
   float k=mix(0.03,0.9,r);
   vec3 sky=mix(uSkyHor,uSkyTop,smoothstep(0.0,0.8,d.y));
   vec3 gnd=mix(uSkyHor*0.55,uGround,smoothstep(0.0,0.5,-d.y));
@@ -895,6 +912,9 @@ vec3 env(vec3 d, float r){
 vec2 envBRDF(float NoV, float r){ const vec4 c0=vec4(-1.0,-0.0275,-0.572,0.022); const vec4 c1=vec4(1.0,0.0425,1.04,-0.04);
   vec4 rr=r*c0+c1; float a=min(rr.x*rr.x,exp2(-9.28*NoV))*rr.x+rr.y; return vec2(-1.04,1.04)*a+rr.zw; }
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
+vec3 tmap(vec3 x){ if(uTM==1){ x=max(vec3(0.0),x-0.004); return pow((x*(6.2*x+0.5))/(x*(6.2*x+1.7)+0.06),vec3(2.2)); }
+  if(uTM==2) return x/(1.0+x); if(uTM==3) return clamp(x,0.0,1.0); return aces(x); }
+vec3 grade(vec3 c){ float L=dot(c,vec3(0.2126,0.7152,0.0722)); c=mix(vec3(L),c,1.0+uSatO); c=(c-0.5)*(1.0+uConO)+0.5; return clamp(c,0.0,1.0); }
 vec3 shadePBR(vec3 baseS, float rough, float metal, float ao, vec3 N, vec3 V){
   vec3 base=pow(baseS,vec3(2.2)); rough=clamp(rough,0.03,1.0); metal=clamp(metal,0.0,1.0);
   float NoV=clamp(dot(N,V),1e-4,1.0);
@@ -902,7 +922,7 @@ vec3 shadePBR(vec3 baseS, float rough, float metal, float ao, vec3 N, vec3 V){
   vec3 spec=env(reflect(-V,N),rough)*(F0*ab.x+ab.y);
   vec3 diff=env(N,1.0)*base*(1.0-metal)*0.9;
   vec3 lit=(diff*ao+spec*mix(1.0,ao,0.6))*uExposure;
-  return pow(aces(lit),vec3(1.0/2.2));
+  return grade(pow(tmap(lit),vec3(1.0/2.2)));
 }
 `;
 
@@ -1060,6 +1080,9 @@ vec4 C(ivec2 p){ return texelFetch(uAccC,clamp(p,ivec2(0),SZ-1),0); }
 vec4 Mm(ivec2 p){ return texelFetch(uAccM,clamp(p,ivec2(0),SZ-1),0); }
 vec3 rgb2hsv(vec3 c){ vec4 K=vec4(0.0,-1.0/3.0,2.0/3.0,-1.0); vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g)); vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r)); float d=q.x-min(q.w,q.y); float e=1e-10; return vec3(abs(q.z+(q.w-q.y)/(6.0*d+e)),d/(q.x+e),q.x); }
 vec3 hsv2rgb(vec3 c){ vec3 p=abs(fract(c.xxx+vec3(1.0,2.0/3.0,1.0/3.0))*6.0-3.0); return c.z*mix(vec3(1.0),clamp(p-1.0,0.0,1.0),c.y); }
+float hh2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float vn2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hh2(i),hh2(i+vec2(1.0,0.0)),f.x),mix(hh2(i+vec2(0.0,1.0)),hh2(i+vec2(1.0,1.0)),f.x),f.y); }
+float fb2(vec2 p){ return vn2(p)*0.55+vn2(p*2.03+5.1)*0.3+vn2(p*4.1+9.7)*0.15; }
 void main(){ SZ=textureSize(uAccC,0); ivec2 ip=ivec2(gl_FragCoord.xy);
   vec4 ac=C(ip), am=Mm(ip); vec3 c=ac.rgb; vec4 m=am;
   if(uType==0){ vec3 h=rgb2hsv(c); h.x=fract(h.x+uP.x); h.y=clamp(h.y*(1.0+uP.y),0.0,1.0); c=hsv2rgb(h); c=uP.z>0.0? c+(1.0-c)*uP.z : c*(1.0+uP.z); }
@@ -1072,6 +1095,9 @@ void main(){ SZ=textureSize(uAccC,0); ivec2 ip=ivec2(gl_FragCoord.xy);
   else if(uType==5){ float L=dot(c,vec3(0.299,0.587,0.114)); c=mix(c,uTint*(L*1.6+0.05),uP.x); }
   else if(uType==6){ m.r=m.r+uP.x; m.g=m.g+uP.y; m.b=m.b*(1.0+uP.z); }
   else if(uType==7){ vec3 lo=vec3(uP.x), hi=vec3(max(uP.y,uP.x+0.01)); c=pow(clamp((c-lo)/(hi-lo),0.0,1.0),vec3(1.0/max(uP.z,0.05))); }
+  else if(uType==8){ vec2 q=vec2(ip)/vec2(SZ)*max(uP.y,0.1)*8.0; vec2 w=vec2(fb2(q),fb2(q+vec2(31.7,11.3)))-0.5; ivec2 o2=ivec2(w*uP.x*float(SZ.x)/512.0*2.0); vec4 wc=C(ip+o2); if(wc.a>0.0||Mm(ip+o2).a>0.0){ c=wc.rgb; m=Mm(ip+o2); } }
+  else if(uType==9){ vec2 q=vec2(ip)/vec2(SZ)*max(uP.z,0.1)*64.0; float n=fb2(q)-0.5; c+=n*uP.x; m.r+=n*uP.y; }
+  else if(uType==10){ float N=max(2.0,floor(uP.x+0.5)); c=floor(c*N)/(N-1.0); }
   c=clamp(c,0.0,1.0); m.rg=clamp(m.rg,0.0,1.0);
   float k=uOpacity; if(uHasMP) k*=texelFetch(uMaskP,ip,0).r; if(uHasMG) k*=texelFetch(uMaskG,ip,0).r;
   if(uHasFMP) k*=texelFetch(uFMP,ip,0).r; if(uHasFMG) k*=texelFetch(uFMG,ip,0).r;
@@ -1240,8 +1266,8 @@ layout(location=0) out vec4 o0; layout(location=1) out vec4 o1;
 void main(){ o0=vec4(vP,1.0); o1=vec4(vUV,vTri,1.0); }`;
 
 const G_CHAN = `
-uniform int uChan; uniform sampler2D uC,uM,uN,uBake,uMaskP,uMaskG,uSel; uniform bool uHasMP,uHasMG,uHasSel;
-vec3 selTint(vec3 c, vec2 uv){ if(!uHasSel) return c; float s=texture(uSel,uv).r; return mix(c*0.45+vec3(0.02,0.03,0.08),c,s); }
+uniform int uChan; uniform sampler2D uC,uM,uN,uBake,uMaskP,uMaskG,uSel,uPosT,uNrmT; uniform bool uHasMP,uHasMG,uHasSel,uQM;
+vec3 selTint(vec3 c, vec2 uv){ if(!uHasSel) return c; float s=texture(uSel,uv).r; if(uQM) return mix(mix(c,vec3(0.95,0.1,0.16),0.55),c,s); return mix(c*0.45+vec3(0.02,0.03,0.08),c,s); }
 vec3 heat(float t){ return clamp(vec3(1.5*t, 1.5*t-0.5, 3.0*t-2.0)+vec3(0.05,0.05,0.25)*(1.0-t),0.0,1.0); }
 vec3 chanColor(vec2 uv){
   if(uChan==1) return texture(uC,uv).rgb;
@@ -1255,6 +1281,8 @@ vec3 chanColor(vec2 uv){
   if(uChan==8){ float m=1.0; if(uHasMP) m*=texture(uMaskP,uv).r; if(uHasMG) m*=texture(uMaskG,uv).r; return vec3(m); }
   if(uChan==10){ vec4 c=texture(uC,uv); return c.rgb*c.a; }
   if(uChan==11) return vec3(texture(uN,uv).a);
+  if(uChan==12) return normalize(texture(uNrmT,uv).xyz+1e-6)*0.5+0.5;
+  if(uChan==13){ vec4 p=texture(uPosT,uv); return p.a<0.5?vec3(0.0):clamp(p.xyz*0.5+0.5,0.0,1.0); }
   if(uChan==9){ vec2 g=floor(uv*16.0); float c=mod(g.x+g.y,2.0); return mix(vec3(0.85,0.3,0.36),vec3(0.95),c)*(0.75+0.25*vec3(uv,1.0)); }
   return texture(uC,uv).rgb; }
 `;
@@ -1283,7 +1311,7 @@ const FS_BG = G_HEAD + G_ENV + `
 in vec2 vUV; uniform mat4 uInvVP; uniform vec3 uEye; uniform int uBgMode; out vec4 o;
 void main(){ vec4 w=uInvVP*vec4(vUV*2.0-1.0,1.0,1.0); vec3 d=normalize(w.xyz/w.w-uEye);
   vec3 c;
-  if(uBgMode==1){ c=env(d,0.8)*0.45*uExposure; c=pow(aces(c),vec3(1.0/2.2)); }
+  if(uBgMode==1){ c=uEnvOn ? env(d,0.04)*uExposure : env(d,0.8)*0.45*uExposure; c=grade(pow(tmap(c),vec3(1.0/2.2))); }
   else { float v=length(vUV-0.5); c=mix(vec3(0.16,0.165,0.18),vec3(0.085,0.088,0.1),smoothstep(0.1,0.8,v)); }
   o=vec4(c,1.0); }`;
 
@@ -1301,7 +1329,7 @@ void main(){ vec3 d=fwidth(vBary); vec3 a3=smoothstep(vec3(0.0),d*1.1,vBary); fl
   if(w<0.02) discard; o=vec4(1.0,1.0,1.0,w*uAlpha); }`;
 
 const FS_EXPORT = G_HEAD + `
-in vec2 vUV; uniform sampler2D uC,uM,uN; uniform int uKind; uniform float uAOB; out vec4 o;
+in vec2 vUV; uniform sampler2D uC,uM,uN,uPosT,uNrmT; uniform int uKind; uniform float uAOB; out vec4 o;
 void main(){ vec4 c=texture(uC,vUV), m=texture(uM,vUV); vec3 n=texture(uN,vUV).xyz;
   float ao=mix(1.0,m.a,uAOB);
   if(uKind==0) o=vec4(c.rgb*ao,1.0);
@@ -1318,6 +1346,8 @@ void main(){ vec4 c=texture(uC,vUV), m=texture(uM,vUV); vec3 n=texture(uN,vUV).x
   else if(uKind==11) o=vec4(c.rgb*c.a,1.0);
   else if(uKind==12) o=vec4(vec3(texture(uN,vUV).a),1.0);
   else if(uKind==13) o=vec4(c.rgb*ao,texture(uN,vUV).a);
+  else if(uKind==14) o=vec4(normalize(texture(uNrmT,vUV).xyz+1e-6)*0.5+0.5,1.0);
+  else if(uKind==15){ vec4 p=texture(uPosT,vUV); o=vec4(clamp(p.xyz*0.5+0.5,0.0,1.0),1.0); }
   else o=vec4(c.rgb,1.0); }`;
 
 /* Vorschau-Kugeln/Würfel für das Regal */
@@ -1437,6 +1467,11 @@ void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 c=texelFetch(uC,ip,0), m=texe
 const FS_KFROMM = G_HEAD + `
 uniform sampler2D uM; out vec4 o;
 void main(){ float a=texelFetch(uM,ivec2(gl_FragCoord.xy),0).a; o=vec4(a,a,a,1.0); }`;
+
+/* Vignette für die Ansicht (wird multipliziert) */
+const FS_VIG = G_HEAD + `
+in vec2 vUV; uniform float uVig; out vec4 o;
+void main(){ vec2 q=vUV-0.5; float v=1.0-uVig*smoothstep(0.2,0.85,length(q)*1.3); o=vec4(v,v,v,1.0); }`;
 
 'use strict';
 /* ================= Modelle ================= */
@@ -2167,7 +2202,7 @@ const S = {
     color: '#ff4f64', rough: 0.45, metal: 0, height: 0, mat: '', maskVal: 1, mirror: 0, through: false, pSize: true, pOpac: false, fillMode: 'island',
     air: false, blur: 0.3, toneMode: 'light', gradKind: 'linear', shapeKind: 'rect', shapeFill: 1, lineW: 6, text: 'Melone', font: 'Arial Black', fontSize: 48, bold: false,
     chC: true, chR: true, chM: true, chH: true, chE: false, chO: false, emit: 1, bop: 0, sizeSpace: 'screen', lazy: 0, follow: false, jitFlow: 0, jitPos: 0, decalSize: 200, decalAngle: 0, selKind: 'rect', wandMode: 'color', bucketMode: 'planar', tol: 0.12, pencil: 2, radius: 12 },
-  view: { layout: '3d', chan: 0, wire: false, env: 0, envRot: 0.6, exposure: 1, bg: 0, ao: 1 },
+  view: { layout: '3d', chan: 0, wire: false, env: 0, envRot: 0.6, exposure: 1, bg: 0, ao: 1, tm: 0, sat: 0, con: 0, vig: 0, envInt: 1 },
   cam: { yaw: 0.6, pitch: 0.35, dist: 3.2, target: [0, 0, 0], fov: 35 },
   uv2d: { zoom: 0, pan: [0, 0] },
   projectName: 'Unbenannt', dirty: false, fileHandle: null,
@@ -2215,6 +2250,7 @@ function compilePrograms() {
   P.merge = new Prog(VS_FULL, FS_MERGE, 'merge');
   P.mcopy = new Prog(VS_FULL, FS_MCOPY, 'mcopy');
   P.flat = new Prog(VS_FULL, FS_FLAT, 'flat');
+  P.vig = new Prog(VS_FULL, FS_VIG, 'vig');
 }
 
 const FILL_PROGS = new Map(), GEN_PROGS = new Map();
@@ -2248,7 +2284,7 @@ function uploadMesh(mesh) {
   E.nVerts = mesh.nT * 3;
   E.idxBuf = E.idxBuf || gl.createBuffer();
 }
-function drawSoup() { gl.bindVertexArray(E.vao); gl.drawArrays(gl.TRIANGLES, 0, E.nVerts); }
+function drawSoup() { const s = E.setCur; if (s && s.buf) { drawSetIdx(s); return; } gl.bindVertexArray(E.vao); gl.drawArrays(gl.TRIANGLES, 0, E.nVerts); }
 /* Schnell-Malen: nur die Dreiecke zeichnen, die unter dem Pinsel liegen.
    Beim Strich-Start werden alle Dreiecke einmal in ein Bildschirm-Raster einsortiert. */
 const SG = { cs: 24 };
@@ -2265,7 +2301,7 @@ function scissorUV(rc, pad) {
   const x1 = Math.min(R, Math.ceil(rc[2] * R) + pad), y1 = Math.min(R, Math.ceil(rc[3] * R) + pad);
   gl.enable(gl.SCISSOR_TEST); gl.scissor(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
 }
-function gridKey(r) { return r.type + r.w + 'x' + r.h + (r.type === '2d' ? S.uv2d.zoom + ',' + S.uv2d.pan : Array.from(ST.cm.vp).map((v) => v.toFixed(5)).join(',')) + '|' + S.mesh.nT + '|' + (S.mesh.soup.uv.length); }
+function gridKey(r) { return S.cur + '|' + r.type + r.w + 'x' + r.h + (r.type === '2d' ? S.uv2d.zoom + ',' + S.uv2d.pan : Array.from(ST.cm.vp).map((v) => v.toFixed(5)).join(',')) + '|' + S.mesh.nT + '|' + (S.mesh.soup.uv.length); }
 function buildStrokeGrid(r) {
   if (SG.last && SG.last.mesh === S.mesh && SG.last.key === gridKey(r)) { ST.grid = SG.last; ST.grid.r = r; return; }
   const m = S.mesh, P = m.soup.pos, U = m.soup.uv, nT = m.nT;
@@ -2274,6 +2310,7 @@ function buildStrokeGrid(r) {
   const is2d = r.type === '2d', vp = is2d ? null : ST.cm.vp, z = S.uv2d.zoom, pan = S.uv2d.pan;
   const px = new Float32Array(3), py = new Float32Array(3);
   for (let t = 0; t < nT; t++) {
+    if (E.setMask && !E.setMask[t]) continue;
     let ok = true;
     for (let k = 0; k < 3; k++) {
       const i = t * 3 + k;
@@ -2366,7 +2403,7 @@ function bakeMesh(progress) {
     bindTargets([depth], true);
     gl.clearBufferfv(gl.COLOR, 0, [1, 1, 1, 1]); gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
-    P.aoDepth.use().set('uVP', VP); drawSoup();
+    P.aoDepth.use().set('uVP', VP); drawSoupAll();
     gl.disable(gl.DEPTH_TEST);
     bindTargets([aoAcc]); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
     P.aoAcc.use().tex('uDepth', depth).set('uVP', VP).set('uDir', dir); drawSoup();
@@ -2526,10 +2563,13 @@ const ENVS = [
   { name: 'Neutral hell', top: [0.85, 0.85, 0.86], hor: [0.75, 0.75, 0.76], gnd: [0.45, 0.45, 0.46], l1: [0.4, 0.8, 0.4], c1: [0.8, 0.8, 0.8], l2: [-0.5, 0.4, -0.6], c2: [0.3, 0.3, 0.3] },
   { name: 'Neon-Nacht', top: [0.04, 0.03, 0.09], hor: [0.14, 0.05, 0.2], gnd: [0.02, 0.02, 0.03], l1: [0.8, 0.35, 0.35], c1: [3.0, 0.8, 1.6], l2: [-0.8, 0.3, -0.25], c2: [0.5, 2.0, 3.0] },
 ];
-function setEnvUniforms(p) {
-  const e = ENVS[S.view.env] || ENVS[0];
+function setEnvUniforms(p, neutral) {
+  const v = S.view, e = ENVS[v.env] || ENVS[0];
+  const on = !neutral && v.env === ENVS.length && !!E.envTex;
   p.set('uSkyTop', e.top).set('uSkyHor', e.hor).set('uGround', e.gnd).set('uL1Dir', V3.norm(e.l1)).set('uL1Col', e.c1)
-    .set('uL2Dir', V3.norm(e.l2)).set('uL2Col', e.c2).set('uEnvRot', S.view.envRot).set('uExposure', S.view.exposure);
+    .set('uL2Dir', V3.norm(e.l2)).set('uL2Col', e.c2).set('uEnvRot', v.envRot).set('uExposure', v.exposure)
+    .tex('uEnvTex', on ? E.envTex : null).set('uEnvOn', on).set('uEnvLod', on ? E.envTex.lods : 0).set('uEnvInt', v.envInt ?? 1)
+    .set('uTM', neutral ? 0 : v.tm | 0).set('uSatO', neutral ? 0 : v.sat || 0).set('uConO', neutral ? 0 : v.con || 0);
 }
 
 /* ---------- G-Buffer (was liegt unter welchem Pixel) ---------- */
@@ -2544,7 +2584,7 @@ function ensureGbuf(r) {
   bindTargets([E.gb.pos, E.gb.uv], true);
   gl.disable(gl.SCISSOR_TEST); gl.disable(gl.BLEND);
   gl.clearBufferfv(gl.COLOR, 0, [0, 0, 0, 0]); gl.clearBufferfv(gl.COLOR, 1, [0, 0, -1, 0]); gl.clear(gl.DEPTH_BUFFER_BIT);
-  gl.enable(gl.DEPTH_TEST); E.P.gbuf.use().set('uVP', cm.vp); drawSoup(); gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.DEPTH_TEST); E.P.gbuf.use().set('uVP', cm.vp); drawSoupAll(); gl.disable(gl.DEPTH_TEST);
   E.gbDirty = false;
 }
 function pickAt(r, x, y) {
@@ -2569,7 +2609,8 @@ function curMaskTexs() {
 function bindChanTextures(p) {
   const [mp, mg] = curMaskTexs();
   p.tex('uC', E.fin.c).tex('uM', E.fin.m).tex('uN', E.fin.n).tex('uBake', E.T.bake).tex('uMaskP', mp).tex('uMaskG', mg).tex('uSel', E.sel)
-    .set('uHasMP', !!mp).set('uHasMG', !!mg).set('uHasSel', !!E.sel).set('uChan', S.view.chan);
+    .set('uHasMP', !!mp).set('uHasMG', !!mg).set('uHasSel', !!E.sel).set('uChan', S.view.chan)
+    .tex('uPosT', E.T.pos).tex('uNrmT', E.T.nrm).set('uQM', !!(S.qm && S.qm.edit));
 }
 function renderAll() {
   if (!E.T) return;
@@ -2583,14 +2624,10 @@ function renderAll() {
     gl.viewport(r.x, r.y, r.w, r.h); gl.scissor(r.x, r.y, r.w, r.h);
     if (r.type === '3d') {
       const cm = camMatrices(r);
-      gl.disable(gl.DEPTH_TEST);
-      const pb = E.P.bg.use(); setEnvUniforms(pb); pb.set('uInvVP', cm.inv).set('uEye', cm.eye).set('uBgMode', S.view.bg); drawFull();
-      gl.enable(gl.DEPTH_TEST); gl.clear(gl.DEPTH_BUFFER_BIT);
-      const p = E.P.view.use(); setEnvUniforms(p); bindChanTextures(p);
-      p.set('uVP', cm.vp).set('uEye', cm.eye).set('uWire', S.view.wire).set('uAOStr', S.view.ao).set('uEmit', S.view.emit ?? 3);
-      drawSoup();
+      draw3D(cm, { bg: true });
       drawModSelection(cm);
       gl.disable(gl.DEPTH_TEST);
+      drawVignette();
     } else {
       gl.disable(gl.DEPTH_TEST);
       if (!S.uv2d.zoom) fit2D(r);
@@ -2606,15 +2643,41 @@ function renderAll() {
   E.needDraw = false;
 }
 
+/* das Modell mit allen Bereichen zeichnen (Bildschirm oder Render-Bild) */
+function draw3D(cm, o = {}) {
+  gl.disable(gl.DEPTH_TEST);
+  if (o.bg) { const pb = E.P.bg.use(); setEnvUniforms(pb); pb.set('uInvVP', cm.inv).set('uEye', cm.eye).set('uBgMode', S.view.bg); drawFull(); }
+  gl.enable(gl.DEPTH_TEST); gl.clear(gl.DEPTH_BUFFER_BIT);
+  const p = E.P.view.use(); setEnvUniforms(p); bindChanTextures(p);
+  if (o.clean) p.set('uHasSel', false).set('uChan', 0);
+  p.set('uVP', cm.vp).set('uEye', cm.eye).set('uWire', !o.clean && S.view.wire).set('uAOStr', S.view.ao).set('uEmit', S.view.emit ?? 3);
+  if (S.sets.length > 1) {
+    // jeder Bereich mit seinen eigenen Texturen
+    for (let i = 0; i < S.sets.length; i++) {
+      const s = S.sets[i], g = i === S.cur ? { fin: E.fin, T: E.T } : s.gpu; if (!g || !g.fin) continue;
+      p.tex('uC', g.fin.c).tex('uM', g.fin.m).tex('uN', g.fin.n).tex('uBake', g.T.bake);
+      if (i !== S.cur || o.clean) p.set('uHasMP', false).set('uHasMG', false).set('uHasSel', false);
+      else bindChanTextures(p);
+      if (o.clean) p.set('uChan', 0);
+      drawSetIdx(s);
+    }
+  } else drawSoup();
+}
+function drawVignette() {
+  if (!(S.view.vig > 0)) return;
+  gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+  E.P.vig.use().set('uVig', S.view.vig); drawFull(); gl.disable(gl.BLEND);
+}
+
 /* ---------- Rückgängig ---------- */
 const U = { stack: [], redo: [], budget: 700 * 1024 * 1024 };
 function cloneLayer(l) {
   return { ...l, ch: { ...l.ch }, filt: l.filt ? { ...l.filt } : null, fill: l.fill ? { ...l.fill } : null, mask: l.mask ? { ...l.mask } : null, tex: l.tex ? { ...l.tex } : null };
 }
-function snapshot() { return { layers: S.layers.map(cloneLayer), sel: S.sel, target: S.target, mesh: S.mesh }; }
+function snapshot() { return { layers: S.layers.map(cloneLayer), sel: S.sel, target: S.target, mesh: S.mesh, set: S.cur }; }
 function snapTexs(sn, set) { for (const l of sn.layers) { if (l.tex) { set.add(l.tex.c); set.add(l.tex.m); set.add(l.tex.k); set.add(l.tex.x); } if (l.mask && l.mask.tex) set.add(l.mask.tex); } }
 function gcTextures() {
-  const live = new Set(); snapTexs({ layers: S.layers }, live);
+  const live = new Set(); for (const s of S.sets) snapTexs({ layers: s.layers }, live);
   U.stack.forEach((s) => snapTexs(s, live)); U.redo.forEach((s) => snapTexs(s, live));
   for (const t of E.layerTex) if (!live.has(t)) { t.free(); E.layerTex.delete(t); }
   cleanFBOs();
@@ -2635,6 +2698,7 @@ function pushUndo(label) {
   S.dirty = true; histSoon();
 }
 function restoreSnap(sn) {
+  if (sn.set !== undefined && sn.set !== S.cur && S.sets[sn.set]) { stashSet(); loadSet(sn.set); if (typeof UVE !== 'undefined') { UVE.sel.clear(); UVE.idx = null; } }
   S.layers = sn.layers.map(cloneLayer); S.sel = sn.sel; S.target = sn.target;
   if (sn.mesh && sn.mesh !== S.mesh) { S.mesh = sn.mesh; uploadMesh(S.mesh); bakeMesh(); warmUp(); E.gbDirty = true; if (typeof MOD !== 'undefined') modSelChanged(true); if (typeof UVE !== 'undefined') { UVE.sel.clear(); UVE.idx = null; } }
   if (!S.layers.find((l) => l.id === S.sel)) S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null;
@@ -2691,20 +2755,31 @@ const ST = { on: false };
 function strokeBegin(r, op, opts = {}) {
   if (op === true) op = 1; else if (op === false || op == null) op = 0;
   const erase = op === 1;
-  const l = curLayer();
-  if (!l) { toast('Leg zuerst eine Ebene an (+ Malen).'); return false; }
-  const onMask = S.target === 'mask' && l.mask;
-  if (!onMask && l.kind !== 'paint') { toast(l.mask ? 'Klick rechts auf „Maske bemalen“.' : 'Hier kann man nicht malen. Nimm eine Mal-Ebene (+ Malen).', 'warn'); return false; }
-  if (!l.visible) toast('Die Ebene ist gerade ausgeblendet.');
-  if (!opts.noUndo) pushUndo(typeof toolById !== 'undefined' ? toolById(S.tool).name : 'Malen');
+  // Quick-Maske: der Pinsel malt in die vorübergehende Maske statt in die Ebene
+  const qm = !!(S.qm && S.qm.edit) && !opts.noQM;
+  let l = qm ? null : curLayer();
+  if (qm) {
+    if (op !== 0 && op !== 1) { toast('In der Quick-Maske gehen nur Pinsel und Radierer.', 'warn'); return false; }
+    qmEnsure(); const old = E.sel; E.sel = copyTex(old);
+    l = { id: '_qm', visible: true, mask: { tex: E.sel } };
+    Object.assign(ST, { before: { mask: old }, qmOld: old });
+  } else {
+    if (!l) { toast('Leg zuerst eine Ebene an (+ Malen).'); return false; }
+    const onMask0 = S.target === 'mask' && l.mask;
+    if (!onMask0 && l.kind !== 'paint') { toast(l.mask ? 'Klick rechts auf „Maske bemalen“.' : 'Hier kann man nicht malen. Nimm eine Mal-Ebene (+ Malen).', 'warn'); return false; }
+    if (!l.visible) toast('Die Ebene ist gerade ausgeblendet.');
+    if (!opts.noUndo) pushUndo(typeof toolById !== 'undefined' ? toolById(S.tool).name : 'Malen');
+  }
+  const onMask = qm || (S.target === 'mask' && l.mask);
   if (S.brush.chE) E.usedE = true; if (S.brush.chO) E.usedO = true;
-  if (onMask) { const old = l.mask.tex; l.mask.tex = trackTex(copyTex(old)); Object.assign(ST, { before: { mask: old } }); }
+  if (qm) {}
+  else if (onMask) { const old = l.mask.tex; l.mask.tex = trackTex(copyTex(old)); Object.assign(ST, { before: { mask: old } }); }
   else { const o = l.tex; l.tex = copyLT(o); Object.assign(ST, { before: { ...o } }); }
   clearTex(E.stroke, [0, 0, 0, 0]);
   if (r.type === '3d') ensureGbuf(r);
   clearTex(E.strokeCol, [0, 0, 0, 0]);
   E.belowFor = null; ST.grid = null; ST.dStroke = undefined; ST.dFrame = undefined; ST.comps = 0;
-  Object.assign(ST, { on: true, pencil: false, tgt: null, layer: l, mask: !!onMask, erase, op, src: 0, off: [0, 0], r, pending: [], last: null, carry: 0, lazy: null, dir: null, cm: r.type === '3d' ? camMatrices(r) : null, t0: performance.now() });
+  Object.assign(ST, { on: true, qm, pencil: false, tgt: null, layer: l, mask: !!onMask, erase, op, src: 0, off: [0, 0], r, pending: [], last: null, carry: 0, lazy: null, dir: null, cm: r.type === '3d' ? camMatrices(r) : null, t0: performance.now() });
   E.stroke_active = true;
   return true;
 }
@@ -2819,11 +2894,11 @@ function applyStroke0() {
   const P = E.P, b = S.brush, l = ST.layer;
   // nur dort neu rechnen, wo in diesem Durchgang neue Tupfer gelandet sind
   const clipRect = ST.dFlush;
-  const common = (p) => p.tex('uStroke', E.stroke).tex('uSC', E.strokeCol).tex('uSel', E.sel).set('uHasSel', !!E.sel)
+  const common = (p) => p.tex('uStroke', E.stroke).tex('uSC', E.strokeCol).tex('uSel', ST.qm ? null : E.sel).set('uHasSel', !!E.sel && !ST.qm)
     .set('uOpac', ST.op === 0 && ST.pencil ? 1 : ST.op === 8 ? b.opacity * 0.7 : b.opacity).set('uOp', ST.op === 8 ? 3 : ST.op).set('uSrc', ST.src).set('uOff', ST.off).set('uTgt', ST.tgt || [0, 0, 0]).set('uTolR', b.tol).set('uBlurR', Math.max(1, Math.round(S.res / 1024 * (1 + b.blur * 4))));
   if (ST.mask) {
     bindTargets([l.mask.tex]);
-    common(P.applyMask.use().tex('uB', ST.before.mask)).set('uVal', b.maskVal);
+    common(P.applyMask.use().tex('uB', ST.before.mask)).set('uVal', ST.qm ? 1 : b.maskVal);
   } else {
     const bm = b.mat && (MATERIALS[b.mat] || b.mat.startsWith('u:')) && ST.op === 0 ? brushMatTex(b.mat) : null;
     ltTargets(l.tex);
@@ -2832,12 +2907,13 @@ function applyStroke0() {
     p.set('uUsePat', !!bm);
   }
   scissorUV(clipRect === undefined ? null : clipRect, 4); drawFull();
-  E.needComp = true;
+  if (ST.qm) E.needDraw = true; else E.needComp = true;
 }
 function strokeEnd() {
   if (!ST.on) return;
   strokeFlush();
-  E.needComp = true;
+  if (ST.qm) { if (ST.qmOld && ST.qmOld !== E.sel) ST.qmOld.free(); ST.qmOld = null; ST.qm = false; cleanFBOs(); E.needDraw = true; }
+  else E.needComp = true;
   if (ST.op === 8) { freeTmpBefore(); ST.smPrev = null; }
   ST.on = false; ST.layer = null; ST.before = null; E.stroke_active = false;
   S.dirty = true;
@@ -2855,7 +2931,8 @@ function fillAt(r, x, y, erase) {
     if (!hit || hit.tri < 0) { if (r.type === '2d') toast('In 2D geht nur „Alles“.'); return; }
     const t0 = hit.tri;
     if (mode === 'tri') tris = [t0];
-    else { const arr = g[mode] || g.island; const id = arr[t0]; tris = []; for (let t = 0; t < nT; t++) if (arr[t] === id) tris.push(t); }
+    else { const arr = g[mode] || g.island; const id = arr[t0]; tris = []; for (let t = 0; t < nT; t++) if (arr[t] === id && inSet(t)) tris.push(t); }
+    if (!inSet(t0)) { toast('Das gehört zum Materialbereich „' + (S.sets.find((s) => s.mask && s.mask[t0]) || {}).name + '“ – wechsle oben rechts dorthin.', 'warn'); return; }
   }
   if (!strokeBegin(r, erase)) return;
   bindTargets([E.stroke]); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
@@ -2871,6 +2948,7 @@ function fillAt(r, x, y, erase) {
     gl.bindVertexArray(null);
   }
   applyStroke();
+  if (ST.qm) { if (ST.qmOld && ST.qmOld !== E.sel) ST.qmOld.free(); ST.qmOld = null; ST.qm = false; cleanFBOs(); E.needDraw = true; }
   ST.on = false; ST.layer = null; ST.before = null; E.stroke_active = false;
   if (typeof UI !== 'undefined') UI.layerThumbsSoon();
 }
@@ -2917,7 +2995,7 @@ function renderPreview(layers) {
   const acc = compositeTarget(T, layers);
   bindTargets([T.out]);
   const p = E.P.prevShade.use(); const env = S.view.env, rot = S.view.envRot, ex = S.view.exposure;
-  S.view.env = 0; S.view.envRot = 0.6; S.view.exposure = 1.05; setEnvUniforms(p); S.view.env = env; S.view.envRot = rot; S.view.exposure = ex;
+  S.view.env = 0; S.view.envRot = 0.6; S.view.exposure = 1.05; setEnvUniforms(p, true); S.view.env = env; S.view.envRot = rot; S.view.exposure = ex;
   p.tex('uC', acc.c).tex('uM', acc.m).tex('uVN', T.vn).tex('uPos', T.pos).set('uHS', 3.0); drawFull();
   const px = readRGBA8(T.out);
   for (const c of T.caches.values()) freeCache(c);
@@ -2927,6 +3005,97 @@ function renderPreview(layers) {
   for (let y = 0; y < T.size; y++) img.data.set(px.subarray((T.size - 1 - y) * T.size * 4, (T.size - y) * T.size * 4), y * T.size * 4);
   ctx.putImageData(img, 0, 0);
   return _prevCanvas.toDataURL('image/png');
+}
+
+'use strict';
+/* ================= Materialbereiche: jedes Material eigene Texturen (wie Material-Slots in Blender) ================= */
+S.sets = [{ name: 'Alles', mats: null, layers: [], sel: null }];
+S.cur = 0;
+Object.defineProperty(S, 'layers', { get() { return S.sets[S.cur].layers; }, set(v) { S.sets[S.cur].layers = v; }, enumerable: true, configurable: true });
+Object.defineProperty(S, 'sel', { get() { return S.sets[S.cur].sel; }, set(v) { S.sets[S.cur].sel = v; }, enumerable: true, configurable: true });
+const SETCFG = { split: (() => { try { return localStorage.getItem('mt_split') !== '0'; } catch (e) { return true; } })() };
+
+/* nur die Dreiecke des aktuellen Bereichs zeichnen (UV-Raum) */
+function drawSoupAll() { gl.bindVertexArray(E.vao); gl.drawArrays(gl.TRIANGLES, 0, E.nVerts); }
+function drawSetIdx(set) {
+  gl.bindVertexArray(E.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, set.buf);
+  gl.drawElements(gl.TRIANGLES, set.count, gl.UNSIGNED_INT, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null); gl.bindVertexArray(null);
+}
+const curSet = () => S.sets[S.cur];
+const inSet = (t) => !E.setMask || E.setMask[t] === 1;
+
+function setBuffers(set) {
+  if (set.buf) { gl.deleteBuffer(set.buf); set.buf = null; }
+  set.mask = null; set.count = 0;
+  if (!set.mats || !S.mesh) return;
+  const g = S.mesh.groups.mat, nT = S.mesh.nT, ms = new Set(set.mats);
+  const mask = new Uint8Array(nT); const idx = [];
+  for (let t = 0; t < nT; t++) if (ms.has(g[t])) { mask[t] = 1; idx.push(t * 3, t * 3 + 1, t * 3 + 2); }
+  set.mask = mask; set.count = idx.length;
+  set.buf = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, set.buf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(idx), gl.STATIC_DRAW); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+}
+/* Grafik-Zustand des aktuellen Bereichs wegpacken / einen anderen holen */
+function stashSet() {
+  const s = curSet(); if (!s) return;
+  s.gpu = { T: E.T, fin: E.fin, isl: E.isl, baseN: E.baseN, caches: E.caches, needComp: E.needComp };
+}
+function loadSet(i) {
+  S.cur = i; const s = curSet(); const g = s.gpu || {};
+  E.T = g.T || null; E.fin = g.fin || null; E.isl = g.isl || null; E.baseN = g.baseN || null;
+  E.caches = g.caches || new Map(); if (E.T) E.T.caches = E.caches;
+  E.needComp = g.needComp !== undefined ? g.needComp : true;
+  E.setMask = s.mask || null; E.setCur = s.mats ? s : null;
+  ST.grid = null; if (typeof SG !== 'undefined') SG.last = null;
+  E.below = E.below || null; E.belowFor = null;
+}
+function switchSet(i) {
+  if (i === S.cur || !S.sets[i]) return;
+  if (ST.on) strokeEnd();
+  stashSet(); loadSet(i);
+  if (typeof UVE !== 'undefined') { UVE.sel.clear(); UVE.idx = null; }
+  E.cloneSrc = null; E.needDraw = true; E.gbDirty = true;
+  if (typeof UI !== 'undefined') UI.refreshAll();
+}
+/* etwas mit einem anderen Bereich machen und danach zurück */
+function withSet(i, fn) {
+  if (i === S.cur) return fn();
+  const back = S.cur; stashSet(); loadSet(i);
+  try { return fn(); } finally { stashSet(); loadSet(back); }
+}
+function freeSetGPU(s) {
+  const g = s.gpu; if (!g) return;
+  if (g.T && g.T !== E.T) freeTarget(g.T);
+  if (g.fin && g.fin !== E.fin) { g.fin.c.free(); g.fin.m.free(); g.fin.n.free(); }
+  if (g.isl && g.isl !== E.isl) g.isl.free();
+  if (g.baseN && g.baseN !== E.baseN) g.baseN.free();
+  if (g.caches && g.caches !== E.caches) for (const c of g.caches.values()) freeCache(c);
+  if (s.buf) { gl.deleteBuffer(s.buf); s.buf = null; }
+  s.gpu = null;
+}
+/* Bereiche aus den Materialien des Modells anlegen */
+function setupSets(mesh, spec) {
+  for (const s of S.sets) if (s !== curSet()) freeSetGPU(s);
+  const g = mesh.groups.mat; const used = [...new Set(g)].sort((a, b) => a - b);
+  let sets;
+  if (spec && spec.length) sets = spec.map((s) => ({ name: s.name, mats: s.mats, layers: [], sel: null }));
+  else if (SETCFG.split && mesh.mats && used.length > 1) sets = used.map((m) => ({ name: (mesh.mats[m] || 'Material ' + (m + 1)), mats: [m], layers: [], sel: null }));
+  else sets = [{ name: (mesh.mats && used.length === 1 && mesh.mats[used[0]]) || 'Alles', mats: null, layers: [], sel: null }];
+  S.sets = sets; S.cur = 0;
+  for (const s of sets) setBuffers(s);
+  E.setMask = sets[0].mask || null; E.setCur = sets[0].mats ? sets[0] : null;
+}
+/* alle anderen Bereiche haben ein fertiges Ergebnis? sonst einmal berechnen */
+function ensureSetsComposited() {
+  for (let i = 0; i < S.sets.length; i++) {
+    if (i === S.cur) continue; const g = S.sets[i].gpu;
+    if (g && g.needComp && g.T) withSet(i, () => compositeMain());
+  }
+}
+async function withSetAsync(i, fn) {
+  if (i === S.cur) return fn();
+  const back = S.cur; stashSet(); loadSet(i);
+  try { return await fn(); } finally { stashSet(); loadSet(back); }
 }
 
 'use strict';
@@ -3024,7 +3193,7 @@ function triAtUV(u, v) {
     const ax = uv[o], ay = uv[o + 1], bx = uv[o + 2], by = uv[o + 3], cx = uv[o + 4], cy = uv[o + 5];
     const d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy); if (Math.abs(d) < 1e-14) continue;
     const l1 = ((by - cy) * (u - cx) + (cx - bx) * (v - cy)) / d, l2 = ((cy - ay) * (u - cx) + (ax - cx) * (v - cy)) / d;
-    if (l1 >= 0 && l2 >= 0 && l1 + l2 <= 1) return t;
+    if (l1 >= 0 && l2 >= 0 && l1 + l2 <= 1 && inSet(t)) return t;
   }
   return -1;
 }
@@ -3040,6 +3209,7 @@ function uvPick(r, x, y, add) {
   if (r.type === '2d') t = triAtUV((x - S.uv2d.pan[0]) / S.uv2d.zoom, (y - S.uv2d.pan[1]) / S.uv2d.zoom);
   else { const h = pickAt(r, x, y); t = h ? h.tri : -1; }
   if (!add) UVE.sel.clear();
+  if (t >= 0 && !inSet(t)) { toast('Dieses Teil gehört zu einem anderen Materialbereich.', 'warn'); t = -1; }
   if (t >= 0) { const id = S.mesh.groups.island[t]; if (add && UVE.sel.has(id)) UVE.sel.delete(id); else UVE.sel.add(id); }
   uvSelChanged();
   return t >= 0;
@@ -3053,11 +3223,11 @@ function uvBoxSelect(d) {
   const uv = S.mesh.soup.uv, isl = S.mesh.groups.island;
   for (let t = 0; t < S.mesh.nT; t++) {
     const u = (uv[t * 6] + uv[t * 6 + 2] + uv[t * 6 + 4]) / 3, v = (uv[t * 6 + 1] + uv[t * 6 + 3] + uv[t * 6 + 5]) / 3;
-    if (u >= a[0] && u <= b[0] && v >= a[1] && v <= b[1]) { if (d.sub) UVE.sel.delete(isl[t]); else UVE.sel.add(isl[t]); }
+    if (inSet(t) && u >= a[0] && u <= b[0] && v >= a[1] && v <= b[1]) { if (d.sub) UVE.sel.delete(isl[t]); else UVE.sel.add(isl[t]); }
   }
   uvSelChanged();
 }
-function uvSelectAll() { UVE.sel = new Set(islandTris().keys()); uvSelChanged(); }
+function uvSelectAll() { UVE.sel = new Set([...islandTris()].filter(([, tr]) => inSet(tr[0])).map(([id]) => id)); uvSelChanged(); }
 function uploadUV() { gl.bindBuffer(gl.ARRAY_BUFFER, E.bufs[2]); gl.bufferData(gl.ARRAY_BUFFER, S.mesh.soup.uv, gl.STATIC_DRAW); E.needDraw = true; E.gbDirty = true; }
 function uvCenter(tris, uv) {
   let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
@@ -3120,7 +3290,7 @@ function uvApply(label, fn) {
 const islBox = (tris, uv) => { let a = [Infinity, Infinity], b = [-Infinity, -Infinity]; for (const t of tris) for (let k = 0; k < 3; k++) { const u = uv[t * 6 + k * 2], v = uv[t * 6 + k * 2 + 1]; a = [Math.min(a[0], u), Math.min(a[1], v)]; b = [Math.max(b[0], u), Math.max(b[1], v)]; } return [a[0], a[1], b[0], b[1]]; };
 /* ausgewählte (oder alle) Inseln in den UV-Raum 0–1 einpassen */
 function uvFit() {
-  const tris = UVE.sel.size ? uvSelTris() : [...Array(S.mesh.nT).keys()];
+  const tris = UVE.sel.size ? uvSelTris() : [...Array(S.mesh.nT).keys()].filter(inSet);
   uvApply('UV einpassen', (uv) => {
     const [x0, y0, x1, y1] = islBox(tris, uv); const s = 0.98 / Math.max(x1 - x0, y1 - y0, 1e-6);
     for (const t of tris) for (let k = 0; k < 3; k++) { const i = t * 6 + k * 2; uv[i] = 0.01 + (uv[i] - x0) * s; uv[i + 1] = 0.01 + (uv[i + 1] - y0) * s; }
@@ -3128,7 +3298,7 @@ function uvFit() {
 }
 /* Inseln ohne Überlappung nebeneinander anordnen (einfaches Packen) */
 function uvPack() {
-  const map = islandTris(); const ids = UVE.sel.size ? [...UVE.sel] : [...map.keys()];
+  const map = islandTris(); const ids = UVE.sel.size ? [...UVE.sel] : [...map.keys()].filter((id) => inSet(map.get(id)[0]));
   uvApply('UV anordnen', (uv) => {
     const items = ids.map((id) => { const tris = map.get(id) || []; const b = islBox(tris, uv); return { tris, b, w: b[2] - b[0], h: b[3] - b[1] }; }).filter((it) => it.tris.length);
     const area = items.reduce((s, it) => s + it.w * it.h, 0); const side = Math.sqrt(area) * 1.2; const pad = side * 0.012;
@@ -3875,6 +4045,256 @@ function applySeam(r, pts) {
 }
 
 'use strict';
+/* ---------- Quick-Maske: vorübergehende Maske, die alles Malen begrenzt ---------- */
+S.qm = { edit: false };
+S.unit = 1;
+function qmEnsure() {
+  if (E.sel && E.sel.w === S.res) return;
+  if (E.sel) E.sel.free();
+  E.sel = new Tex(S.res, S.res, 'r8'); clearTex(E.sel, [0, 0, 0, 0]); cleanFBOs();
+}
+function qmToggle(on = !S.qm.edit) {
+  if (ST.on) strokeEnd();
+  S.qm.edit = on;
+  if (on) { qmEnsure(); if (!['paint', 'erase', 'fill', 'path'].includes(S.tool)) setTool('paint'); toast('Quick-Maske: male die Stellen frei, auf denen du arbeiten willst (T = fertig)'); }
+  else toast(E.sel ? 'Quick-Maske aktiv – gemalt wird nur in den freien Stellen' : 'Quick-Maske aus');
+  E.needDraw = true; UI.renderTools(); UI.renderCtx();
+}
+function qmFill(v) { qmEnsure(); clearTex(E.sel, [v, v, v, v]); E.needDraw = true; }
+function qmInvert() { if (!E.sel) return; selectInvert(); E.needDraw = true; }
+function qmRemove() { S.qm.edit = false; selectNone(); UI.renderTools(); UI.renderCtx(); toast('Quick-Maske entfernt'); }
+
+/* ---------- Pfad-Werkzeug: Punkte setzen, der Pinsel fährt die Kurve ab ---------- */
+const PATH = { pts: [], type: null, closed: false, smooth: true };
+function pathRegion() { return E.regions.find((q) => q.type === PATH.type) || null; }
+function pathAdd(r, x, y) {
+  if (PATH.type && PATH.type !== r.type) PATH.pts = [];
+  PATH.type = r.type;
+  if (r.type === '3d') { const h = pickAt(r, x, y); if (!h) { toast('Klick aufs Modell, um einen Punkt zu setzen.'); return; } PATH.pts.push({ w: h.pos }); }
+  else PATH.pts.push({ uv: regionUV(r, x, y) });
+  E.ovDirty = true; UI.renderCtx();
+}
+function pathUndoPt() { PATH.pts.pop(); E.ovDirty = true; UI.renderCtx(); }
+function pathClear() { PATH.pts = []; E.ovDirty = true; UI.renderCtx(); }
+/* Punkte in Bildschirm-Koordinaten der Region (y nach oben) */
+function pathScreen(r) {
+  if (!r) return [];
+  if (r.type === '2d') return PATH.pts.map((p) => [p.uv[0] * S.uv2d.zoom + S.uv2d.pan[0], p.uv[1] * S.uv2d.zoom + S.uv2d.pan[1]]);
+  const m = camMatrices(r).vp, out = [];
+  for (const p of PATH.pts) {
+    const [x, y, z] = p.w;
+    const cx = m[0] * x + m[4] * y + m[8] * z + m[12], cy = m[1] * x + m[5] * y + m[9] * z + m[13], cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+    if (cw <= 1e-6) continue;
+    out.push([(cx / cw * 0.5 + 0.5) * r.w, (cy / cw * 0.5 + 0.5) * r.h]);
+  }
+  return out;
+}
+/* glatte Kurve (Catmull-Rom) oder gerade Strecken, in kleinen Schritten */
+function pathSample(P, closed, smooth, step = 1.5) {
+  if (P.length < 2) return P.slice();
+  const pts = closed ? [...P, P[0]] : P;
+  const at = (i) => closed ? P[(i + P.length) % P.length] : P[clamp(i, 0, P.length - 1)];
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = at(i - 1), p1 = pts[i], p2 = pts[i + 1], p3 = at(i + 2);
+    const n = Math.max(2, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      if (!smooth) { out.push([p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t]); continue; }
+      const t2 = t * t, t3 = t2 * t;
+      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+    }
+  }
+  out.push(pts[pts.length - 1].slice());
+  return out;
+}
+function pathApply(erase = false) {
+  const r = pathRegion();
+  if (!r || PATH.pts.length < 2) { toast('Setz mindestens zwei Punkte.'); return; }
+  const P = pathSample(pathScreen(r), PATH.closed && PATH.pts.length > 2, PATH.smooth);
+  if (P.length < 2) { toast('Der Pfad ist gerade nicht zu sehen.'); return; }
+  const lazy = S.brush.lazy; S.brush.lazy = 0;
+  try {
+    if (!strokeBegin(r, erase ? 1 : 0)) return;
+    for (const [x, y] of P) strokeTo(x, y, 1, false);
+    strokeEnd();
+  } finally { S.brush.lazy = lazy; }
+  PATH.pts = []; E.ovDirty = true; UI.renderCtx(); UI.renderInfo();
+}
+function drawPathOverlay(g, ov) {
+  const r = pathRegion(); if (!r || !PATH.pts.length) return;
+  const S2 = pathScreen(r);
+  const toOv = (p) => [r.x + p[0], ov.height - r.y - p[1]];
+  const curve = pathSample(S2, PATH.closed && S2.length > 2, PATH.smooth, 4).map(toOv);
+  g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
+  const line = (pts) => { g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); };
+  g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 4 * dpr; line(curve); g.stroke();
+  g.strokeStyle = hexA(S.brush.color, 0.95); g.lineWidth = 2 * dpr; line(curve); g.stroke();
+  if (mouse && mouse.inside && mouse.r === r && !PATH.closed) {
+    const a = toOv(S2[S2.length - 1]), b = [mouse.x * dpr, mouse.y * dpr];
+    g.setLineDash([5 * dpr, 4 * dpr]); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.2 * dpr; line([a, b]); g.stroke(); g.setLineDash([]);
+  }
+  S2.map(toOv).forEach((p, i) => { g.fillStyle = i === S2.length - 1 ? '#ffb648' : '#fff'; g.strokeStyle = '#111'; g.lineWidth = 1.5 * dpr; g.beginPath(); g.arc(p[0], p[1], 4.5 * dpr, 0, 7); g.fill(); g.stroke(); });
+  g.restore();
+}
+
+/* ---------- Smart-Masken: fertig eingestellte Masken ---------- */
+const SMART_MASKS = [
+  { name: 'Kanten abgenutzt (fein)', gen: 1, width: 0.025, rough: 0.6, level: 0.5 },
+  { name: 'Kanten abgenutzt (stark)', gen: 1, width: 0.08, rough: 0.85, level: 0.62 },
+  { name: 'Blanke Metallkanten', gen: 1, width: 0.03, rough: 0.3, soft: 0.02, level: 0.55 },
+  { name: 'Abgeriebene Farbe', gen: 1, width: 0.06, rough: 1, level: 0.45, scale: 3 },
+  { name: 'Saubere Flächen (ohne Kanten)', gen: 1, width: 0.04, rough: 0.5, inv: true },
+  { name: 'Schmutz in Ritzen', gen: 2, width: 0.05, rough: 0.5 },
+  { name: 'Dreck in Ecken (stark)', gen: 2, width: 0.1, level: 0.65, rough: 0.7 },
+  { name: 'Schatten-Schmutz (AO)', gen: 3, level: 0.5, soft: 0.1 },
+  { name: 'Staub von oben', gen: 5, level: 0.45, soft: 0.15, rough: 0.4 },
+  { name: 'Schnee / Sand oben', gen: 5, level: 0.32, soft: 0.04, rough: 0.6 },
+  { name: 'Schmutz von unten', gen: 6, level: 0.4, soft: 0.2 },
+  { name: 'Feuchtigkeit unten', gen: 6, level: 0.3, rough: 0.9, soft: 0.05 },
+  { name: 'Rostflecken', gen: 8, level: 0.4, rough: 0.7, scale: 3 },
+  { name: 'Wasserflecken', gen: 8, level: 0.3, soft: 0.2, scale: 1.5 },
+  { name: 'Laufspuren / Regen', gen: 10, level: 0.45 },
+  { name: 'Feine Kratzer', gen: 7, level: 0.35, rough: 0, scale: 3 },
+  { name: 'Grobe Kratzer', gen: 7, level: 0.5, scale: 1 },
+  { name: 'Grunge leicht', gen: 11, level: 0.35 },
+  { name: 'Grunge stark', gen: 11, level: 0.6 },
+  { name: 'Wolkige Variation', gen: 4, level: 0.5, soft: 0.3 },
+  { name: 'Ausgeblichen (Lichtseite)', gen: 12, level: 0.5, soft: 0.25 },
+  { name: 'Ringe / Bänder', gen: 9, width: 0.06, scale: 3 },
+];
+function smartMaskSpec(i) {
+  const m = SMART_MASKS[i];
+  return [{ name: 'a', fill: { pat: 0, colA: '#26272b', colB: '#26272b', roughA: 0.7, roughB: 0.7 } },
+    { name: 'b', fill: { pat: 0, colA: '#f2f2f2', colB: '#f2f2f2', roughA: 0.5, roughB: 0.5 }, mask: Object.assign(defaultMask(m.gen), m, { name: undefined }) }];
+}
+function applySmartMask(i) {
+  const m = SMART_MASKS[i], l = curLayer(); if (!m) return;
+  if (!l) { toast('Wähl zuerst eine Ebene aus.'); return; }
+  pushUndo('Smart-Maske');
+  const p = { ...m }; delete p.name;
+  const tex = l.mask && l.mask.tex ? l.mask.tex : newMaskTex(1);
+  l.mask = Object.assign(defaultMask(m.gen), p, { tex });
+  S.target = 'layer'; E.needComp = true; UI.refreshAll(); toast('Smart-Maske: ' + m.name);
+}
+
+/* ---------- Eigene Umgebung (HDR oder Panoramabild) ---------- */
+function parseHDR(buf) {
+  const u8 = new Uint8Array(buf); let pos = 0;
+  const line = () => { let s = ''; while (pos < u8.length && u8[pos] !== 10) s += String.fromCharCode(u8[pos++]); pos++; return s; };
+  let l = line(); if (!l.startsWith('#?')) throw new Error('Keine HDR-Datei');
+  while (pos < u8.length && (l = line()) !== '') if (/^FORMAT=/.test(l) && !/32-bit_rle_rgbe/.test(l)) throw new Error('Nur RGBE-HDR wird unterstützt');
+  const m = /-Y (\d+) \+X (\d+)/.exec(line()); if (!m) throw new Error('Diese HDR-Ausrichtung wird nicht unterstützt');
+  const h = +m[1], w = +m[2]; const out = new Float32Array(w * h * 4); const sc = new Uint8Array(w * 4);
+  for (let y = 0; y < h; y++) {
+    if (w >= 8 && w < 32768 && u8[pos] === 2 && u8[pos + 1] === 2 && ((u8[pos + 2] << 8) | u8[pos + 3]) === w) {
+      pos += 4;
+      for (let c = 0; c < 4; c++) { let x = 0; while (x < w && pos < u8.length) { let n = u8[pos++]; if (n > 128) { n -= 128; const v = u8[pos++]; while (n-- && x < w) sc[(x++) * 4 + c] = v; } else { while (n-- && x < w) sc[(x++) * 4 + c] = u8[pos++]; } } }
+    } else { for (let x = 0; x < w; x++) { sc.set(u8.subarray(pos, pos + 4), x * 4); pos += 4; } }
+    for (let x = 0; x < w; x++) { const e = sc[x * 4 + 3], f = e ? Math.pow(2, e - 136) : 0, o = (y * w + x) * 4; out[o] = sc[x * 4] * f; out[o + 1] = sc[x * 4 + 1] * f; out[o + 2] = sc[x * 4 + 2] * f; out[o + 3] = 1; }
+  }
+  return { w, h, data: out };
+}
+const F2H = (() => { const f = new Float32Array(1), i = new Uint32Array(f.buffer); return (v) => {
+  f[0] = Math.min(v, 60000); const x = i[0], s = (x >>> 16) & 0x8000; let e = ((x >>> 23) & 0xff) - 112, m = x & 0x7fffff;
+  if (e <= 0) return s; if (e >= 31) return s | 0x7bff; return s | (e << 10) | (m >>> 13); }; })();
+function halveImg(im) {
+  const w = im.w >> 1, h = im.h >> 1, d = new Float32Array(w * h * 4), s = im.data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 4; c++) {
+    const a = ((2 * y) * im.w + 2 * x) * 4 + c, b = ((2 * y + 1) * im.w + 2 * x) * 4 + c;
+    d[(y * w + x) * 4 + c] = (s[a] + s[a + 4] + s[b] + s[b + 4]) * 0.25;
+  }
+  return { w, h, data: d };
+}
+async function loadEnvFile(file) {
+  let im;
+  if (/\.hdr$/i.test(file.name)) im = parseHDR(await file.arrayBuffer());
+  else {
+    const bmp = await createImageBitmap(file); const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+    const g = c.getContext('2d'); g.drawImage(bmp, 0, 0); const px = g.getImageData(0, 0, c.width, c.height).data;
+    const d = new Float32Array(c.width * c.height * 4); const lin = (v) => Math.pow(v / 255, 2.2) * 1.6;
+    for (let i = 0; i < px.length; i += 4) { d[i] = lin(px[i]); d[i + 1] = lin(px[i + 1]); d[i + 2] = lin(px[i + 2]); d[i + 3] = 1; }
+    im = { w: c.width, h: c.height, data: d };
+  }
+  while (im.w > 2048) im = halveImg(im);
+  const half = new Uint16Array(im.data.length); for (let i = 0; i < half.length; i++) half[i] = F2H(im.data[i]);
+  if (E.envTex) E.envTex.free();
+  const t = new Tex(im.w, im.h, 'rgba16f', half);
+  gl.bindTexture(gl.TEXTURE_2D, t.t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  t.mipmap(); t.lods = Math.floor(Math.log2(Math.max(im.w, im.h))) - 1;
+  E.envTex = t; E.envName = file.name.replace(/\.[^.]+$/, '');
+  S.view.env = ENVS.length; S.view.bg = 1; E.needDraw = true;
+  UI.renderVbar(); toast('Umgebung geladen: ' + E.envName);
+}
+function pickEnvFile() {
+  const inp = el('input', { type: 'file', accept: '.hdr,.jpg,.jpeg,.png,.webp' });
+  inp.onchange = () => { const f = inp.files[0]; if (!f) return; UI.busy('Umgebung wird geladen …'); loadEnvFile(f).catch((e) => toast('Laden fehlgeschlagen: ' + e.message, 'err')).finally(() => UI.busy(null)); };
+  inp.click();
+}
+
+/* ---------- Bild rendern (hohe Auflösung, geglättet) ---------- */
+async function renderImage(o) {
+  if (!S.mesh) return null;
+  if (E.needComp) compositeMain();
+  const max = Math.min(8192, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), gl.getParameter(gl.MAX_TEXTURE_SIZE));
+  let ss = o.ss || 1; while (ss > 1 && (o.w * ss > max || o.h * ss > max)) ss--;
+  const W = Math.min(max, o.w * ss), H = Math.min(max, o.h * ss);
+  const t = new Tex(W, H, 'rgba8'); let px;
+  try {
+    bindTargets([t], true); gl.disable(gl.SCISSOR_TEST);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    const cm = camMatrices({ w: W, h: H });
+    draw3D(cm, { bg: !o.transparent, clean: true });
+    gl.disable(gl.DEPTH_TEST);
+    if (!o.transparent) drawVignette();
+    px = readRGBA8(t);
+  } finally {
+    t.free(); cleanFBOs();
+    const k = W + 'x' + H, rb = DEPTH_RB.get(k); if (rb && !E.regions.some((r) => r.w === W && r.h === H)) { gl.deleteRenderbuffer(rb); DEPTH_RB.delete(k); for (const [kk, f] of FBO_CACHE) if (f.texs[0].w === W && f.texs[0].h === H) { gl.deleteFramebuffer(f.fb); FBO_CACHE.delete(kk); } }
+    E.needDraw = true;
+  }
+  const big = document.createElement('canvas'); big.width = W; big.height = H;
+  const id = new ImageData(W, H);
+  for (let y = 0; y < H; y++) id.data.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+  big.getContext('2d').putImageData(id, 0, 0);
+  let c = big;
+  while (c.width > o.w * 1.01) {
+    const nw = Math.max(o.w, Math.round(c.width / 2)), nh = Math.max(o.h, Math.round(c.height / 2));
+    const n = document.createElement('canvas'); n.width = nw; n.height = nh; const g = n.getContext('2d');
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, nw, nh); c = n;
+  }
+  const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+  return saveBlob((o.name || 'Render') + '.png', blob, 'image');
+}
+
+/* ---------- Eigene Export-Vorlage ---------- */
+const EXPORT_CHOICES = [
+  ['BaseColor', 0, 'Farbe (Base Color)'], ['Roughness', 1, 'Rauheit'], ['Metallic', 2, 'Metall'], ['Height', 3, 'Höhe'], ['AO', 4, 'Umgebungsverdeckung (AO)'],
+  ['Normal', 5, 'Normal-Map (OpenGL)'], ['Normal_DX', 6, 'Normal-Map (DirectX)'], ['ORM', 7, 'ORM (AO, Rauheit, Metall)'], ['MetallicSmoothness', 8, 'Metall + Glätte (Unity)'],
+  ['Specular', 9, 'Glanz (Specular)'], ['Glossiness', 10, 'Glätte'], ['Emissive', 11, 'Leuchten'], ['Opacity', 12, 'Transparenz'], ['ColorAlpha', 13, 'Farbe mit Transparenz'],
+  ['WorldNormal', 14, 'Weltnormale'], ['Position', 15, 'Position'],
+];
+function customExportLoad() {
+  let c = null; try { c = JSON.parse(localStorage.getItem('mt_exp_custom') || 'null'); } catch (e) {}
+  if (!c || !Array.isArray(c.on)) c = { on: [0, 1, 2, 5], names: {}, sep: '_' };
+  return c;
+}
+function customExportSave(c) { try { localStorage.setItem('mt_exp_custom', JSON.stringify(c)); } catch (e) {} }
+function customExportPreset() {
+  const c = customExportLoad();
+  return { name: 'Eigene Vorlage', size: 0, aoInBase: 0, sep: c.sep || '_', custom: c,
+    maps: EXPORT_CHOICES.filter((m) => c.on.includes(m[1])).map((m) => [c.names[m[1]] || m[0], m[1], m[1] === 11 ? 'e' : m[1] === 12 ? 'o' : undefined]),
+    hint: 'Wähle selbst, welche Karten mit welchem Namen exportiert werden. Die Auswahl bleibt gespeichert.' };
+}
+
+/* ---------- Echte Größe (Physical Size) ---------- */
+const UNITS = [[1, 'Meter (Blender, glTF)'], [0.01, 'Zentimeter'], [0.001, 'Millimeter'], [0.0254, 'Zoll']];
+function modelRadiusM() { const u = S.unit || 1; return (S.mesh && S.mesh.rad || 1) * u; }
+function fillCmFromScale(sc) { return modelRadiusM() * 100 / Math.max(0.01, sc || 2); }
+function fillScaleFromCm(cm) { return modelRadiusM() * 100 / Math.max(0.1, cm); }
+
+'use strict';
 /* ================= Online-Bibliothek: echte Foto-Materialien von ambientCG (CC0, frei nutzbar) ================= */
 const ACG = { list: null, loading: null, sets: new Map(), pending: new Map(), cat: 'Alle' };
 const ACG_API = 'https://ambientcg.com/api/v2/full_json';
@@ -4072,6 +4492,9 @@ const FILTERS = [
   { id: 'tint', name: 'Einfärben', p: [['a', 'Stärke', 0, 1, 0.01]], col: true },
   { id: 'mat', name: 'Rauheit / Metall / Höhe ändern', p: [['a', 'Rauheit +/-', -1, 1, 0.01], ['b', 'Metall +/-', -1, 1, 0.01], ['c', 'Höhe ×', -1, 2, 0.01]] },
   { id: 'lvl', name: 'Tonwerte', p: [['a', 'Schwarzpunkt', 0, 0.9, 0.01], ['b', 'Weißpunkt', 0.1, 1, 0.01], ['c', 'Mitte (Gamma)', 0.2, 3, 0.01]] },
+  { id: 'warp', name: 'Verzerren', p: [['a', 'Stärke', 0, 40, 0.5], ['b', 'Größe der Wellen', 0.2, 8, 0.05]] },
+  { id: 'noise', name: 'Rauschen', p: [['a', 'Farbe', 0, 1, 0.01], ['b', 'Rauheit', 0, 1, 0.01], ['c', 'Feinheit', 0.2, 8, 0.05]] },
+  { id: 'post', name: 'Tontrennung', p: [['a', 'Stufen', 2, 16, 1]] },
 ];
 const BLEND_NAMES = { normal: 'Normal', multiply: 'Multiplizieren', screen: 'Aufhellen (Screen)', overlay: 'Überlagern', add: 'Addieren', subtract: 'Subtrahieren', darken: 'Abdunkeln', lighten: 'Aufhellen', softlight: 'Weiches Licht' };
 
@@ -4615,7 +5038,6 @@ async function buildProject() {
   meshBin.set(new Uint8Array(s.nrm.buffer, s.nrm.byteOffset, s.nrm.byteLength), s.pos.byteLength);
   meshBin.set(new Uint8Array(s.uv.buffer, s.uv.byteOffset, s.uv.byteLength), s.pos.byteLength + s.nrm.byteLength);
   files.push({ name: 'mesh.bin', data: meshBin });
-  if (E.baseN) files.push({ name: 'basenormal.bin', data: texToBytes(E.baseN) });
   // eigene Materialien mitspeichern, damit das Projekt überall gleich aussieht
   const umats = [];
   for (const id of new Set(S.layers.filter((l) => l.fill && l.fill.photo && l.fill.photo.startsWith('u:')).map((l) => l.fill.photo))) {
@@ -4625,14 +5047,21 @@ async function buildProject() {
     for (const [k, v] of Object.entries(maps)) files.push({ name: `umat/${id.slice(2)}/${k}.bin`, data: new Uint8Array(v.buffer ? v.buffer.slice(v.byteOffset || 0, (v.byteOffset || 0) + v.byteLength) : v) });
   }
   const gm = S.mesh.groups.mat; files.push({ name: 'matid.bin', data: new Uint8Array(gm.buffer.slice(gm.byteOffset, gm.byteOffset + gm.byteLength)) });
-  const layers = [];
-  for (const l of S.layers) {
+  stashSet();
+  const sets = S.sets.map((st, si) => ({ name: st.name, mats: st.mats, sel: st.sel, layers: [] }));
+  for (let si = 0; si < S.sets.length; si++) {
+  const layers = sets[si].layers;
+  const bn = si === S.cur ? E.baseN : S.sets[si].gpu && S.sets[si].gpu.baseN;
+  if (bn) files.push({ name: `basenormal_${si}.bin`, data: texToBytes(bn) });
+  for (const l of S.sets[si].layers) {
     const o = { ...l, tex: null, mask: l.mask ? { ...l.mask, tex: null } : null };
     if (l.tex) { o.tex = { c: `L${l.id}_c.bin`, m: `L${l.id}_m.bin`, k: `L${l.id}_k.bin`, x: `L${l.id}_x.bin` }; files.push({ name: o.tex.c, data: texToBytes(l.tex.c) }, { name: o.tex.m, data: texToBytes(l.tex.m) }, { name: o.tex.k, data: texToBytes(l.tex.k) }, { name: o.tex.x, data: texToBytes(l.tex.x) }); }
     if (l.mask && l.mask.tex) { o.mask.tex = `L${l.id}_mask.bin`; files.push({ name: o.mask.tex, data: texToBytes(l.mask.tex) }); }
     layers.push(o);
   }
-  const meta = { app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, mats: S.mesh.mats, umats, edited: !!S.mesh.uvEdited, usedE: !!E.usedE, usedO: !!E.usedO, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
+  }
+  const layers = sets[S.cur].layers;
+  const meta = { sets, cur: S.cur, app: APP_NAME, version: APP_VERSION, format: 1, name: S.projectName, meshName: S.mesh.name, nT: S.mesh.nT, ctr: S.mesh.ctr, rad: S.mesh.rad, unit: S.unit || 1, mats: S.mesh.mats, umats, edited: !!S.mesh.uvEdited, usedE: !!E.usedE, usedO: !!E.usedO, res: S.res, hdepth: S.hdepth, layers, sel: S.sel, brush: S.brush, view: S.view, cam: S.cam };
   files.unshift({ name: 'projekt.json', data: enc.encode(JSON.stringify(meta)) });
   return makeZip(files);
 }
@@ -4669,13 +5098,15 @@ async function loadProjectBuffer(buf) {
   const mb2 = files.get('matid.bin'); const mid = mb2 ? new Int32Array(mb2.buffer.slice(mb2.byteOffset, mb2.byteOffset + mb2.byteLength)) : null;
   const mesh = finalizeMesh({ pos, nrm, uv, idx, mid, mats: meta.mats }, meta.meshName, { raw: !!meta.ctr });
   if (meta.ctr) { mesh.ctr = meta.ctr; mesh.rad = meta.rad; }
+  S.unit = meta.unit || 1;
   if (meta.edited) mesh.uvEdited = true;
   E.usedE = !!meta.usedE; E.usedO = !!meta.usedO;
-  E._pendingBN = files.get('basenormal.bin') ? bytesToTex(files.get('basenormal.bin'), 'rgba8', meta.res) : null;
+  const setsMeta = meta.sets || [{ name: 'Alles', mats: null, layers: meta.layers, sel: meta.sel }];
+  E._pendingBN = setsMeta.map((_, si) => { const f = files.get(`basenormal_${si}.bin`) || (si === 0 ? files.get('basenormal.bin') : null); return f ? bytesToTex(f, 'rgba8', meta.res) : null; });
   await startProject(mesh, meta.res, meta.name, () => {
     S.hdepth = meta.hdepth ?? S.hdepth;
     let maxId = 0;
-    S.layers = meta.layers.map((o) => {
+    const mkLayers = (list) => list.map((o) => {
       const l = { ...o };
       if (o.tex) { l.tex = { c: bytesToTex(files.get(o.tex.c), 'rgba8', meta.res), m: bytesToTex(files.get(o.tex.m), 'rgba16f', meta.res) }; l.tex.k = o.tex.k && files.get(o.tex.k) ? bytesToTex(files.get(o.tex.k), 'rgba8', meta.res) : kFromM(l.tex.m, meta.res); l.tex.x = o.tex.x && files.get(o.tex.x) ? bytesToTex(files.get(o.tex.x), 'rgba8', meta.res) : xEmpty(meta.res); }
       if (o.mask) { l.mask = { ...defaultMask(), ...o.mask }; l.mask.tex = o.mask.tex ? bytesToTex(files.get(o.mask.tex), 'r8', meta.res) : newMaskTex(1); }
@@ -4683,9 +5114,10 @@ async function loadProjectBuffer(buf) {
       maxId = Math.max(maxId, +l.id || 0);
       return l;
     });
+    setsMeta.forEach((sm, si) => { if (S.sets[si]) { S.sets[si].layers = mkLayers(sm.layers || []); S.sets[si].sel = sm.sel; } });
     _uid = maxId + 1;
-    S.sel = meta.sel; Object.assign(S.brush, meta.brush || {}); Object.assign(S.view, meta.view || {}); Object.assign(S.cam, meta.cam || {});
-  });
+    if (meta.cur && S.sets[meta.cur]) switchSet(meta.cur); Object.assign(S.brush, meta.brush || {}); Object.assign(S.view, meta.view || {}); Object.assign(S.cam, meta.cam || {});
+  }, meta.sets ? meta.sets.map((x) => ({ name: x.name, mats: x.mats })) : null);
 }
 
 /* ---------- Texturen exportieren ---------- */
@@ -4704,8 +5136,17 @@ const EXPORTS = {
 };
 async function exportTextures({ preset, size, name, aoInBase, height16, withModel }) {
   const ex = EXPORTS[preset]; const sz = size || S.res;
-  if (E.needComp) compositeMain();
   const files = [];
+  const multi = S.sets.length > 1;
+  for (let si = 0; si < S.sets.length; si++) {
+    const setName = multi ? '_' + S.sets[si].name.replace(/[\\/:*?"<>|\s]+/g, '_') : '';
+    await withSetAsync(si, async () => { if (E.needComp) compositeMain(); await exportSetMaps(files, ex, sz, name + setName, aoInBase, height16); });
+  }
+  if (withModel) { files.push({ name: name + '.obj', data: enc.encode(buildOBJ(name)) }, { name: name + '.mtl', data: enc.encode(buildMTL(name, preset)) }); }
+  const blob = await makeZip(files);
+  return saveBlob(`${name}_${preset}.zip`, blob, 'export');
+}
+async function exportSetMaps(files, ex, sz, name, aoInBase, height16) {
   const out8 = new Tex(sz, sz, 'rgba8');
   const out16 = height16 ? new Tex(sz, sz, 'rgba16f') : null;
   try {
@@ -4715,7 +5156,7 @@ async function exportTextures({ preset, size, name, aoInBase, height16, withMode
       const sixteen = kind === 3 && height16;
       const tgt = sixteen ? out16 : out8;
       bindTargets([tgt]); gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST);
-      E.P.export.use().tex('uC', E.fin.c).tex('uM', E.fin.m).tex('uN', E.fin.n).set('uKind', kind).set('uAOB', kind === 0 ? aoInBase : 0);
+      E.P.export.use().tex('uC', E.fin.c).tex('uM', E.fin.m).tex('uN', E.fin.n).tex('uPosT', E.T.pos).tex('uNrmT', E.T.nrm).set('uKind', kind).set('uAOB', kind === 0 ? aoInBase : 0);
       drawFull();
       let rows, ch, bits;
       const gray = [1, 2, 3, 4, 9, 10].includes(kind), alpha = kind === 8;
@@ -4737,9 +5178,6 @@ async function exportTextures({ preset, size, name, aoInBase, height16, withMode
       files.push({ name: `${name}${ex.sep || '_'}${suffix}.png`, data: png, store: true });
     }
   } finally { out8.free(); if (out16) out16.free(); cleanFBOs(); }
-  if (withModel) { files.push({ name: name + '.obj', data: enc.encode(buildOBJ(name)) }, { name: name + '.mtl', data: enc.encode(buildMTL(name, preset)) }); }
-  const blob = await makeZip(files);
-  return saveBlob(`${name}_${preset}.zip`, blob, 'export');
 }
 
 /* ---------- Meine Projekte (im Programm gespeichert) ---------- */
@@ -4884,15 +5322,26 @@ async function matInfoFromOBJ(src, extra) {
 /* Materialien des Modells als Mal-Ebene „Aus Blender“ (+ Normal-Map) anlegen */
 async function importModelTextures(matInfo) {
   if (!matInfo || !matInfo.some((m) => m.has || m.base || m.mr || m.normal)) return false;
+  let hasN = false;
+  for (let si = 0; si < S.sets.length; si++) {
+    await withSetAsync(si, async () => { if (await importIntoSet(matInfo, S.sets[si])) hasN = true; });
+  }
+  toast(`Texturen aus Blender übernommen (${matInfo.length} ${matInfo.length === 1 ? 'Material' : 'Materialien'}${S.sets.length > 1 ? ', jedes als eigener Materialbereich' : ''}${hasN ? ', mit Normal-Map' : ''}).`);
+  return true;
+}
+/* Materialien eines Bereichs als Mal-Ebene „Aus Blender“ (+ Normal-Map) anlegen */
+async function importIntoSet(matInfo, set) {
   const g = S.mesh.groups.mat, nT = S.mesh.nT;
   const l = newLayer('paint', { name: 'Aus Blender' });
   for (const t of [l.tex.c, l.tex.m, l.tex.k, l.tex.x]) clearTex(t, [0, 0, 0, 0]);
-  let hasN = false, usedE = false, usedO = false;
+  let hasN = false, usedE = false, usedO = false, any = false;
   const P = E.P; gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
   for (let mi = 0; mi < matInfo.length; mi++) {
+    if (set.mats && !set.mats.includes(mi)) continue;
     const m = matInfo[mi];
     const tris = []; for (let t = 0; t < nT; t++) if (g[t] === mi) tris.push(t * 3, t * 3 + 1, t * 3 + 2);
     if (!tris.length) continue;
+    any = true;
     const texs = {};
     for (const k of ['base', 'mr', 'emis', 'normal']) if (m[k]) { try { texs[k] = (await bytesTex(m[k])).t; } catch (e) { console.error('Textur', m.name, k, e); } }
     const draw = () => { gl.bindVertexArray(E.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, E.idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(tris), gl.STREAM_DRAW); gl.drawElements(gl.TRIANGLES, tris.length, gl.UNSIGNED_INT, 0); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null); gl.bindVertexArray(null); };
@@ -4908,12 +5357,10 @@ async function importModelTextures(matInfo) {
     }
     for (const t of Object.values(texs)) t.free();
   }
-  if (E.baseN) { gl.bindTexture(gl.TEXTURE_2D, E.baseN.t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); }
+  if (!any) return false;
   E.usedE = E.usedE || usedE; E.usedO = E.usedO || usedO;
-  S.layers.push(l); const top = newLayer('paint'); S.layers.push(top); S.sel = top.id;
-  E.needComp = true;
-  toast(`Texturen aus Blender übernommen (${matInfo.length} ${matInfo.length === 1 ? 'Material' : 'Materialien'}${hasN ? ', mit Normal-Map' : ''}).`);
-  return true;
+  S.layers.unshift(l); E.needComp = true;
+  return hasN;
 }
 
 /* ---------- GLB mit allen Texturen für Blender ---------- */
@@ -4927,7 +5374,6 @@ async function texPNG(kind, sz, alpha) {
   return encodePNG(sz, sz, rows, ch, 8);
 }
 async function buildGLB(name, size) {
-  if (E.needComp) compositeMain();
   const sz = size || S.res;
   const s = S.mesh.soup, n = S.mesh.nT * 3, ctr = S.mesh.ctr || [0, 0, 0], rad = S.mesh.rad || 1;
   // gleiche Ecken zusammenfassen
@@ -4940,42 +5386,46 @@ async function buildGLB(name, size) {
     if (id === undefined) { id = P.length / 3; map.set(key, id); P.push(px, py, pz); N.push(s.nrm[i * 3], s.nrm[i * 3 + 1], s.nrm[i * 3 + 2]); T.push(u, v); }
     I[i] = id;
   }
-  const useE = E.usedE || S.layers.some((l) => l.visible && l.fill && l.fill.emit > 0);
-  const useO = E.usedO || S.layers.some((l) => l.visible && l.fill && l.fill.opac < 1);
-  const imgs = [['BaseColor', useO ? 13 : 0, useO], ['ORM', 7, false], ['Normal', 5, false]]; if (useE) imgs.push(['Emission', 11, false]);
-  const pngs = []; for (const [nm, k, a] of imgs) pngs.push({ nm, data: await texPNG(k, sz, a) });
+  const setInfo = [];
+  for (let si = 0; si < S.sets.length; si++) {
+    await withSetAsync(si, async () => {
+      if (E.needComp) compositeMain();
+      const useE = E.usedE || S.layers.some((l) => l.visible && l.fill && l.fill.emit > 0);
+      const useO = E.usedO || S.layers.some((l) => l.visible && l.fill && l.fill.opac < 1);
+      const imgs = [['BaseColor', useO ? 13 : 0, useO], ['ORM', 7, false], ['Normal', 5, false]]; if (useE) imgs.push(['Emission', 11, false]);
+      const pngs = []; for (const [nm, k, a] of imgs) pngs.push({ nm, data: await texPNG(k, sz, a) });
+      const st = S.sets[si]; const tri = []; for (let t = 0; t < S.mesh.nT; t++) if (!st.mask || st.mask[t]) tri.push(I[t * 3], I[t * 3 + 1], I[t * 3 + 2]);
+      setInfo.push({ name: st.name, pngs, useE, useO, idx: new Uint32Array(tri) });
+    });
+  }
   // Binärdaten zusammenbauen
   const parts = []; let off = 0; const views = [];
   const add = (u8, target) => { const pad = (4 - (off % 4)) % 4; if (pad) { parts.push(new Uint8Array(pad)); off += pad; } views.push({ buffer: 0, byteOffset: off, byteLength: u8.byteLength, ...(target ? { target } : {}) }); parts.push(u8); off += u8.byteLength; return views.length - 1; };
   const f32 = (a) => new Uint8Array(new Float32Array(a).buffer);
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < P.length; i += 3) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], P[i + k]); mx[k] = Math.max(mx[k], P[i + k]); }
-  const vP = add(f32(P), 34962), vN = add(f32(N), 34962), vT = add(f32(T), 34962), vI = add(new Uint8Array(I.buffer), 34963);
-  const imgViews = pngs.map((p) => add(p.data));
+  const vP = add(f32(P), 34962), vN = add(f32(N), 34962), vT = add(f32(T), 34962);
+  for (const si of setInfo) { si.view = add(new Uint8Array(si.idx.buffer), 34963); si.imgViews = si.pngs.map((p) => add(p.data)); }
   const nV = P.length / 3;
-  const idx = (nm) => imgs.findIndex((x) => x[0] === nm);
+  const images = [], textures = [], materials = [], prims = [], accessors = [
+    { bufferView: vP, componentType: 5126, count: nV, type: 'VEC3', min: mn, max: mx },
+    { bufferView: vN, componentType: 5126, count: nV, type: 'VEC3' },
+    { bufferView: vT, componentType: 5126, count: nV, type: 'VEC2' }];
+  setInfo.forEach((si, k) => {
+    const ti = {}; si.pngs.forEach((p, j) => { images.push({ bufferView: si.imgViews[j], mimeType: 'image/png', name: `${name}_${si.name}_${p.nm}` }); textures.push({ sampler: 0, source: images.length - 1 }); ti[p.nm] = textures.length - 1; });
+    materials.push({ name: setInfo.length > 1 ? si.name : name + '_Material',
+      pbrMetallicRoughness: { baseColorTexture: { index: ti.BaseColor }, metallicRoughnessTexture: { index: ti.ORM }, metallicFactor: 1, roughnessFactor: 1 },
+      occlusionTexture: { index: ti.ORM }, normalTexture: { index: ti.Normal },
+      ...(si.useE ? { emissiveTexture: { index: ti.Emission }, emissiveFactor: [1, 1, 1] } : {}), ...(si.useO ? { alphaMode: 'BLEND' } : {}) });
+    accessors.push({ bufferView: si.view, componentType: 5125, count: si.idx.length, type: 'SCALAR' });
+    prims.push({ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, indices: accessors.length - 1, material: k });
+  });
   const json = {
     asset: { version: '2.0', generator: APP_NAME + ' ' + APP_VERSION },
     scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0, name }],
-    meshes: [{ name, primitives: [{ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, indices: 3, material: 0 }] }],
-    accessors: [
-      { bufferView: vP, componentType: 5126, count: nV, type: 'VEC3', min: mn, max: mx },
-      { bufferView: vN, componentType: 5126, count: nV, type: 'VEC3' },
-      { bufferView: vT, componentType: 5126, count: nV, type: 'VEC2' },
-      { bufferView: vI, componentType: 5125, count: n, type: 'SCALAR' },
-    ],
-    bufferViews: views,
-    buffers: [{ byteLength: off }],
-    images: pngs.map((p, i) => ({ bufferView: imgViews[i], mimeType: 'image/png', name: `${name}_${p.nm}` })),
-    samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }],
-    textures: pngs.map((_, i) => ({ sampler: 0, source: i })),
-    materials: [{
-      name: name + '_Material',
-      pbrMetallicRoughness: { baseColorTexture: { index: idx('BaseColor') }, metallicRoughnessTexture: { index: idx('ORM') }, metallicFactor: 1, roughnessFactor: 1 },
-      occlusionTexture: { index: idx('ORM') }, normalTexture: { index: idx('Normal') },
-      ...(useE ? { emissiveTexture: { index: idx('Emission') }, emissiveFactor: [1, 1, 1] } : {}),
-      ...(useO ? { alphaMode: 'BLEND' } : {}),
-    }],
+    meshes: [{ name, primitives: prims.filter((p) => accessors[p.indices].count > 0) }],
+    accessors, bufferViews: views, buffers: [{ byteLength: off }], images,
+    samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }], textures, materials,
   };
   let js = enc.encode(JSON.stringify(json)); const jpad = (4 - (js.length % 4)) % 4; if (jpad) { const t = new Uint8Array(js.length + jpad); t.set(js); t.fill(32, js.length); js = t; }
   const bin = new Uint8Array(off); let p = 0; for (const u of parts) { bin.set(u, p); p += u.byteLength; }
@@ -4998,7 +5448,7 @@ async function exportGLB(name, size) {
 
 'use strict';
 /* ================= Oberfläche ================= */
-const CHANNELS = ['Fertiges Material', 'Nur Farbe', 'Rauheit', 'Metall', 'Höhe', 'Normal-Map', 'Schatten in Ecken (AO)', 'Kanten', 'Maske der Ebene', 'UV-Prüfmuster', 'Leuchten', 'Transparenz'];
+const CHANNELS = ['Fertiges Material', 'Nur Farbe', 'Rauheit', 'Metall', 'Höhe', 'Normal-Map', 'Schatten in Ecken (AO)', 'Kanten', 'Maske der Ebene', 'UV-Prüfmuster', 'Leuchten', 'Transparenz', 'Weltnormale', 'Position'];
 const TOOLS = [
   { id: 'paint', icon: 'brush', name: 'Pinsel', key: 'B', desc: 'Malt Farbe, Rauheit, Metall und Höhe direkt aufs Modell.' },
   { id: 'erase', icon: 'eraser', name: 'Radierer', key: 'E', desc: 'Entfernt Gemaltes von der Ebene – nur in den eingeschalteten Kanälen.' },
@@ -5006,6 +5456,7 @@ const TOOLS = [
   { id: 'fill', icon: 'bucket', name: 'Polygonfüllung', key: 'F', desc: 'Füllt per Klick ganze Dreiecke, Flächen, UV-Inseln, Teile oder Material-Bereiche.' },
   { id: 'particle', icon: 'particle', name: 'Partikel-Pinsel', key: 'N', desc: 'Lässt Tropfen nach unten laufen, Regen-Streifen, Spritzer oder Staub entstehen – richtet sich nach der Schwerkraft.' },
   { id: 'seam', icon: 'seam', name: 'Naht', key: 'J', desc: 'Zieh eine Linie übers Modell – beim Loslassen wird eine genähte Naht daraus (Rille + Stiche). Für Kleidung, Taschen, Sitze.' },
+  { id: 'path', icon: 'path', name: 'Pfad', key: 'U', desc: 'Punkte aufs Modell setzen – der Pinsel fährt sie als glatte Kurve ab. Enter oder Doppelklick = malen, Rücktaste = letzten Punkt weg, Esc = verwerfen. Für Risse, Kabel, Streifen, Schweißnähte.' },
   { id: 'smudge', icon: 'drop', name: 'Verwischen', key: 'S', desc: 'Zieht Farbe und Material in Malrichtung mit, wie mit dem Finger.' },
   { id: 'clone', icon: 'stamp', name: 'Klonen', key: 'L', desc: 'Kopiert eine Stelle an eine andere. Erst Alt + Klick auf die Quelle, dann malen.' },
   { id: 'uvmove', icon: 'move', name: 'UV bearbeiten', key: 'V', desc: 'UV-Teile im 2D-Fenster anklicken und verschieben, wie in Blender: Klick wählt ein Teil, Shift + Klick mehrere, A = alles, G = bewegen, R = drehen, S = skalieren, X/Y = Achse.' },
@@ -5019,6 +5470,8 @@ const FILL_MODES = [['tri', 'Dreieck'], ['planar', 'Fläche (Polygon)'], ['islan
 
 /* schlichte Linien-Symbole */
 const ICONS = {
+  path: 'M4 19c2-7 6-9 9-6s5 1 7-7 M4 19h.01 M13 13h.01 M20 6h.01',
+  qmask: 'M4 4h16v16H4z M8 15c2-5 6-5 8 0',
   seam: 'M3 17c3-4 6-6 9-6s6 2 9 6 M5 13.5l2 2 M9 11l1.6 2.4 M13.6 10.6l1 2.6 M18 12l1.4 2.4',
   particle: 'M12 3c2.5 3.2 4 5.6 4 7.6A4 4 0 0 1 8 10.6C8 8.6 9.5 6.2 12 3z M7 16.5a1.3 1.3 0 1 0 0 .01 M12 19a1.5 1.5 0 1 0 0 .01 M17 15.5a1.2 1.2 0 1 0 0 .01',
   folder: 'M3 7.5A1.5 1.5 0 0 1 4.5 6h4.6l2 2h8.4A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z',
@@ -5155,6 +5608,7 @@ const UI = {
         '-',
         ['Texturen exportieren …', 'Strg+Umschalt+E', () => this.exportDialog()],
         ['Für Blender exportieren (GLB mit Texturen) …', 'Strg+Umschalt+B', () => this.blenderExport()],
+        ['Bild rendern …', 'Strg+Umschalt+R', () => this.renderDialog()],
         '-',
         ['Launcher öffnen', '', () => NATIVE && NATIVE.openLauncher ? NATIVE.openLauncher() : toast('Nur im installierten Programm')],
         ['Beenden', 'Strg+Q', () => window.close()],
@@ -5174,6 +5628,7 @@ const UI = {
         ['Alles auswählen', 'Strg+A', () => selectNone()],
         ['Auswahl aufheben', 'Strg+D', () => selectNone()],
         '-',
+        ['Quick-Maske bearbeiten', 'T', () => qmToggle()],
         ['Mesh-Karten berechnen …', '', () => this.bakeDialog()],
         ['Einstellungen …', '', () => this.settingsDialog()],
       ]],
@@ -5185,6 +5640,8 @@ const UI = {
         ['Gitternetz', 'W', () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; }],
         ['Nächster Kanal', 'C', () => { S.view.chan = (S.view.chan + 1) % CHANNELS.length; this.renderVbar(); E.needDraw = true; }],
         ['Licht-Umgebung als Hintergrund', '', () => { S.view.bg = S.view.bg ? 0 : 1; E.needDraw = true; }],
+        ['Licht und Nachbearbeitung …', '', () => this.lookDialog()],
+        ['Eigene Umgebung laden (HDR) …', '', () => pickEnvFile()],
         ['Assistent', 'Strg+K', () => toggleAI()],
       ]],
       ['Bild', [
@@ -5250,8 +5707,22 @@ const UI = {
     }
     document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.menu')) closeMenus(); });
   },
-  refreshAll() { this.renderTools(); this.renderCtx(); this.renderLayers(); this.renderProps(); this.renderVbar(); this.renderBadge(); this.renderInfo(); E.needDraw = true; },
+  refreshAll() { this.renderSets(); this.renderTools(); this.renderCtx(); this.renderLayers(); this.renderProps(); this.renderVbar(); this.renderBadge(); this.renderInfo(); E.needDraw = true; },
   layerThumbsSoon() { },
+  /* Materialbereiche (eigene Texturen pro Material, wie Material-Slots in Blender) */
+  renderSets() {
+    const box = $('#setList'); if (!box) return; box.innerHTML = '';
+    if (S.sets.length < 2) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    box.append(el('div', { class: 'ph sub', 'data-tip': 'Materialbereiche', 'data-desc': 'Jedes Material aus Blender hat eigene Texturen und eigene Ebenen – wie die Material-Slots in Blender. Klick wechselt den Bereich; gemalt wird nur auf den Teilen dieses Bereichs.' }, `Materialbereiche (${S.sets.length})`));
+    const list = el('div', { class: 'sets' });
+    S.sets.forEach((s, i) => {
+      const n = s.mask ? s.count / 3 : S.mesh ? S.mesh.nT : 0;
+      list.append(el('button', { class: 'setrow' + (i === S.cur ? ' on' : ''), onclick: () => switchSet(i), title: `${s.name} – ${n} Dreiecke, ${s.layers.length} Ebenen` },
+        el('span', { class: 'sw', style: `background:hsl(${(i * 67) % 360} 55% 50%)` }), el('span', { class: 'nm' }, s.name), el('small', {}, `${s.layers.length}`)));
+    });
+    box.append(list);
+  },
 
   /* ---------- Werkzeuge ---------- */
   renderTools() {
@@ -5283,6 +5754,7 @@ const UI = {
     }
     t.append(el('div', { class: 'sep' }), el('div', { class: 'sep' }),
       el('button', { class: S.brush.mirror ? 'on' : '', 'data-tip': 'Spiegeln', 'data-key': 'X', 'data-desc': 'Malt auf beiden Seiten des Modells gleichzeitig.', onclick: () => { S.brush.mirror = S.brush.mirror ? 0 : 1; this.renderTools(); this.renderCtx(); } }, ico('mirror', 20)),
+      el('button', { class: S.qm.edit ? 'on' : E.sel ? 'half' : '', 'data-tip': 'Quick-Maske', 'data-key': 'T', 'data-desc': 'Eine vorübergehende Maske malen: danach wirkt jedes Werkzeug nur noch in den freigemalten Stellen. T schaltet das Bemalen an und aus.', onclick: () => qmToggle() }, ico('qmask', 20)),
       el('button', { 'data-tip': 'Kamera zurücksetzen', 'data-key': 'Num 0 / Pos1', 'data-desc': 'Zeigt das ganze Modell wieder mittig.', onclick: () => { frameCamera(); S.uv2d.zoom = 0; } }, ico('frame', 20)),
       el('button', { 'data-tip': 'Rückgängig', 'data-key': 'Strg+Z', onclick: () => undo() }, ico('undo', 20)),
       el('button', { 'data-tip': 'Wiederholen', 'data-key': 'Strg+Y', onclick: () => redo() }, ico('redo', 20)));
@@ -5398,12 +5870,24 @@ const UI = {
         btn('Einpassen', () => uvFit(), 'Ausgewählte Teile (oder alle) in das Quadrat 0–1 einpassen'), btn('Anordnen', () => uvPack(), 'Teile ohne Überlappung nebeneinander anordnen'),
         btn('Bild auf UV …', () => this.pickImageLayer(), 'Ein Bild über die ganze UV-Karte legen – dann die Teile darauf schieben'),
         hint('Klick = Teil · Shift = mehrere · Rechteck aufziehen · G / R / S, dann X / Y für eine Achse · Strg = einrasten'));
+    } else if (T === 'path') {
+      const n = PATH.pts.length;
+      c.append(size(), opac('Deckkraft'), hard(), mirrorBtn(),
+        btn('Glatt', () => { PATH.smooth = !PATH.smooth; this.renderCtx(); E.ovDirty = true; }, 'Kurve statt gerader Strecken', PATH.smooth),
+        btn('Geschlossen', () => { PATH.closed = !PATH.closed; this.renderCtx(); E.ovDirty = true; }, 'Letzten Punkt mit dem ersten verbinden', PATH.closed), sep(),
+        btn('Malen', () => pathApply(false), 'Enter'), btn('Radieren', () => pathApply(true)), btn('Verwerfen', () => pathClear(), 'Esc · Rücktaste = letzten Punkt weg'),
+        hint(n ? `${n} ${n === 1 ? 'Punkt' : 'Punkte'}` : 'Klicks setzen Punkte'));
     } else if (T === 'pick') {
       c.append(hint('Klick aufs Modell nimmt Farbe, Rauheit und Metall auf.'));
     } else if (T === 'hand') {
       c.append(hint('Mit gedrückter Maus verschieben. Drehen geht immer mit Rechtsklick.'));
     } else if (T === 'zoom') {
       c.append(hint('Klick = näher ran, Rechtsklick = weiter weg.'));
+    }
+    if (S.qm.edit || E.sel) {
+      c.append(sep(), el('b', { class: 'tname qm' }, S.qm.edit ? 'Quick-Maske bearbeiten' : 'Quick-Maske aktiv'),
+        S.qm.edit ? btn('Alles frei', () => qmFill(1)) : null, S.qm.edit ? btn('Alles zu', () => qmFill(0)) : null,
+        btn('Umkehren', () => qmInvert()), btn(S.qm.edit ? 'Fertig (T)' : 'Bearbeiten (T)', () => qmToggle()), btn('Entfernen', () => qmRemove()));
     }
   },
   pickDecal() {
@@ -5445,8 +5929,10 @@ const UI = {
     const seg = el('div', { class: 'seg' }, [['3d', '3D'], ['split', '3D + 2D'], ['2d', '2D']].map(([k, t]) => el('button', { class: S.view.layout === k ? 'on' : '', onclick: () => setLayout(k) }, t)));
     const chan = el('select', { title: 'Was angezeigt wird' }, CHANNELS.map((n, i) => el('option', { value: i, selected: S.view.chan === i }, n)));
     chan.onchange = () => { S.view.chan = +chan.value; E.needDraw = true; };
-    const env = el('select', { title: 'Licht' }, ENVS.map((e, i) => el('option', { value: i, selected: S.view.env === i }, 'Licht: ' + e.name)));
-    env.onchange = () => { S.view.env = +env.value; E.needDraw = true; };
+    const env = el('select', { title: 'Licht' }, ENVS.map((e, i) => el('option', { value: i, selected: S.view.env === i }, 'Licht: ' + e.name)),
+      E.envTex ? el('option', { value: ENVS.length, selected: S.view.env === ENVS.length }, 'Licht: ' + (E.envName || 'Eigenes')) : null,
+      el('option', { value: -1 }, 'Eigene Umgebung laden …'), el('option', { value: -2 }, 'Licht und Nachbearbeitung …'));
+    env.onchange = () => { const v = +env.value; if (v === -1) { pickEnvFile(); this.renderVbar(); return; } if (v === -2) { this.lookDialog(); this.renderVbar(); return; } S.view.env = v; E.needDraw = true; };
     v.append(chan, seg, env,
       el('button', { class: S.view.wire ? 'on' : '', title: 'Gitternetz anzeigen (W)', onclick: () => { S.view.wire = !S.view.wire; this.renderVbar(); E.needDraw = true; } }, 'Gitter'));
   },
@@ -5565,7 +6051,7 @@ const UI = {
   },
   renderProps() {
     const P = $('#props'); const keepScroll = P.scrollTop; P.innerHTML = '';
-    const tabs = $('#side .ph.sub'); if (tabs) { tabs.innerHTML = ''; tabs.append(el('button', { class: 'ptab' + (this.histOn ? '' : ' on'), onclick: () => this.showHistory(false) }, 'Eigenschaften'), el('button', { class: 'ptab' + (this.histOn ? ' on' : ''), onclick: () => this.showHistory(true) }, 'Verlauf')); }
+    const tabs = $('#propTabs'); if (tabs) { tabs.innerHTML = ''; tabs.append(el('button', { class: 'ptab' + (this.histOn ? '' : ' on'), onclick: () => this.showHistory(false) }, 'Eigenschaften'), el('button', { class: 'ptab' + (this.histOn ? ' on' : ''), onclick: () => this.showHistory(true) }, 'Verlauf')); }
     if (this.histOn) { this.renderHistory(P); return; }
     const l = curLayer();
     const recomp = () => { E.needComp = true; };
@@ -5630,7 +6116,7 @@ const UI = {
 
     if (l.kind === 'filter') {
       const ft = l.filt; const fd = FILTERS.find((x) => x.id === ft.type) || FILTERS[0]; const k = [];
-      k.push(ctlSelect('Art', ft, 'type', FILTERS.map((x) => [x.id, x.name]), { undo: true, onchange: () => { const d = FILTERS.find((x) => x.id === ft.type); ft.a = 0; ft.b = 0; ft.c = 0; if (d.id === 'lvl') { ft.b = 1; ft.c = 1; } if (d.id === 'blur') ft.a = 3; if (d.id === 'sharp') { ft.a = 2; ft.b = 1; } if (d.id === 'tint') ft.a = 0.6; recompL(); this.renderProps(); } }));
+      k.push(ctlSelect('Art', ft, 'type', FILTERS.map((x) => [x.id, x.name]), { undo: true, onchange: () => { const d = FILTERS.find((x) => x.id === ft.type); ft.a = 0; ft.b = 0; ft.c = 0; if (d.id === 'lvl') { ft.b = 1; ft.c = 1; } if (d.id === 'blur') ft.a = 3; if (d.id === 'sharp') { ft.a = 2; ft.b = 1; } if (d.id === 'tint') ft.a = 0.6; if (d.id === 'warp') { ft.a = 10; ft.b = 2; } if (d.id === 'noise') { ft.a = 0.2; ft.b = 0.1; ft.c = 3; } if (d.id === 'post') ft.a = 5; recompL(); this.renderProps(); } }));
       for (const [key, lab, mn, mx, st] of fd.p) k.push(ctlSlider(lab, ft, key, mn, mx, st, { undo: true, onchange: recomp }));
       if (fd.col) k.push(ctlColor('Farbe', ft, 'col', { undo: true, onchange: recomp }));
       k.push(el('div', { class: 'note' }, 'Wirkt auf alle Ebenen darunter' + (l.parent ? ' (auch außerhalb des Ordners)' : '') + '. Mit einer Maske nur an bestimmten Stellen.'));
@@ -5642,6 +6128,7 @@ const UI = {
       P.append(sec('Foto-Material',
         el('div', { class: 'note' }, (ACG.sets.has(f.photo) ? '' : 'Wird geladen … ') + (f.photo.startsWith('u:') ? 'Eigenes Material' : 'Quelle: ambientCG.com – ' + f.photo + ' (CC0)')),
         ctlSlider('Größe', f, 'scale', 0.2, 20, 0.05, { undo: true, onchange: recomp, tip: 'Größere Zahl = feineres Muster' }),
+        f.proj !== 'uv' ? (() => { const pc = { cm: Math.round(fillCmFromScale(f.scale) * 10) / 10 }; return ctlSlider('Echte Größe (cm)', pc, 'cm', 0.5, 500, 0.5, { undo: true, onchange: () => { f.scale = fillScaleFromCm(pc.cm); recomp(); }, tip: 'Wie groß ein Stück des Musters in echt ist – passt sich der Modellgröße an (Einheit unter Einstellungen)' }); })() : null,
         ctlSlider('Drehung', f, 'rot', 0, 360, 1, { undo: true, onchange: recomp }),
         ctlSelect('Projektion', f, 'proj', [['tri', 'Ohne Nähte (von 3 Seiten)'], ['uv', 'Nach UV-Karte']], { undo: true, onchange: recomp }),
         ctlSlider('Farbton', f, 'hue', -0.5, 0.5, 0.01, { undo: true, onchange: recomp }),
@@ -5720,7 +6207,7 @@ const UI = {
   /* ---------- Regal ---------- */
   renderShelf() {
     const cats = $('#shelf .cats'), tabs = $('#shelf .tabs'); cats.innerHTML = ''; tabs.innerHTML = '';
-    const T = [['umat', 'Eigene Materialien', UMAT.list ? UMAT.list.length : '…'], ['smart', 'Fertige Looks', Object.keys(SMART).length], ['mat', 'Materialien', Object.keys(MATERIALS).length], ['mask', 'Masken', GENS.length - 1], ['brushp', 'Pinsel', BRUSH_PRESETS.length], ['shape', 'Pinselspitzen', SHAPES.length]];
+    const T = [['umat', 'Eigene Materialien', UMAT.list ? UMAT.list.length : '…'], ['smart', 'Fertige Looks', Object.keys(SMART).length], ['mat', 'Materialien', Object.keys(MATERIALS).length], ['mask', 'Masken', GENS.length - 1], ['smask', 'Smart-Masken', SMART_MASKS.length], ['brushp', 'Pinsel', BRUSH_PRESETS.length], ['shape', 'Pinselspitzen', SHAPES.length]];
     for (const [k, t, n] of T) {
       cats.append(el('button', { class: this.shelfTab === k && !(k === 'mat' && this.matCat && this.matCat !== 'Alle') && !(k === 'online' && ACG.cat !== 'Alle') ? 'on' : '', onclick: () => { this.shelfTab = k; if (k === 'mat') this.matCat = 'Alle'; if (k === 'online') ACG.cat = 'Alle'; this.renderShelf(); } }, t, el('span', { class: 'cnt' }, n)));
       if (k === 'online' && this.shelfTab === 'online' && ACG.list) {
@@ -5733,7 +6220,7 @@ const UI = {
         for (const [c, n2] of Object.entries(cnt)) cats.append(el('button', { class: 'sub' + (this.matCat === c ? ' on' : ''), onclick: () => { this.matCat = c; this.renderShelf(); } }, c, el('span', { class: 'cnt' }, n2)));
       }
     }
-    const hints = { umat: 'PNG/JPG oder ZIP hier reinziehen · gleiche Namen (…_Color, …_Roughness, …_Height) werden ein Material · Klick: Füll-Ebene · Rechtsklick: löschen', online: 'Echte Foto-Texturen von ambientCG.com (CC0, frei nutzbar) · Klick: als Füll-Ebene', smart: 'Klick fügt den Look als Ebenen ein', mat: 'Klick: neue Ebene   ·   Rechtsklick: damit malen', mask: 'Klick: Maske für die ausgewählte Ebene', brushp: 'Klick: Pinsel übernehmen', shape: '' };
+    const hints = { umat: 'PNG/JPG oder ZIP hier reinziehen · gleiche Namen (…_Color, …_Roughness, …_Height) werden ein Material · Klick: Füll-Ebene · Rechtsklick: löschen', online: 'Echte Foto-Texturen von ambientCG.com (CC0, frei nutzbar) · Klick: als Füll-Ebene', smart: 'Klick fügt den Look als Ebenen ein', mat: 'Klick: neue Ebene   ·   Rechtsklick: damit malen', mask: 'Klick: Maske für die ausgewählte Ebene', smask: 'Klick: fertig eingestellte Maske für die ausgewählte Ebene (Kanten, Schmutz, Staub, Rost …)', brushp: 'Klick: Pinsel übernehmen', shape: '' };
     const title = (T.find((x) => x[0] === this.shelfTab) || [])[1] + (this.shelfTab === 'mat' && this.matCat && this.matCat !== 'Alle' ? ' · ' + this.matCat : '') + (this.shelfTab === 'online' && ACG.cat !== 'Alle' ? ' · ' + ACG.cat : '');
     tabs.append(el('span', { class: 'ttl' }, title));
     if (this.shelfTab === 'mat' || this.shelfTab === 'smart' || this.shelfTab === 'online') {
@@ -5788,6 +6275,7 @@ const UI = {
     }
     if (this.shelfTab === 'smart') for (const [k, s] of Object.entries(SMART)) if (match(s.name)) it.append(tile('s:' + k, s.name, () => this.applySmart(k)));
     if (this.shelfTab === 'mat') for (const [k, m] of Object.entries(MATERIALS)) if (match(m.name) && (!this.matCat || this.matCat === 'Alle' || (m.cat || 'Sonstiges') === this.matCat)) it.append(tile('m:' + k, m.name, () => this.applyMat(k), () => { S.brush.mat = k; if (S.tool !== 'paint' && S.tool !== 'fill') setTool('paint'); this.renderProps(); this.renderShelf(); toast('Pinsel malt jetzt mit ' + m.name); }, S.brush.mat === k));
+    if (this.shelfTab === 'smask') SMART_MASKS.forEach((m, i) => { if (match(m.name)) it.append(tile('k:' + i, m.name, () => applySmartMask(i))); });
     if (this.shelfTab === 'mask') GENS.forEach((g, i) => { if (i) it.append(tile('g:' + i, g, () => this.addMask(1, i))); });
     if (this.shelfTab === 'brushp') BRUSH_PRESETS.forEach((p, i) => { if (!this.previews.has('b:' + p.shape)) this.previews.set('b:' + p.shape, shapeIcon(p.shape)); const t = tile('b:' + p.shape, p.name, () => { Object.assign(S.brush, { ...p, name: undefined }); delete S.brush.name; if (S.tool !== 'paint' && S.tool !== 'erase') setTool('paint'); this.more = true; this.renderCtx(); this.renderShelf(); toast('Pinsel: ' + p.name); }, null, false); it.append(t); });
     if (this.shelfTab === 'shape') SHAPES.forEach((s, i) => { if (!this.previews.has('b:' + i)) this.previews.set('b:' + i, shapeIcon(i)); it.append(tile('b:' + i, s, () => { if (i === 9) { loadAlpha(); return; } S.brush.shape = i; this.renderCtx(); this.renderShelf(); if (S.tool !== 'paint' && S.tool !== 'erase') setTool('paint'); }, null, S.brush.shape === i)); });
@@ -5797,6 +6285,7 @@ const UI = {
     if (t === 's' && SMART[k]) return () => layersFromSpec(SMART[k].layers, true);
     if (t === 'm' && MATERIALS[k]) return () => layersFromSpec([MATERIALS[k]], true);
     if (t === 'g') return () => layersFromSpec(genPreviewSpec(+k), true);
+    if (t === 'k' && SMART_MASKS[+k]) return () => layersFromSpec(smartMaskSpec(+k), true);
     return null;
   },
   queuePreview(key) {
@@ -5920,6 +6409,7 @@ const UI = {
   },
   exportDialog() {
     if (!S.mesh) return;
+    EXPORTS.custom = customExportPreset();
     const st = { preset: this._lastPreset || 'blender', size: 0, name: (S.projectName || 'Textur').replace(/[\\/:*?"<>|\s]+/g, '_'), aoInBase: 0, height16: false, withModel: !!S.mesh.uvEdited };
     const body = el('div');
     const render = () => {
@@ -5932,6 +6422,7 @@ const UI = {
         el('div', { class: 'row two' }, el('label', {}, 'Dateiname'), nameIn),
         el('div', { class: 'row two', title: 'Nötig, wenn du UVs verschoben hast' }, el('label', {}, 'Modell'), ctlCheck('Modell (.obj) mit neuen UVs dazupacken', st, 'withModel')),
         ex.hint ? el('div', { class: 'note' }, ex.hint) : null,
+        st.preset === 'custom' ? this.customExportEditor(() => { EXPORTS.custom = customExportPreset(); render(); }) : null,
         el('details', { class: 'adv' }, el('summary', {}, 'Mehr Einstellungen'),
           ctlSlider('Schatten in Farbe', st, 'aoInBase', 0, 1, 0.05, { tip: 'Macht Ecken in der Farbtextur etwas dunkler' }),
           ex.maps.some((m) => m[1] === 3) ? el('div', { class: 'row two' }, el('label', {}, 'Höhe'), ctlCheck('16 Bit', st, 'height16')) : null,
@@ -5949,6 +6440,66 @@ const UI = {
     this.modal(el('div', { class: 'mbox', style: 'width:520px' }, el('h2', {}, 'Texturen exportieren'), body,
       el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Abbrechen'), go)));
   },
+  customExportEditor(re) {
+    const c = customExportLoad(); const box = el('div', { class: 'expgrid' });
+    const save = () => { customExportSave(c); re(); };
+    for (const [def, kind, label] of EXPORT_CHOICES) {
+      const cb = el('input', { type: 'checkbox', checked: c.on.includes(kind) });
+      cb.onchange = () => { c.on = cb.checked ? [...new Set([...c.on, kind])].sort((a, b) => a - b) : c.on.filter((k) => k !== kind); save(); };
+      const nm = el('input', { type: 'text', value: c.names[kind] || def, placeholder: def });
+      nm.onchange = () => { const v = nm.value.replace(/[\\/:*?"<>|\s]+/g, '_'); if (v && v !== def) c.names[kind] = v; else delete c.names[kind]; save(); };
+      box.append(el('label', { class: 'expi' }, cb, el('span', {}, label)), nm);
+    }
+    const sepIn = el('input', { type: 'text', value: c.sep || '_', style: 'width:50px' }); sepIn.onchange = () => { c.sep = sepIn.value.replace(/[\\/:*?"<>|]+/g, ''); save(); };
+    return el('div', {}, box, el('div', { class: 'row two' }, el('label', {}, 'Trennzeichen'), sepIn));
+  },
+  renderDialog() {
+    if (!S.mesh) return;
+    const r3 = E.regions.find((q) => q.type === '3d');
+    const st = this._render || (this._render = { size: 'view', ss: 2, transparent: false, name: (S.projectName || 'Render').replace(/[\\/:*?"<>|\s]+/g, '_') });
+    const sizes = [['view', 'Wie das 3D-Fenster' + (r3 ? ` (${r3.w} × ${r3.h})` : '')], ['1920x1080', 'Full HD 1920 × 1080'], ['2560x1440', '2560 × 1440'], ['3840x2160', '4K 3840 × 2160'], ['2048x2048', 'Quadrat 2048'], ['4096x4096', 'Quadrat 4096']];
+    const nameIn = el('input', { type: 'text', value: st.name }); nameIn.oninput = () => { st.name = nameIn.value.replace(/[\\/:*?"<>|]+/g, '_'); };
+    const go = el('button', { class: 'btn pri', onclick: async () => {
+      let w, h; if (st.size === 'view') { w = r3 ? r3.w : 1920; h = r3 ? r3.h : 1080; } else [w, h] = st.size.split('x').map(Number);
+      this.closeModal(); this.busy('Bild wird gerendert …'); await sleep(40);
+      try { const p = await renderImage({ w, h, ss: st.ss, transparent: st.transparent, name: st.name }); if (p) toast('Gespeichert: ' + p); }
+      catch (e) { console.error(e); toast('Rendern fehlgeschlagen: ' + e.message, 'err'); }
+      finally { this.busy(null); }
+    } }, 'Rendern');
+    this.modal(el('div', { class: 'mbox', style: 'width:480px' }, el('h2', {}, 'Bild rendern'),
+      el('div', { class: 'note' }, 'Speichert die aktuelle Kameraansicht als PNG – mit Licht, Umgebung und Nachbearbeitung, ohne Pinsel und Gitternetz.'),
+      ctlSelect('Größe', st, 'size', sizes), ctlSelect('Glättung', st, 'ss', [[1, 'Aus'], [2, 'Hoch (2×)'], [3, 'Sehr hoch (3×)']]),
+      el('div', { class: 'row two' }, el('label', {}, 'Hintergrund'), ctlCheck('Durchsichtig', st, 'transparent')),
+      el('div', { class: 'row two' }, el('label', {}, 'Dateiname'), nameIn),
+      el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' }, el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Abbrechen'), go)));
+  },
+  lookDialog() {
+    const v = S.view, re = () => { E.needDraw = true; };
+    for (const k of ['tm', 'sat', 'con', 'vig']) v[k] = +v[k] || 0; if (v.envInt == null) v.envInt = 1;
+    const envSel = { e: v.env };
+    const body = el('div');
+    const render = () => {
+      body.innerHTML = '';
+      body.append(
+        ctlSelect('Licht', envSel, 'e', [...ENVS.map((e, i) => [i, e.name]), ...(E.envTex ? [[ENVS.length, 'Eigenes: ' + (E.envName || 'Bild')]] : [])], { onchange: () => { v.env = envSel.e; re(); this.renderVbar(); } }),
+        el('div', { class: 'row two' }, el('label', {}, 'Umgebung'), el('button', { class: 'btn small', onclick: () => { this.closeModal(); pickEnvFile(); } }, 'HDR oder Panorama laden …')),
+        ctlSlider('Helligkeit', v, 'exposure', 0.2, 3, 0.01, { onchange: re }),
+        E.envTex ? ctlSlider('HDR-Stärke', v, 'envInt', 0.1, 4, 0.01, { onchange: re }) : null,
+        ctlSlider('Licht drehen', v, 'envRot', -3.15, 3.15, 0.01, { onchange: re, tip: 'Auch mit Umschalt + Rechtsklick ziehen' }),
+        el('div', { class: 'row two' }, el('label', {}, 'Hintergrund'), ctlCheck('Umgebung als Hintergrund zeigen', v, 'bg', { onchange: re })),
+        ctlSlider('AO-Stärke', v, 'ao', 0, 1, 0.01, { onchange: re }),
+        el('h3', {}, 'Nachbearbeitung'),
+        ctlSelect('Tonemapping', v, 'tm', [[0, 'ACES (Film)'], [1, 'Filmisch'], [2, 'Weich (Reinhard)'], [3, 'Linear (ohne)']], { onchange: re }),
+        ctlSlider('Sättigung', v, 'sat', -1, 1, 0.01, { onchange: re }),
+        ctlSlider('Kontrast', v, 'con', -0.5, 1, 0.01, { onchange: re }),
+        ctlSlider('Vignette', v, 'vig', 0, 1, 0.01, { onchange: re, tip: 'Dunklere Bildränder' }),
+        el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:12px' },
+          el('button', { class: 'btn', onclick: () => { Object.assign(v, { exposure: 1, envInt: 1, tm: 0, sat: 0, con: 0, vig: 0, ao: 1 }); re(); render(); } }, 'Zurücksetzen'),
+          el('button', { class: 'btn pri', onclick: () => this.closeModal() }, 'Fertig')));
+    };
+    render();
+    this.modal(el('div', { class: 'mbox', style: 'width:460px' }, el('h2', {}, 'Licht und Nachbearbeitung'), body));
+  },
   bakeDialog() {
     if (!S.mesh) return;
     E.bakeCfg = E.bakeCfg || { dirs: 40 };
@@ -5959,7 +6510,7 @@ const UI = {
       ctlSelect('Qualität (Schatten)', st, 'dirs', [[24, 'Schnell (24 Richtungen)'], [40, 'Normal (40 Richtungen)'], [80, 'Hoch (80 Richtungen)'], [160, 'Sehr hoch (160 Richtungen)']]),
       ctlSelect('Auflösung', { r: S.res }, 'r', [[S.res, S.res + ' (wie Projekt)']]),
       el('div', { class: 'row two' }, el('label', {}, 'Ansehen'), el('div', { class: 'btnrow' },
-        el('button', { class: 'btn small', onclick: show(6) }, 'Schatten (AO)'), el('button', { class: 'btn small', onclick: show(7) }, 'Kanten'), el('button', { class: 'btn small', onclick: show(0) }, 'Normal'))),
+        el('button', { class: 'btn small', onclick: show(6) }, 'Schatten (AO)'), el('button', { class: 'btn small', onclick: show(7) }, 'Kanten'), el('button', { class: 'btn small', onclick: show(12) }, 'Weltnormale'), el('button', { class: 'btn small', onclick: show(13) }, 'Position'), el('button', { class: 'btn small', onclick: show(0) }, 'Fertig'))),
       el('div', { class: 'btnrow', style: 'justify-content:flex-end;margin-top:16px' },
         el('button', { class: 'btn', onclick: () => this.closeModal() }, 'Schließen'),
         el('button', { class: 'btn pri', onclick: async () => {
@@ -5980,6 +6531,8 @@ const UI = {
       ctlSelect('Oberfläche', UISCALE, 'v', [[0, 'Automatisch'], [0.8, '80 %'], [0.9, '90 %'], [1, '100 %'], [1.15, '115 %'], [1.3, '130 %'], [1.5, '150 %'], [1.75, '175 %']], { onchange: () => { try { localStorage.setItem('mt_ui', UISCALE.v); } catch (e) { /* */ } applyUIScale(); } }),
       ctlSelect('Design', THEME, 'v', [['melone', 'Melone (bunt)'], ['pro', 'Profi (neutral, kompakt)']], { onchange: () => { try { localStorage.setItem('mt_theme', THEME.v); } catch (e) { /* */ } applyTheme(); } }),
       ctlSlider('Helligkeit', S.view, 'exposure', 0.2, 2.5, 0.01, { onchange: () => { E.needDraw = true; } }),
+      ctlCheck('Mehrere Materialien aus Blender = getrennte Texturen (Materialbereiche)', SETCFG, 'split', { onchange: () => { try { localStorage.setItem('mt_split', SETCFG.split ? '1' : '0'); } catch (e) { /* */ } toast('Gilt ab dem nächsten geöffneten Modell.'); } }),
+      ctlSelect('Einheit', S, 'unit', UNITS, { onchange: () => { S.dirty = true; this.renderProps(); }, tip: 'Für die echte Größe von Materialien (cm). Aus Blender meist Meter.' }),
       ctlSlider('Leuchtkraft', S.view, 'emit', 0, 10, 0.1, { onchange: () => { E.needDraw = true; }, tip: 'Wie hell leuchtende Stellen in der Ansicht strahlen' }),
       ctlSlider('Schatten (AO)', S.view, 'ao', 0, 1, 0.01, { onchange: () => { E.needDraw = true; } }),
       el('div', { class: 'row two' }, el('label', {}, 'Hintergrund'), ctlCheck('Licht-Umgebung zeigen', S.view, 'bg', { onchange: () => { E.needDraw = true; } })),
@@ -6031,7 +6584,7 @@ const UI = {
   },
   helpDialog() {
     const k = [...TOOLS.filter((t) => t !== '-').map((t) => [t.key, t.name]), ['[  ]', 'Pinsel kleiner / größer'], ['Strg+A / D / I', 'Alles / nichts auswählen / umkehren'], ['G / R / S (UV verschieben)', 'Bewegen / drehen / skalieren'],
-      ['Umschalt + Klick', 'Gerade Linie'], ['X', 'Spiegeln an / aus'], ['M', 'Maske bemalen an / aus'],
+      ['Umschalt + Klick', 'Gerade Linie'], ['X', 'Spiegeln an / aus'], ['T', 'Quick-Maske bearbeiten'], ['Enter (Pfad)', 'Pfad malen'], ['Strg + Umschalt + R', 'Bild rendern'], ['M', 'Maske bemalen an / aus'],
       ['Rechte Maustaste', 'Drehen'], ['Mittlere Maustaste', 'Verschieben'], ['Mausrad', 'Zoomen'], ['Umschalt + Rechte Maustaste', 'Licht drehen'],
       ['Pos1', 'Kamera zurücksetzen'], ['W', 'Gitternetz'], ['F1 / F2 / F3', '3D / 2D / beides'],
       ['Strg + Z / Y', 'Rückgängig / Wiederholen'], ['Strg + S', 'Speichern'], ['Strg + Umschalt + D', 'Ebene kopieren'], ['Entf', 'Auswahl löschen']];
@@ -6558,6 +7111,7 @@ function drawOverlay() {
   if (S.view.layout === 'split' && E.regions[1]) { g.fillStyle = '#2f3138'; g.fillRect(E.regions[1].x - 2, 0, 3, ov.height); }
   for (const r of E.regions) if (r.type === '3d' && S.mesh) drawAxes(g, ov, r);
   if (S.mode !== 'model') drawStencil(g, ov);
+  if (S.mode !== 'model' && S.tool === 'path') drawPathOverlay(g, ov);
   if (!mouse || !mouse.inside || mouse.nav) return;
   if (S.mode === 'model') {
     if (MOD.op && mouse.r) { const o = MOD.op, r = o.r; g.setLineDash([5 * dpr, 4 * dpr]); g.lineWidth = 1.2 * dpr; g.strokeStyle = 'rgba(255,170,80,.9)'; g.beginPath(); g.moveTo(r.x + o.cs[0], ov.height - r.y - o.cs[1]); g.lineTo(mouse.x * dpr, mouse.y * dpr); g.stroke(); g.setLineDash([]); }
@@ -6690,6 +7244,11 @@ function setupInput() {
       drawToolShape(cvs.getContext('2d'), h.r, cvXY, '#ffffff', true);
       if (applyCanvas(cvs, h.r, T === 'decal' ? 4 : 0)) UI.renderInfo();
       return;
+    }
+    // Pfad: Punkte setzen, Doppelklick malt
+    if (T === 'path') {
+      if (e.detail >= 2 && PATH.pts.length > 1) { pathApply(e.ctrlKey); return; }
+      pathAdd(h.r, h.x, h.y); return;
     }
     // Naht: Linie sammeln, beim Loslassen nähen
     if (T === 'seam') {
@@ -6827,6 +7386,7 @@ function setupInput() {
     const tag = (e.target.tagName || '').toLowerCase();
     if (e.key === 'Escape') {
       if (UVE.op) { uvCancel(); drag = null; return; }
+      if (S.tool === 'path' && PATH.pts.length && $('#modal').classList.contains('hidden') && tag !== 'input') { pathClear(); return; }
       if (MOD.op) { modCancel(); drawOverlay(); return; }
       if (!$('#modal').classList.contains('hidden') && UI._modalClosable !== false && S.mesh) UI.closeModal();
       return;
@@ -6837,6 +7397,10 @@ function setupInput() {
     if (UVE.op && drag && drag.mode === 'uvkey' && e.key === 'Enter') { uvConfirm(); drag = null; return; }
     if (UVE.op && (k === 'x' || k === 'y')) { uvAxis(k === 'x' ? 0 : 1); return; }
     if (MOD.op && e.key === 'Enter') { modConfirm(); return; }
+    if (S.tool === 'path' && S.mode !== 'model' && !ctrl) {
+      if (e.key === 'Enter') { e.preventDefault(); pathApply(e.altKey); return; }
+      if (e.key === 'Backspace' && PATH.pts.length) { e.preventDefault(); pathUndoPt(); return; }
+    }
     if (ctrl) {
       if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
       else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
@@ -6845,6 +7409,7 @@ function setupInput() {
       else if (k === 'n' && !e.shiftKey) { e.preventDefault(); UI.welcome(); }
       else if (k === 'e' && e.shiftKey) { e.preventDefault(); UI.exportDialog(); }
       else if (k === 'b' && e.shiftKey) { e.preventDefault(); UI.blenderExport(); }
+      else if (k === 'r' && e.shiftKey) { e.preventDefault(); UI.renderDialog(); }
       else if (k === 'd' && e.shiftKey) { e.preventDefault(); UI.dupLayer(); }
       else if (k === 'm') { e.preventDefault(); mergeDown(); UI.refreshAll(); }
       else if (k === 'f' && e.shiftKey) { e.preventDefault(); flattenAll(); UI.refreshAll(); }
@@ -6884,7 +7449,7 @@ function setupInput() {
     }
     if ((over2d || S.tool === 'uvmove') && k === 'a' && !e.altKey) {
       if (S.tool !== 'uvmove') setTool('uvmove');
-      if (UVE.sel.size && UVE.sel.size === islandTris().size) { UVE.sel.clear(); uvSelChanged(); } else uvSelectAll();
+      if (UVE.sel.size && UVE.sel.size === [...islandTris().values()].filter((tr) => inSet(tr[0])).length) { UVE.sel.clear(); uvSelChanged(); } else uvSelectAll();
       return;
     }
     const same = TOOLS.filter((t) => t !== '-' && t.key.toLowerCase() === k);
@@ -6896,6 +7461,7 @@ function setupInput() {
       case 'Home': case '0': frameCamera(); S.uv2d.zoom = 0; break;
       case 'w': case 'W': S.view.wire = !S.view.wire; UI.renderVbar(); E.needDraw = true; break;
       case 'c': case 'C': S.view.chan = (S.view.chan + 1) % CHANNELS.length; UI.renderVbar(); E.needDraw = true; break;
+      case 't': case 'T': qmToggle(); break;
       case 'x': case 'X': b.mirror = b.mirror ? 0 : 1; UI.renderTools(); UI.renderCtx(); toast(b.mirror ? 'Spiegeln an' : 'Spiegeln aus'); break;
       case 'q': case 'Q': { const l = curLayer(); if (l && l.mask) { S.target = S.target === 'mask' ? 'layer' : 'mask'; UI.refreshAll(); } break; }
       case 'F1': e.preventDefault(); setLayout('3d'); break;
@@ -6915,6 +7481,7 @@ function setupInput() {
   window.addEventListener('drop', (e) => {
     const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return; e.preventDefault();
     const all = [...e.dataTransfer.files];
+    if (/\.hdr$/i.test(f.name) && S.mesh) { UI.busy('Umgebung wird geladen …'); loadEnvFile(f).catch((er) => toast('Laden fehlgeschlagen: ' + er.message, 'err')).finally(() => UI.busy(null)); return; }
     const model = all.find((x) => /\.(obj|glb|gltf|fbx|stl|ply|dae|mtex|spp|blend)$/i.test(x.name));
     if (model) { handleFile(model, null, all.filter((x) => x !== model)); return; }
     const onShelf = e.target && e.target.closest && e.target.closest('#shelf');
@@ -6952,7 +7519,7 @@ async function handleFile(file, res, extra) {
     const want = res || (UI._welcomeRes && UI._welcomeRes.res) || S.res || 2048;
     const useRes = matInfo ? await texResFor(matInfo, want) : want;
     await startProject(mesh, useRes, name, matInfo && matInfo.some((m) => m.base || m.mr || m.normal || m.has) ? null : undefined);
-    if (matInfo) { UI.busy('Texturen werden übernommen …'); await sleep(20); const ok = await importModelTextures(matInfo); if (ok) { S.layers = S.layers.filter((l, i) => !(i === 0 && l.kind === 'paint' && l.name.startsWith('Mal-Ebene') && S.layers.length > 2)); resetUndo(); UI.refreshAll(); } }
+    if (matInfo) { UI.busy('Texturen werden übernommen …'); await sleep(20); const ok = await importModelTextures(matInfo); if (ok) { resetUndo(); UI.refreshAll(); } }
   } catch (e) {
     console.error('Datei konnte nicht geladen werden', e);
     UI.busy(null);
@@ -6961,19 +7528,32 @@ async function handleFile(file, res, extra) {
   } finally { UI.busy(null); }
 }
 
-async function startProject(mesh, res, name, setup) {
+async function startProject(mesh, res, name, setup, setSpec) {
   UI.busy('Modell wird vorbereitet …'); await sleep(40);
   if (mesh.nT > 2000000) toast('Sehr großes Modell, das kann langsam werden.', 'warn');
-  S.layers = []; S.sel = null; S.target = 'layer'; resetUndo();
+  S.target = 'layer'; resetUndo();
+  // alten Stand freigeben
+  for (const s of S.sets) if (s !== S.sets[S.cur]) freeSetGPU(s);
+  if (E.T) freeTarget(E.T); if (E.fin) { E.fin.c.free(); E.fin.m.free(); E.fin.n.free(); } if (E.isl) E.isl.free(); if (E.caches) for (const c of E.caches.values()) freeCache(c);
+  E.T = null; E.fin = null; E.isl = null; E.caches = new Map();
   if (E.baseN) { E.baseN.free(); E.baseN = null; }
-  if (E._pendingBN) { E.baseN = E._pendingBN; E._pendingBN = null; }
   S.mesh = mesh; S.res = res; S.projectName = name || mesh.name; S.projectId = null;
   uploadMesh(mesh);
-  bakeMesh((m) => UI.busy(m));
+  // Materialbereiche anlegen und für jeden die Hilfskarten berechnen
+  setupSets(mesh, setSpec);
+  for (let i = S.sets.length - 1; i >= 0; i--) {
+    if (i !== S.sets.length - 1) stashSet();
+    loadSet(i); E.T = null; E.fin = null; E.isl = null; E.baseN = null; E.caches = new Map();
+    UI.busy(S.sets.length > 1 ? `Bereich ${S.sets.length - i} von ${S.sets.length}: ${S.sets[i].name} …` : 'Modell wird vorbereitet …'); await sleep(10);
+    bakeMesh((m) => UI.busy(S.sets.length > 1 ? `${S.sets[i].name}: ${m}` : m));
+    if (E._pendingBN && E._pendingBN[i]) { E.baseN = E._pendingBN[i]; }
+    S.layers = []; S.sel = null;
+  }
+  E._pendingBN = null;
   warmUp();
   UVE.sel.clear(); UVE.idx = null; E.cloneSrc = null; MOD.sel = null; MOD.idx = null; MOD.op = null; S.mode = 'paint';
   if (setup) setup();
-  else { const l = newLayer('paint'); S.layers.push(l); S.sel = l.id; }
+  else for (let i = 0; i < S.sets.length; i++) { const l = newLayer('paint'); S.sets[i].layers.push(l); S.sets[i].sel = l.id; }
   if (!setup) frameCamera();
   S.uv2d.zoom = 0; E.gbDirty = true; E.needComp = true; S.dirty = false;
   resetUndo();
