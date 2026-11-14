@@ -1,5 +1,5 @@
 {
-  "version": "2.2.3",
-  "notes": "- Schnelle Pinselstriche deutlich flüssiger",
+  "version": "2.3.0",
+  "notes": "2.3.0\n- Neu: Eigene Materialien – Texturen (PNG/JPG/ZIP) reinziehen, gleiche Namen werden ein Material (Farbe, Rauheit, Glanz, Metall, Höhe, AO)\n- Eigene Materialien als Füll-Ebene oder zum Malen, werden im Projekt mitgespeichert\n- Neu: Naht-Werkzeug (J) – gerade Stiche, Doppelnaht, Zickzack, Kreuzstich, Heftnaht, nur Rille\n- Nähte mit Stichlänge, Abstand, Fadendicke, Fadenfarbe, Rillentiefe und Fadenhöhe",
   "date": "2026-11-14"
 }
