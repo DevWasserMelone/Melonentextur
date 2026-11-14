@@ -363,7 +363,7 @@ html.pro #status{background:#1a1b1d}
     <div class="ph sub">Eigenschaften</div>
     <div id="props"></div>
   </aside>
-  <footer id="status"><span id="stHint"></span><span class="sp"></span><span id="stInfo"></span></footer>
+  <footer id="status"><span id="stHint"></span><span class="sp"></span><span id="stPerf" style="margin-right:14px;color:var(--mu)"></span><span id="stInfo"></span></footer>
 </div>
 <div id="loading"><div class="lbox"><span class="logo"></span><div class="lt">Melonentextur</div><div class="lbar"><i id="lprog"></i></div><div id="lmsg">Wird gestartet …</div></div></div>
 <div id="modal" class="hidden"></div>
@@ -373,7 +373,7 @@ html.pro #status{background:#1a1b1d}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '2.2.1';
+const APP_VERSION = '2.2.3';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1968,6 +1968,7 @@ function dirtyUV(rc) {
   const grow = (a, b) => (!a || !b ? null : [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]);
   ST.dFrame = ST.dFrame === undefined ? rc : grow(ST.dFrame, rc);
   ST.dStroke = ST.dStroke === undefined ? rc : grow(ST.dStroke, rc);
+  ST.dFlush = ST.dFlush === undefined ? rc : grow(ST.dFlush, rc);
 }
 function scissorUV(rc, pad) {
   if (!rc) { gl.disable(gl.SCISSOR_TEST); return; }
@@ -1975,7 +1976,9 @@ function scissorUV(rc, pad) {
   const x1 = Math.min(R, Math.ceil(rc[2] * R) + pad), y1 = Math.min(R, Math.ceil(rc[3] * R) + pad);
   gl.enable(gl.SCISSOR_TEST); gl.scissor(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
 }
+function gridKey(r) { return r.type + r.w + 'x' + r.h + (r.type === '2d' ? S.uv2d.zoom + ',' + S.uv2d.pan : Array.from(ST.cm.vp).map((v) => v.toFixed(5)).join(',')) + '|' + S.mesh.nT + '|' + (S.mesh.soup.uv.length); }
 function buildStrokeGrid(r) {
+  if (SG.last && SG.last.mesh === S.mesh && SG.last.key === gridKey(r)) { ST.grid = SG.last; ST.grid.r = r; return; }
   const m = S.mesh, P = m.soup.pos, U = m.soup.uv, nT = m.nT;
   const cs = SG.cs, gw = Math.ceil(r.w / cs) + 1, gh = Math.ceil(r.h / cs) + 1;
   const cells = new Array(gw * gh); const big = [];
@@ -1999,7 +2002,8 @@ function buildStrokeGrid(r) {
     if ((cx1 - cx0 + 1) * (cy1 - cy0 + 1) > 64) { big.push(t); continue; }
     for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) { const c = cy * gw + cx; (cells[c] || (cells[c] = [])).push(t); }
   }
-  ST.grid = { gw, gh, cells, big, mark: new Uint32Array(nT), gen: 0, r };
+  ST.grid = { gw, gh, cells, big, mark: new Uint32Array(nT), gen: 0, r, key: gridKey(r), mesh: S.mesh };
+  SG.last = ST.grid;
 }
 /* gibt true zurück, wenn nur ein Teil gezeichnet wurde */
 function drawSoupUnder(stamps) {
@@ -2203,7 +2207,8 @@ function compositeMain() {
   bindTargets([E.fin.c, E.fin.m, E.fin.n]);
   E.P.final.use().tex('uAccC', acc.c).tex('uAccM', acc.m).tex('uIsl', E.isl).tex('uBake', E.T.bake).set('uHS', S.hdepth * S.res / 8);
   scissorUV(rc, 24); drawFull(); gl.disable(gl.SCISSOR_TEST);
-  E.fin.c.mipmap(); E.fin.m.mipmap(); E.fin.n.mipmap();
+  // während des Malens keine Verkleinerungsstufen neu rechnen (passiert am Strich-Ende)
+  if (!(E.stroke_active && ST.on)) { E.fin.c.mipmap(); E.fin.m.mipmap(); E.fin.n.mipmap(); }
   // Caches gelöschter Ebenen freigeben
   const ids = new Set(S.layers.map((l) => l.id));
   for (const [id, c] of E.caches) if (!ids.has(id)) { freeCache(c); E.caches.delete(id); }
@@ -2474,10 +2479,19 @@ function strokeFlush() {
     p.set('uVP', ST.cm.vp).set('uEye', ST.cm.eye).tex('uGPos', E.gb.pos).set('uTol', 0.012 + S.cam.dist * 0.004)
       .set('uMirOn', b.mirror > 0).set('uMir', [b.mirror === 1 ? -1 : 1, b.mirror === 2 ? -1 : 1, b.mirror === 3 ? -1 : 1]);
   } else { p.tex('uGPos', null).set('uMirOn', false); }
+  ST.dFlush = undefined;
   const fast = !(r.type === '3d' && b.mirror > 0) && S.mesh;
   if (fast && (!ST.grid || ST.grid.r !== r)) buildStrokeGrid(r);
-  for (let i = 0; i < ST.pending.length; i += 64) {
-    const ch = ST.pending.slice(i, i + 64);
+  // Sehr schnelle Striche: zu viele Tupfer pro Bild ausdünnen, Deckkraft passend ausgleichen
+  if (ST.pending.length > 320 && !ST.pencil) {
+    const k = Math.ceil(ST.pending.length / 320), keep = [];
+    for (let i = 0; i < ST.pending.length; i += k) { const q = ST.pending[i]; keep.push({ ...q, s: 1 - Math.pow(1 - Math.min(q.s, 0.999), k) }); }
+    ST.pending = keep;
+  }
+  // kleine Pakete: jedes Paket bemalt nur die Dreiecke unter seinem kurzen Stück Strich
+  const CH = 16;
+  for (let i = 0; i < ST.pending.length; i += CH) {
+    const ch = ST.pending.slice(i, i + CH);
     st.fill(0); st2.fill(0);
     ch.forEach((s, k) => { st.set([s.x, s.y, s.r, s.a], k * 4); st2.set([s.s, s.seed], k * 2); });
     p.set('uN', ch.length).set('uSt', st).set('uSt2', st2);
@@ -2513,7 +2527,8 @@ function applyStroke() {
 }
 function applyStroke0() {
   const P = E.P, b = S.brush, l = ST.layer;
-  const clipRect = ST.op === 3 || ST.op === 8 ? null : ST.dStroke; // Klonen/Verwischen lesen versetzt: lieber alles
+  // nur dort neu rechnen, wo in diesem Durchgang neue Tupfer gelandet sind
+  const clipRect = ST.dFlush;
   const common = (p) => p.tex('uStroke', E.stroke).tex('uSC', E.strokeCol).tex('uSel', E.sel).set('uHasSel', !!E.sel)
     .set('uOpac', ST.op === 0 && ST.pencil ? 1 : ST.op === 8 ? b.opacity * 0.7 : b.opacity).set('uOp', ST.op === 8 ? 3 : ST.op).set('uSrc', ST.src).set('uOff', ST.off).set('uTgt', ST.tgt || [0, 0, 0]).set('uTolR', b.tol).set('uBlurR', Math.max(1, Math.round(S.res / 1024 * (1 + b.blur * 4))));
   if (ST.mask) {
@@ -2532,6 +2547,7 @@ function applyStroke0() {
 function strokeEnd() {
   if (!ST.on) return;
   strokeFlush();
+  E.needComp = true;
   if (ST.op === 8) { freeTmpBefore(); ST.smPrev = null; }
   ST.on = false; ST.layer = null; ST.before = null; E.stroke_active = false;
   S.dirty = true;
@@ -3338,10 +3354,34 @@ function drawStencil(g, ov) {
 }
 const stencilActive = () => E.stencil && E.stencil.on && E.stenKey && BRUSH_TOOLS.includes(S.tool);
 
+/* ---------- Abfrage ohne Warten auf die Grafikkarte (für den Zeiger) ---------- */
+const APICK = { pbo: null, fence: null, res: null };
+function pickAsync(r, x, y) {
+  if (r.type === '2d') return pickAt(r, x, y);
+  if (!APICK.pbo) { APICK.pbo = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, APICK.pbo); gl.bufferData(gl.PIXEL_PACK_BUFFER, 32, gl.STREAM_READ); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null); }
+  if (APICK.fence) {
+    const st = gl.clientWaitSync(APICK.fence, 0, 0);
+    if (st === gl.ALREADY_SIGNALED || st === gl.CONDITION_SATISFIED) {
+      const d = new Float32Array(8); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, APICK.pbo); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, d); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      gl.deleteSync(APICK.fence); APICK.fence = null;
+      APICK.res = d[3] < 0.5 ? null : { pos: [d[0], d[1], d[2]], uv: [d[4], d[5]], tri: Math.round(d[6]) };
+    } else { E.ovDirty = true; return APICK.res; }
+  }
+  ensureGbuf(r);
+  const xi = clamp(Math.floor(x), 0, r.w - 1), yi = clamp(Math.floor(y), 0, r.h - 1);
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, APICK.pbo);
+  bindTargets([E.gb.pos]); gl.readPixels(xi, yi, 1, 1, gl.RGBA, gl.FLOAT, 0);
+  bindTargets([E.gb.uv]); gl.readPixels(xi, yi, 1, 1, gl.RGBA, gl.FLOAT, 16);
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+  APICK.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0); gl.flush();
+  E.ovDirty = true;
+  return APICK.res;
+}
+
 /* ---------- Zeiger, der sich an die Oberfläche anlegt ---------- */
 function brushCursor3D(g, ov, r, lx, ly, radPx) {
   if (!r || r.type !== '3d' || !S.mesh) return false;
-  const h = pickAt(r, lx, ly); if (!h || h.tri < 0) return false;
+  const h = pickAsync(r, lx, ly); if (!h || h.tri < 0) return false;
   const P = S.mesh.soup.pos, t = h.tri * 9;
   const n = V3.norm(V3.cross([P[t + 3] - P[t], P[t + 4] - P[t + 1], P[t + 5] - P[t + 2]], [P[t + 6] - P[t], P[t + 7] - P[t + 1], P[t + 8] - P[t + 2]]));
   const cm = camMatrices(r);
@@ -5966,7 +6006,7 @@ function setupInput() {
       mouse.r = r;
       drawOverlay(); return;
     }
-    drawOverlay();
+    E.ovDirty = true;
     if (!drag) return;
     if (drag.mode === 'mv') {
       const rect = c.getBoundingClientRect(); const r = drag.r;
@@ -6162,13 +6202,18 @@ async function startProject(mesh, res, name, setup) {
 }
 
 /* ---------- Hauptschleife ---------- */
+const PERF = { n: 0, cpu: 0, frame: 0, last: 0 };
 function loop() {
   requestAnimationFrame(loop);
   try {
     if (ST.on && S.brush.air && drag && drag.mode === 'paint' && ST.last && ST.op !== 3) ST.pending.push({ x: ST.last[0], y: ST.last[1], r: brushRadiusPx(ST.r, ST.last[0], ST.last[1]), a: S.brush.angle * Math.PI / 180, s: S.brush.flow * 0.12, seed: Math.random() * 100 });
     partStep();
-    if (ST.on && ST.pending.length) strokeFlush();
-    if (E.needComp || E.needDraw) { const cam = E.gbDirty; renderAll(); if (cam && !(drag && drag.mode === 'paint')) drawOverlay(); }
+    const t0 = performance.now(); let work = false;
+    if (ST.on && ST.pending.length) { strokeFlush(); work = true; }
+    if (E.needComp || E.needDraw) { const cam = E.gbDirty; renderAll(); work = true; if (cam && !(drag && drag.mode === 'paint')) E.ovDirty = true; }
+    if (E.ovDirty) { E.ovDirty = false; drawOverlay(); }
+    if (work && ST.on) { const now = performance.now(); PERF.n++; PERF.cpu += now - t0; if (PERF.last) PERF.frame += now - PERF.last; PERF.last = now; if (PERF.n >= 10) { const fps = 1000 / (PERF.frame / (PERF.n - 1 || 1)); const st = $('#stPerf'); if (st) st.textContent = `Malen: ${Math.round(fps)} Bilder/s`; PERF.n = 0; PERF.cpu = 0; PERF.frame = 0; } }
+    else if (!ST.on) PERF.last = 0;
   } catch (e) { console.error('Zeichenfehler', e); E.needComp = false; E.needDraw = false; }
 }
 
