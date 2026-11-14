@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
-  "notes": "🍉 Melonentextur 1.0.1\n\n🛠 Verbessert\n• Neue, schlichtere Oberfläche – leichter zu verstehen\n• Weniger Regler auf einmal, der Rest steckt unter „Mehr“\n• Klarere Namen für Werkzeuge, Masken und Looks",
+  "version": "1.0.2",
+  "notes": "🍉 Melonentextur 1.0.2\n\n✨ Neu\n• UV-Teile im 2D-Fenster verschieben, drehen und skalieren – wie in Blender (G / R / S)\n• Neue Werkzeuge: Auswahl, Verlauf, Formen, Text, Aufkleber, Stempel, Weichzeichnen, Aufhellen/Abdunkeln, Hand, Zoom\n• Hilfe beim Drüberhalten: zeigt, was jedes Werkzeug macht\n• Airbrush, Bild als Ebene laden, Modell mit neuen UVs exportieren\n\n🛠 Verbessert\n• Tasten wie in Paint.NET (F = Füllen, G = Verlauf, S = Auswahl …)\n\n🐞 Behoben\n• Kein Hänger mehr beim ersten Strich auf ein Modell",
   "date": "2026-11-14"
 }
