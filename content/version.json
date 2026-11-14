@@ -1,5 +1,5 @@
 {
-  "version": "1.0.4",
-  "notes": "🍉 Melonentextur 1.0.4\n\n✨ Neu\n• Fertiger Look „Holzfass“ mit Brettern, Metallringen, Rost und Dreck\n• Muster „Holzbretter“ und automatische Maske „Ringe (Bänder)“\n• UV-Karte wie in Blender: Maus drüber, A, dann G / R / S\n\n🛠 Verbessert\n• Oberfläche nicht mehr so groß\n• Der Assistent versteht viel mehr Wünsche (z. B. „realistisches Bierfass“)",
+  "version": "1.0.6",
+  "notes": "🍉 Melonentextur 1.0.6\n\n✨ Neu\n• Werkzeugkasten mit allen Paint.NET-Werkzeugen: Rechteck-, Lasso-, Ellipsen-Auswahl, Zauberstab, Ausgewähltes/Auswahl verschieben, Bleistift, Umfärben, Linie und viele neue Formen\n• Farbeimer und Zauberstab mit „Ähnliche Farbe“\n• Neues Menü „Anpassungen“: Invertieren, Schwarzweiß, Sepia, Farbton/Sättigung, Helligkeit/Kontrast, Rauschen, Weichzeichnen\n\n🛠 Verbessert\n• Werkzeugleiste jetzt zweispaltig und übersichtlicher\n• Tasten wie in Paint.NET (S, M, P, R, O …)",
   "date": "2026-11-14"
 }
