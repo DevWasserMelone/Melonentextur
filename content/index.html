@@ -344,7 +344,7 @@ body.model #shelf,body.model #layerBtns{opacity:.45;pointer-events:none}
 <script>
 'use strict';
 const APP_NAME = 'Melonentextur';
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.6.0';
 const NATIVE = window.melonenNative || null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -748,9 +748,37 @@ vec2 pat2(int id, vec2 q){
   if(id==39){ float s=fract((q.x+q.y)*2.0); float b=step(0.5,s); return vec2(b, 0.0); }
   if(id==40){ vec2 c=floor(q*4.0); float b=mod(c.x+c.y,2.0); return vec2(b, 0.0); }
   if(id==30){ vec2 f=fract(q*10.0)-0.5; float bump=1.0-smoothstep(0.24,0.3,length(f)); return vec2(bump*0.25, bump-0.3); }
+  if(id==41){ float a=n01(vec3(q*14.0,41.0),4); float b=n01(vec3(q*55.0,4.1),3); float bl=smoothstep(0.55,0.75,a); return vec2(clamp(bl*0.6+b*0.4*(0.5+uVar),0.0,1.0), bl*0.8+b*0.3-0.4); }
+  if(id==42){ vec2 g=q*vec2(5.0,3.0); float row=floor(g.y); g.x+=mod(row,2.0)*0.5; vec2 c=floor(g); vec2 f=fract(g);
+    float r=rnd1(vec3(c,42.0)); float arc=length(vec2((f.x-0.5)*1.2,f.y-0.05)); float edge=smoothstep(0.62,0.55,arc)*smoothstep(0.0,0.06,f.y);
+    float shade=(1.0-f.y)*0.6; return vec2(clamp(r*0.35*(0.4+uVar)+shade*0.4+(1.0-edge)*0.5,0.0,1.0), edge*(0.3+f.y*0.5)-0.4); }
+  if(id==43){ vec2 g=q*vec2(1.6,1.6); vec2 c=floor(g); vec2 f=fract(g); float d=min(min(f.x,1.0-f.x),min(f.y,1.0-f.y)); float j=1.0-smoothstep(0.0,0.025,d);
+    float r=rnd1(vec3(c,43.0)); float sp=n01(vec3(q*30.0,4.3),3); return vec2(clamp(j*0.9+r*0.25*(0.4+uVar)+sp*0.2,0.0,1.0), -j+sp*0.15); }
+  if(id==44){ vec2 g=q*7.0; vec2 c=floor(g); vec2 f=fract(g); bool hz=mod(c.x+c.y,2.0)<1.0; float s=hz? f.y : f.x; float ww=hz? f.x : f.y;
+    float strand=abs(fract(s*3.0)-0.5)*2.0; float a=sin(ww*3.1416); return vec2(clamp(0.3+strand*0.4+(1.0-a)*0.4,0.0,1.0), a*(1.0-strand*0.5)-0.5); }
+  if(id==45){ vec2 g=q*vec2(1.0,2.0); vec2 c=floor(g); vec2 f=fract(g); float seam=1.0-smoothstep(0.0,0.008,min(f.y,1.0-f.y));
+    vec2 hp=fract(g*vec2(2.0,1.0))-vec2(0.5,0.5); float hole=1.0-smoothstep(0.035,0.05,length(hp*vec2(1.0,0.5)));
+    float bl=n01(vec3(q*6.0,45.0),5); float pores=1.0-smoothstep(0.02,0.06,worley(vec3(q*20.0,4.5)).x);
+    return vec2(clamp(bl*0.5*(0.5+uVar)+0.25+seam*0.4+hole*0.6+pores*0.2,0.0,1.0), -seam*0.5-hole-pores*0.3+bl*0.2); }
+  if(id==46){ float a=rnd1(vec3(floor(q*60.0),46.0)); vec2 w=worley(vec3(q*25.0,4.6)); float gr=smoothstep(0.0,0.25,w.x);
+    return vec2(clamp(a*0.4*(0.5+uVar)+(1.0-gr)*0.6,0.0,1.0), gr*0.4-0.3); }
+  if(id==47){ float wob=n01(vec3(q*1.5,47.0),3)*2.5; float r=sin((q.y+q.x*0.3)*14.0+wob*3.0); float gr=n01(vec3(q*80.0,4.7),2);
+    return vec2(clamp(0.5+r*0.25+gr*0.3*(0.5+uVar),0.0,1.0), r*0.4+gr*0.1); }
+  if(id==48){ vec2 w=worley(vec3(q*4.0,48.0)); float cr=1.0-smoothstep(0.0,0.035+uVar*0.03,w.y-w.x); vec2 w2=worley(vec3(q*11.0,4.8)); float cr2=1.0-smoothstep(0.0,0.02,w2.y-w2.x);
+    float c=max(cr,cr2*0.6); return vec2(clamp(c+n01(vec3(q*9.0,1.0),3)*0.15,0.0,1.0), -c); }
+  if(id==49){ vec2 g=q*vec2(8.0,2.0); vec2 f=fract(g); float bar=1.0-smoothstep(0.18,0.22,abs(f.x-0.5)); float cross=1.0-smoothstep(0.04,0.06,abs(f.y-0.5));
+    float m=max(bar,cross*0.9); return vec2(1.0-m, m-0.6); }
+  if(id==50){ vec2 g=q*vec2(3.0,6.0); float row=floor(g.y); g.x+=mod(row,2.0)*0.5; vec2 c=floor(g); vec2 f=fract(g);
+    float d=min(min(f.x*0.5,(1.0-f.x)*0.5),min(f.y,1.0-f.y)); float j=1.0-smoothstep(0.0,0.03,d); float bev=smoothstep(0.03,0.09,d); float r=rnd1(vec3(c,50.0));
+    return vec2(clamp(j+r*0.12*(0.4+uVar),0.0,1.0), -j*0.8+bev*0.2); }
+  if(id==51){ vec2 g=q*12.0; vec2 c=floor(g); vec2 f=fract(g); float d=min(min(f.x,1.0-f.x),min(f.y,1.0-f.y)); float j=1.0-smoothstep(0.0,0.06,d);
+    float r=rnd1(vec3(c,51.0)); return vec2(clamp(mix(r*(0.5+uVar*0.5),1.0,j),0.0,1.0), -j*0.6+r*0.1); }
+  if(id==52){ vec2 g=q*vec2(5.0,0.5); float c=floor(g.x); float f=fract(g.x); float groove=1.0-smoothstep(0.0,0.035,min(f,1.0-f));
+    float r=rnd1(vec3(c,52.0,0.0)); float grain=n01(vec3(f*3.0+c*7.0,q.y*12.0,c),4); float st=abs(sin(q.y*30.0+grain*6.0+c*3.0));
+    return vec2(clamp(r*0.35*(0.4+uVar)+grain*0.3+(1.0-st)*0.15+groove*0.8,0.0,1.0), -groove+grain*0.2); }
   return vec2(0.0);
 }
-bool triP(int id){ return (id>=31&&id<=40)||(id>=6&&id<=8)||id==13||id==14||id==15||id==17||id==18||id==19||id==20||id==21||id==22||id==25||id==26||id==30; }
+bool triP(int id){ return (id>=31&&id<=52)||(id>=6&&id<=8)||id==13||id==14||id==15||id==17||id==18||id==19||id==20||id==21||id==22||id==25||id==26||id==30; }
 Mat pattern(vec3 p, vec3 n){
   vec3 q = p*uScale + uSeed*vec3(17.3,9.1,4.7);
   float t=0.0, h=0.0;
@@ -931,6 +959,27 @@ layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
 void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
   if(pp.a<0.5){ oC=vec4(0.0); oM=vec4(0.0); return; }
   Mat m=pattern(pp.xyz,normalize(texelFetch(uNrm,ip,0).xyz)); oC=vec4(m.col,1.0); oM=vec4(m.rough,m.metal,m.h,1.0); }`;
+/* Füllung mit Foto-Material (Farbe/Rauheit/Metall/Höhe aus Bildern), wahlweise ohne Nähte (dreiseitig projiziert) */
+const FS_PHOTO = G_HEAD + `
+uniform sampler2D uPos,uNrm,uBake,uIC,uIR,uIM,uIH,uIAO; uniform bool uHasR,uHasM,uHasH,uHasAO,uTri;
+uniform float uScale,uRot,uTintAmt,uHue,uBright,uROff,uMetal,uHAmt,uAOAmt; uniform vec3 uTint;
+layout(location=0) out vec4 oC; layout(location=1) out vec4 oM;
+vec2 rot(vec2 p){ float c=cos(uRot), s=sin(uRot); return vec2(c*p.x-s*p.y, s*p.x+c*p.y); }
+vec4 S3(sampler2D t, vec3 p, vec3 w){ return texture(t,rot(p.zy))*w.x + texture(t,rot(p.xz))*w.y + texture(t,rot(p.xy))*w.z; }
+vec4 smp(sampler2D t, vec3 p, vec3 w, vec2 uv){ return uTri ? S3(t,p,w) : texture(t,rot(uv)); }
+vec3 hueShift(vec3 c, float h){ const vec3 k=vec3(0.57735); float a=h*6.2831853; return c*cos(a)+cross(k,c)*sin(a)+k*dot(k,c)*(1.0-cos(a)); }
+void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
+  if(pp.a<0.5){ oC=vec4(0.0); oM=vec4(0.0); return; }
+  vec3 n=normalize(texelFetch(uNrm,ip,0).xyz); vec3 w=pow(abs(n),vec3(6.0)); w/=(w.x+w.y+w.z);
+  vec3 p=pp.xyz*uScale; vec2 uv=gl_FragCoord.xy/vec2(textureSize(uPos,0))*uScale;
+  vec3 col=pow(smp(uIC,p,w,uv).rgb,vec3(1.0));
+  if(uHasAO) col*=mix(1.0,smp(uIAO,p,w,uv).r,uAOAmt);
+  col=clamp(hueShift(col,uHue),0.0,1.0); col=uBright>0.0? col+(1.0-col)*uBright : col*(1.0+uBright);
+  float L=dot(col,vec3(0.299,0.587,0.114)); col=mix(col,uTint*(L*1.8+0.04),uTintAmt);
+  float r=uHasR ? smp(uIR,p,w,uv).r : 0.6; r=clamp(r+uROff,0.0,1.0);
+  float m=uHasM ? smp(uIM,p,w,uv).r : uMetal; m=max(m,uMetal);
+  float h=uHasH ? (smp(uIH,p,w,uv).r-0.5)*uHAmt : 0.0;
+  oC=vec4(clamp(col,0.0,1.0),1.0); oM=vec4(r,m,h,1.0); }`;
 const FS_GENC_T = (id) => G_HEAD + G_NOISE + genFor(id) + `
 uniform sampler2D uPos,uNrm,uBake; out vec4 o;
 void main(){ ivec2 ip=ivec2(gl_FragCoord.xy); vec4 pp=texelFetch(uPos,ip,0);
@@ -1806,6 +1855,7 @@ function compilePrograms() {
   P.jfa = new Prog(VS_FULL, FS_JFA, 'jfa');
   P.comp = new Prog(VS_FULL, FS_COMPOSITE, 'comp');
   P.filtl = new Prog(VS_FULL, FS_FILTL, 'filtl');
+  P.photo = new Prog(VS_FULL, FS_PHOTO, 'photo');
   P.final = new Prog(VS_FULL, FS_FINAL, 'final');
   P.copy = new Prog(VS_FULL, FS_COPY, 'copy');
   P.stamp = new Prog(VS_UV, FS_STAMP, 'stamp');
@@ -1963,8 +2013,9 @@ function getCache(T, l) {
     const h = JSON.stringify(l.fill);
     if (c.fh !== h) {
       if (!c.c) { c.c = new Tex(T.size, T.size, 'rgba8'); c.m = new Tex(T.size, T.size, 'rgba16f'); }
-      bindTargets([c.c, c.m]); const p = fillProg(l.fill.pat | 0).use(); setPatternUniforms(p, l.fill);
-      p.tex('uPos', T.pos).tex('uNrm', T.nrm); drawFull(); c.fh = h;
+      if (l.fill.photo) { if (photoFill(T, c, l.fill)) c.fh = h; else c.fh = null; }
+      else { bindTargets([c.c, c.m]); const p = fillProg(l.fill.pat | 0).use(); setPatternUniforms(p, l.fill);
+      p.tex('uPos', T.pos).tex('uNrm', T.nrm); drawFull(); c.fh = h; }
     }
   }
   if (l.mask && l.mask.gen) {
@@ -2602,13 +2653,14 @@ function warmUp() {
     // Projektion
     bindTargets([E.strokeCol]); P.proj.use().set('uMode', 1).set('uView', [1, 1]).set('uZoom', 0).set('uPan', [-10, -10]).tex('uScreen', null).tex('uGPos', E.gb.pos); drawSoup();
     // Auftragen
-    bindTargets([tc, tm]);
+    const tk2 = new Tex(8, 8, 'rgba8');
+    bindTargets([tc, tm, tk2]);
     P.apply.use().tex('uBC', null).tex('uBM', sm).tex('uStroke', sk).tex('uSC', null).tex('uSel', sk).tex('uPC', null).tex('uPM', sm).set('uOp', 0).set('uUsePat', true); drawFull();
     bindTargets([tk]); P.applyMask.use().tex('uB', sk).tex('uStroke', sk).tex('uSC', null).tex('uSel', sk).set('uOp', 2); drawFull();
     bindTargets([tk]); P.selComb.use().tex('uOld', sk).tex('uSC', null).tex('uStroke', sk); drawFull();
     bindTargets([tk]); P.one.use(); drawSoup();
     readF32(E.gb.pos, 0, 0, 1, 1); readRGBA8(E.fin.c, 0, 0, 1, 1);
-    [tc, tm, tk, sm, sk].forEach((t) => t.free());
+    [tc, tm, tk, sm, sk, tk2].forEach((t) => t.free());
     E.gb.pos.free(); E.gb.uv.free(); E.gb = save; E.gbDirty = true;
     clearTex(E.stroke, [0, 0, 0, 0]); clearTex(E.strokeCol, [0, 0, 0, 0]);
     cleanFBOs();
@@ -3160,9 +3212,122 @@ function adjDragUpdate(d, dx, dy) {
 }
 
 'use strict';
+/* ================= Online-Bibliothek: echte Foto-Materialien von ambientCG (CC0, frei nutzbar) ================= */
+const ACG = { list: null, loading: null, sets: new Map(), pending: new Map(), cat: 'Alle' };
+const ACG_API = 'https://ambientcg.com/api/v2/full_json';
+
+async function netBuf(url) {
+  if (NATIVE && NATIVE.fetchBuf) { const u8 = await NATIVE.fetchBuf(url); return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength); }
+  const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer();
+}
+const netJSON = async (url) => JSON.parse(dec.decode(new Uint8Array(await netBuf(url))));
+
+/* kleiner Zwischenspeicher, damit einmal geladene Materialien sofort wieder da sind */
+const PDB = {
+  db: null,
+  open() { return this.db || (this.db = new Promise((ok, no) => { const r = indexedDB.open('mt_photo', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); })); },
+  async get(k) { const db = await this.open(); return new Promise((ok) => { const q = db.transaction('f').objectStore('f').get(k); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }); },
+  async put(k, v) { const db = await this.open(); return new Promise((ok) => { const t = db.transaction('f', 'readwrite'); t.objectStore('f').put(v, k); t.oncomplete = () => ok(); t.onerror = () => ok(); }); },
+};
+
+/* Liste aller Materialien (wird einmal am Tag neu geholt) */
+async function acgList() {
+  if (ACG.list) return ACG.list;
+  if (ACG.loading) return ACG.loading;
+  ACG.loading = (async () => {
+    const cached = await PDB.get('list');
+    if (cached && Date.now() - cached.t < 86400000 && cached.items.length) return (ACG.list = cached.items);
+    const items = []; let off = 0, total = Infinity;
+    while (off < total) {
+      const j = await netJSON(`${ACG_API}?type=Material&sort=Popular&limit=250&offset=${off}&include=previewData`);
+      total = j.numberOfResults || 0;
+      for (const a of j.foundAssets || []) {
+        const pv = a.previewImage || {};
+        items.push({ id: a.assetId, name: a.displayName || a.assetId, cat: a.displayCategory || a.category || 'Sonstiges', thumb: pv['256-JPG-242424'] || pv['256-PNG'] || pv['128-PNG'] || Object.values(pv)[0] || '' });
+      }
+      if (!(j.foundAssets || []).length) break;
+      off += 250;
+      if (typeof UI !== 'undefined' && UI.shelfTab === 'online') UI.onlineStatus(`Lade Liste … ${items.length} von ${total}`);
+    }
+    await PDB.put('list', { t: Date.now(), items });
+    return (ACG.list = items);
+  })();
+  try { return await ACG.loading; } finally { ACG.loading = null; }
+}
+
+/* ein Material laden: ZIP holen, Bilder auspacken, als Texturen hochladen */
+async function acgLoad(id, res = '2K') {
+  if (ACG.sets.has(id)) return ACG.sets.get(id);
+  if (ACG.pending.has(id)) return ACG.pending.get(id);
+  const job = (async () => {
+    let zip = await PDB.get('z:' + id + ':' + res);
+    if (!zip) {
+      const j = await netJSON(`${ACG_API}?id=${encodeURIComponent(id)}&include=downloadData`);
+      const a = (j.foundAssets || [])[0]; if (!a) throw new Error('Material nicht gefunden');
+      const dl = (((a.downloadFolders || {}).default || {}).downloadFiletypeCategories || {}).zip;
+      const list = (dl && dl.downloads) || [];
+      const pick = list.find((d) => d.attribute === res + '-JPG') || list.find((d) => d.attribute === '1K-JPG') || list.find((d) => /JPG/.test(d.attribute)) || list[0];
+      if (!pick) throw new Error('Kein Download gefunden');
+      zip = await netBuf(pick.fullDownloadPath || pick.downloadLink);
+      await PDB.put('z:' + id + ':' + res, zip);
+    }
+    const files = await readZip(zip);
+    const find = (re) => { for (const [n, d] of files) if (re.test(n) && /\.(jpe?g|png)$/i.test(n)) return d; return null; };
+    const load = async (bytes, srgb) => {
+      if (!bytes) return null;
+      const bmp = await createImageBitmap(new Blob([bytes]), { imageOrientation: 'flipY', colorSpaceConversion: 'none' });
+      const t = new Tex(bmp.width, bmp.height, 'rgba8'); gl.bindTexture(gl.TEXTURE_2D, t.t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.generateMipmap(gl.TEXTURE_2D); bmp.close && bmp.close();
+      return t;
+    };
+    const set = {
+      c: await load(find(/_(Color|BaseColor|Albedo|Diffuse)\./i)),
+      r: await load(find(/_Roughness\./i)),
+      m: await load(find(/_Metal(ness|lic)?\./i)),
+      h: await load(find(/_(Displacement|Height)\./i)),
+      ao: await load(find(/_AmbientOcclusion\./i)),
+    };
+    if (!set.c) throw new Error('Im Paket ist kein Farbbild');
+    ACG.sets.set(id, set);
+    return set;
+  })();
+  ACG.pending.set(id, job);
+  try { return await job; } finally { ACG.pending.delete(id); }
+}
+
+/* Füll-Ebene mit Foto-Material: Cache neu rendern, sobald die Bilder da sind */
+function photoFill(T, c, f) {
+  const set = ACG.sets.get(f.photo);
+  if (!set) {
+    bindTargets([c.c, c.m]); gl.clearBufferfv(gl.COLOR, 0, [0.5, 0.5, 0.5, 1]); gl.clearBufferfv(gl.COLOR, 1, [0.6, 0, 0, 1]);
+    if (ACG.failed && ACG.failed.has(f.photo)) return false;
+    acgLoad(f.photo, f.res || '2K').then(() => { c.fh = null; E.needComp = true; if (typeof UI !== 'undefined') { UI.renderLayersSoon(); UI.renderProps(); } })
+      .catch((e) => { (ACG.failed = ACG.failed || new Set()).add(f.photo); console.error('Foto-Material', f.photo, e); toast('„' + f.photo + '“ konnte nicht geladen werden: ' + e.message, 'err'); });
+    return false;
+  }
+  bindTargets([c.c, c.m]);
+  E.P.photo.use().tex('uPos', T.pos).tex('uNrm', T.nrm).tex('uBake', T.bake)
+    .tex('uIC', set.c).tex('uIR', set.r).tex('uIM', set.m).tex('uIH', set.h).tex('uIAO', set.ao)
+    .set('uHasR', !!set.r).set('uHasM', !!set.m).set('uHasH', !!set.h).set('uHasAO', !!set.ao)
+    .set('uScale', f.scale || 2).set('uRot', (f.rot || 0) * Math.PI / 180).set('uTri', f.proj !== 'uv')
+    .set('uTint', hex2rgb(f.colA || '#ffffff')).set('uTintAmt', f.tint || 0).set('uHue', f.hue || 0).set('uBright', f.bright || 0)
+    .set('uROff', f.rOff || 0).set('uMetal', f.metalA || 0).set('uHAmt', f.hAmt ?? 0.4).set('uAOAmt', f.aoAmt ?? 0.5);
+  drawFull();
+  return true;
+}
+function addPhotoLayer(it, asBrush) {
+  const fill = { ...defaultFill(), photo: it.id, scale: 2, rot: 0, proj: 'tri', colA: '#ffffff', tint: 0, hue: 0, bright: 0, hAmt: 0.4, aoAmt: 0.5, rOff: 0, metalA: 0, res: '2K' };
+  pushUndo(); insertLayers([newLayer('fill', { name: it.name, fill })]); UI.refreshAll();
+  toast('Lädt „' + it.name + '“ …');
+}
+
+'use strict';
 /* ================= Materialien, Smart-Materialien, Masken, Pinsel ================= */
-const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack', 'Holzbretter (Fass)', 'Jeans', 'Strick', 'Karo', 'Tarnmuster', 'Riffelblech', 'Wellblech', 'Lochblech', 'Fliesen', 'Holzdielen', 'Kopfsteinpflaster', 'Asphalt', 'Marmor', 'Waben', 'Schuppen', 'Erde / Gras', 'Rinde', 'Hammerschlag', 'Noppen', 'Fischgrät', 'Nietenplatten', 'Filz / Teppich', 'Pixel', 'Sackleinen', 'Steppung', 'Natursteinmauer', 'Punkte', 'Warnstreifen', 'Schachbrett'];
-const PAT_USES_B = [false, ...Array(40).fill(true)];
+const PATTERNS = ['Einfarbig', 'Flecken', 'Holz', 'Gebürstet', 'Rost', 'Leder', 'Stoff', 'Ziegel', 'Karbon', 'Stein', 'Streifen', 'Metallic-Lack', 'Holzbretter (Fass)', 'Jeans', 'Strick', 'Karo', 'Tarnmuster', 'Riffelblech', 'Wellblech', 'Lochblech', 'Fliesen', 'Holzdielen', 'Kopfsteinpflaster', 'Asphalt', 'Marmor', 'Waben', 'Schuppen', 'Erde / Gras', 'Rinde', 'Hammerschlag', 'Noppen', 'Fischgrät', 'Nietenplatten', 'Filz / Teppich', 'Pixel', 'Sackleinen', 'Steppung', 'Natursteinmauer', 'Punkte', 'Warnstreifen', 'Schachbrett', 'Rauputz', 'Dachziegel', 'Gehwegplatten', 'Korbgeflecht', 'Sichtbeton', 'Kork', 'Sandrippen', 'Risse', 'Gitterrost', 'U-Bahn-Fliesen', 'Mosaik', 'Holzpaneele'];
+const PAT_USES_B = [false, ...Array(52).fill(true)];
 const GENS = ['Aus', 'Kanten', 'Ecken und Ritzen', 'Schattige Stellen', 'Wolkig', 'Von oben', 'Von unten', 'Kratzer', 'Flecken', 'Ringe (Bänder)', 'Laufspuren', 'Grunge', 'Lichtseite'];
 const SHAPES = ['Rund', 'Quadrat', 'Kreide', 'Spritzer', 'Kratzer', 'Ring', 'Weich', 'Fleckig', 'Borsten', 'Eigenes Bild'];
 /* Pinsel-Vorlagen: Spitze + Verhalten */
@@ -3460,6 +3625,121 @@ const SMART = {
   addLook('pixelBlock', 'Pixel-Grasblock', [L('px_erde'), { ...L('px_gras'), name: 'Gras oben', mask: { gen: 5, level: 0.5, rough: 0.1, soft: 0.01, scale: 2 } }]);
   addLook('kiste', 'Holzkiste', [L('dielen_kiefer'), edgeWear('m_eisen'), dirt(0.8)]);
   addLook('tresor', 'Tresor', [L('hammer_grau'), { ...L('m_messing'), name: 'Messingkanten', mask: { gen: 1, level: 0.45, width: 0.03, rough: 0.2, soft: 0.03, scale: 3 } }, dirt(0.5)]);
+})();
+
+/* ================= Große Bibliothek Teil 2: über 2000 Materialien ================= */
+(function buildLibrary2() {
+  const sh = (h, k) => rgb2hex(hex2rgb(h).map((v) => clamp(v * k, 0, 1)));
+  const mixH = (a, b, t) => { const A = hex2rgb(a), B = hex2rgb(b); return rgb2hex(A.map((v, i) => v + (B[i] - v) * t)); };
+  const slug = (t) => t.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '_');
+  const add = (key, name, cat, fill) => { if (!MATERIALS[key]) MATERIALS[key] = { name, cat, fill: Object.assign({ pat: 1, colA: '#888888', colB: '#666666', roughA: 0.5, roughB: 0.6, metalA: 0, metalB: 0, hAmt: 0.02, scale: 3, vari: 0.4 }, fill) }; };
+  const BASE = { Rot: '#c4202b', Dunkelrot: '#6e1016', Orange: '#e8701c', Gelb: '#f2c418', Hellgrün: '#7cc443', Grün: '#2f8a3c', Dunkelgrün: '#1c4a26', Türkis: '#1fa3a0', Hellblau: '#5aa9e6', Blau: '#2456c4', Dunkelblau: '#14254f', Lila: '#6b3fa0', Pink: '#e0508f', Weiß: '#efefed', Grau: '#7d7f83', Anthrazit: '#2e3034', Schwarz: '#111113', Beige: '#d8c7a6', Braun: '#6b4426', Olive: '#5d6437', Creme: '#efe6cf', Bordeaux: '#5a1424', Sand: '#c2a878', Petrol: '#14525a' };
+  // jede Farbe in hell / normal / dunkel
+  const COLS = [];
+  for (const [n, c] of Object.entries(BASE)) {
+    COLS.push([n, c]);
+    if (!['Weiß', 'Schwarz', 'Creme'].includes(n)) COLS.push([n + ' hell', mixH(c, '#ffffff', 0.35)]);
+    if (!['Schwarz', 'Anthrazit', 'Dunkelblau', 'Dunkelgrün', 'Dunkelrot'].includes(n)) COLS.push([n + ' dunkel', sh(c, 0.55)]);
+  }
+  const fam = [
+    ['lack', 'Lack {} glänzend', 'Lack & Kunststoff', (c) => ({ pat: 1, colA: c, colB: sh(c, 0.96), roughA: 0.1, roughB: 0.15, hAmt: 0.005, scale: 6, vari: 0.05 })],
+    ['satin', 'Lack {} seidenmatt', 'Lack & Kunststoff', (c) => ({ pat: 1, colA: c, colB: sh(c, 0.94), roughA: 0.35, roughB: 0.42, hAmt: 0.008, scale: 6, vari: 0.08 })],
+    ['lmatt', 'Lack {} matt', 'Lack & Kunststoff', (c) => ({ pat: 1, colA: c, colB: sh(c, 0.92), roughA: 0.62, roughB: 0.7, hAmt: 0.01, scale: 6, vari: 0.1 })],
+    ['kst', 'Kunststoff {}', 'Lack & Kunststoff', (c) => ({ pat: 1, colA: c, colB: sh(c, 0.94), roughA: 0.38, roughB: 0.45, hAmt: 0.02, scale: 9, vari: 0.15 })],
+    ['gummi', 'Gummi {}', 'Lack & Kunststoff', (c) => ({ pat: 1, colA: sh(c, 0.85), colB: sh(c, 0.75), roughA: 0.85, roughB: 0.92, hAmt: 0.03, scale: 12, vari: 0.2 })],
+    ['mlack', 'Metalliclack {}', 'Lack & Kunststoff', (c) => ({ pat: 11, colA: sh(c, 0.85), colB: sh(c, 1.5), roughA: 0.24, roughB: 0.12, metalA: 0.55, metalB: 0.95, hAmt: 0, scale: 6, vari: 0.4 })],
+    ['pulver', 'Pulverbeschichtet {}', 'Industrie', (c) => ({ pat: 29, colA: c, colB: sh(c, 1.12), roughA: 0.55, roughB: 0.5, hAmt: 0.08, scale: 4, vari: 0.3 })],
+    ['stf', 'Stoff {}', 'Stoff & Leder', (c) => ({ pat: 6, colA: c, colB: sh(c, 0.7), roughA: 0.9, roughB: 0.96, hAmt: 0.3, scale: 3, vari: 0.5 })],
+    ['samt', 'Samt {}', 'Stoff & Leder', (c) => ({ pat: 33, colA: sh(c, 1.1), colB: sh(c, 0.6), roughA: 0.95, roughB: 1, hAmt: 0.1, scale: 6, vari: 0.7 })],
+    ['flz', 'Filz {}', 'Stoff & Leder', (c) => ({ pat: 33, colA: c, colB: sh(c, 0.75), roughA: 0.97, roughB: 1, hAmt: 0.2, scale: 3, vari: 0.5 })],
+    ['strk', 'Strick {}', 'Stoff & Leder', (c) => ({ pat: 14, colA: c, colB: sh(c, 0.6), roughA: 0.95, roughB: 1, hAmt: 0.5, scale: 3, vari: 0.4 })],
+    ['ldr', 'Leder {}', 'Stoff & Leder', (c) => ({ pat: 5, colA: c, colB: sh(c, 0.6), roughA: 0.45, roughB: 0.68, hAmt: 0.3, scale: 3, vari: 0.5 })],
+    ['flies', 'Fliesen {}', 'Stein & Boden', (c) => ({ pat: 20, colA: c, colB: '#9a9a96', roughA: 0.15, roughB: 0.85, hAmt: 0.4, scale: 2, vari: 0.3 })],
+    ['ubahn', 'U-Bahn-Fliesen {}', 'Stein & Boden', (c) => ({ pat: 50, colA: c, colB: '#b9b6ae', roughA: 0.12, roughB: 0.85, hAmt: 0.5, scale: 2, vari: 0.3 })],
+    ['mosa', 'Mosaik {}', 'Stein & Boden', (c) => ({ pat: 51, colA: sh(c, 0.75), colB: '#cfcac0', roughA: 0.15, roughB: 0.85, hAmt: 0.4, scale: 1.5, vari: 0.8 })],
+    ['putz', 'Putz {}', 'Stein & Boden', (c) => ({ pat: 41, colA: c, colB: sh(c, 0.82), roughA: 0.9, roughB: 0.95, hAmt: 0.35, scale: 2, vari: 0.5 })],
+  ];
+  for (const [k, tpl, cat, fn] of fam) for (const [n, c] of COLS) add(k + '_' + slug(n), tpl.replace('{}', n), cat, fn(c));
+  // Metalle in vielen Ausführungen
+  const MET = { Eisen: ['#8c8f93', 0.5], Stahl: ['#a6aaaf', 0.38], Edelstahl: ['#c9ccd0', 0.22], Chrom: ['#ececee', 0.05], Aluminium: ['#d4d6d9', 0.35], Gold: ['#ffcf5c', 0.25], Weißgold: ['#e8e2d0', 0.22], Roségold: ['#e9a88c', 0.25], Silber: ['#e6e7ea', 0.18], Kupfer: ['#dc8f5f', 0.32], Messing: ['#d9b25a', 0.3], Bronze: ['#a8743e', 0.4], Titan: ['#8f9299', 0.35], Zink: ['#a9adb0', 0.5], Blei: ['#6f7174', 0.6], Nickel: ['#c3bfb4', 0.3], Gusseisen: ['#4a4b4d', 0.7], Platin: ['#d8d9db', 0.2], Kobalt: ['#9ea3b0', 0.3], Zinn: ['#b8b8b2', 0.45] };
+  for (const [n, [c, r]] of Object.entries(MET)) {
+    const k = slug(n);
+    add('mpol_' + k, `${n} poliert`, 'Metall', { pat: 1, colA: c, colB: sh(c, 0.95), roughA: Math.max(0.03, r * 0.3), roughB: Math.max(0.05, r * 0.4), metalA: 1, metalB: 1, hAmt: 0, scale: 4, vari: 0.1 });
+    add('msand_' + k, `${n} sandgestrahlt`, 'Metall', { pat: 23, colA: c, colB: sh(c, 0.85), roughA: Math.min(1, r + 0.25), roughB: Math.min(1, r + 0.35), metalA: 1, metalB: 1, hAmt: 0.05, scale: 6, vari: 0.3 });
+    add('mkratz_' + k, `${n} verkratzt`, 'Metall', { pat: 3, colA: sh(c, 0.9), colB: sh(c, 1.15), roughA: r + 0.15, roughB: Math.max(0.1, r - 0.1), metalA: 1, metalB: 1, hAmt: 0.05, scale: 1.2, vari: 0.8 });
+    add('moxid_' + k, `${n} angelaufen`, 'Metall', { pat: 1, colA: sh(c, 0.7), colB: sh(c, 0.95), roughA: Math.min(1, r + 0.3), roughB: r + 0.1, metalA: 0.85, metalB: 1, hAmt: 0.02, scale: 2, vari: 0.7 });
+    add('mriff_' + k, `${n} Riffelblech`, 'Industrie', { pat: 17, colA: c, colB: sh(c, 1.1), roughA: r + 0.05, roughB: Math.max(0.1, r - 0.05), metalA: 1, metalB: 1, hAmt: 0.6, scale: 2, vari: 0.4 });
+    add('mloch_' + k, `${n} Lochblech`, 'Industrie', { pat: 19, colA: c, colB: '#111', roughA: r, roughB: 0.9, metalA: 1, metalB: 0, hAmt: 0.6, scale: 3, vari: 0.3 });
+    add('mgit_' + k, `${n} Gitterrost`, 'Industrie', { pat: 49, colA: '#0c0c0d', colB: c, roughA: 0.9, roughB: r + 0.1, metalA: 0, metalB: 1, hAmt: 0.8, scale: 2, vari: 0.3 });
+    add('mwell_' + k, `${n} Wellblech`, 'Industrie', { pat: 18, colA: c, colB: sh(c, 1.2), roughA: r + 0.1, roughB: r, metalA: 1, metalB: 1, hAmt: 0.6, scale: 2, vari: 0.4 });
+    add('mniet_' + k, `${n} Nietenplatten`, 'Industrie', { pat: 32, colA: c, colB: sh(c, 0.6), roughA: r + 0.05, roughB: r + 0.2, metalA: 1, metalB: 1, hAmt: 0.5, scale: 2, vari: 0.5 });
+  }
+  // Holz in vielen Ausführungen
+  const WOOD = { Eiche: ['#b08455', '#7a5432'], Buche: ['#d0a27a', '#a0704a'], Kiefer: ['#dbb27a', '#a8743e'], Fichte: ['#e1c49a', '#b8915e'], Walnuss: ['#6b4a32', '#3b2618'], Kirsche: ['#a0583a', '#6c3420'], Mahagoni: ['#7a3424', '#4a1c12'], Ebenholz: ['#2a2220', '#141010'], Birke: ['#e6d3ad', '#c2a676'], Ahorn: ['#e3c99a', '#c09a64'], Teak: ['#a67444', '#6e4626'], Zeder: ['#b0683f', '#7a4024'], Bambus: ['#d9c07a', '#a8904a'], Treibholz: ['#a9a299', '#6f6a62'], Esche: ['#d6bf96', '#a68b62'], Lärche: ['#c98f5a', '#94603a'], Palisander: ['#5a2e22', '#2e1610'], Zebrano: ['#d6b884', '#5a3e22'], Wenge: ['#3e2a20', '#1c120c'], Olivenholz: ['#c9a874', '#6a4a2a'] };
+  for (const [n, [a, b]] of Object.entries(WOOD)) {
+    const k = slug(n);
+    add('wood_' + k, n, 'Holz', { pat: 2, colA: a, colB: b, roughA: 0.55, roughB: 0.7, hAmt: 0.18, scale: 2.2, vari: 0.5 });
+    add('dielen_' + k, `Dielen ${n}`, 'Holz', { pat: 21, colA: a, colB: b, roughA: 0.5, roughB: 0.68, hAmt: 0.3, scale: 2, vari: 0.6 });
+    add('parkett_' + k, `Parkett ${n}`, 'Holz', { pat: 31, colA: a, colB: b, roughA: 0.3, roughB: 0.45, hAmt: 0.2, scale: 2, vari: 0.6 });
+    add('lackholz_' + k, `${n} lackiert`, 'Holz', { pat: 2, colA: a, colB: b, roughA: 0.15, roughB: 0.22, hAmt: 0.05, scale: 2.2, vari: 0.5 });
+    add('paneel_' + k, `Paneele ${n}`, 'Holz', { pat: 52, colA: a, colB: b, roughA: 0.45, roughB: 0.65, hAmt: 0.35, scale: 2, vari: 0.6 });
+    add('altw_' + k, `${n} verwittert`, 'Holz', { pat: 2, colA: mixH(a, '#9a9690', 0.45), colB: sh(b, 0.7), roughA: 0.85, roughB: 0.95, hAmt: 0.35, scale: 2.2, vari: 0.8 });
+    add('gebl_' + k, `${n} gebleicht`, 'Holz', { pat: 2, colA: mixH(a, '#f2ede2', 0.5), colB: mixH(b, '#d8d0c0', 0.4), roughA: 0.6, roughB: 0.7, hAmt: 0.15, scale: 2.2, vari: 0.5 });
+    add('gebeizt_' + k, `${n} dunkel gebeizt`, 'Holz', { pat: 2, colA: sh(a, 0.55), colB: sh(b, 0.45), roughA: 0.4, roughB: 0.55, hAmt: 0.15, scale: 2.2, vari: 0.5 });
+    add('fass_' + k, `Fassbretter ${n}`, 'Holz', { pat: 12, colA: a, colB: b, roughA: 0.6, roughB: 0.75, hAmt: 0.3, scale: 1, vari: 0.6 });
+    add('rinde_' + k, `Rinde ${n}`, 'Natur', { pat: 28, colA: sh(b, 0.8), colB: sh(b, 0.45), roughA: 0.95, roughB: 1, hAmt: 0.8, scale: 2, vari: 0.6 });
+  }
+  // Stein & Boden
+  const STONE = { 'Granit grau': ['#8a8a88', '#4f4f4e'], 'Granit rot': ['#9a5a4c', '#4a2a24'], 'Granit schwarz': ['#2c2c2e', '#5a5a5c'], Sandstein: ['#c9a874', '#9c7b4c'], Schiefer: ['#3f4447', '#2a2e31'], Kalkstein: ['#d6cfbf', '#b0a690'], Basalt: ['#3a3a3a', '#252525'], Travertin: ['#dccbb0', '#a89070'], Quarzit: ['#c8c4bc', '#8a8680'], Porphyr: ['#7a4a44', '#4a2a28'], Tuffstein: ['#c2b49a', '#8a7a60'], Lavastein: ['#2e2a28', '#4a3a34'], Feldstein: ['#8a8070', '#5a5248'], Gneis: ['#9a9690', '#4a4844'] };
+  for (const [n, [a, b]] of Object.entries(STONE)) {
+    const k = slug(n);
+    add('st2_' + k, `${n} rau`, 'Stein & Boden', { pat: 9, colA: a, colB: b, roughA: 0.8, roughB: 0.9, hAmt: 0.35, scale: 2, vari: 0.6 });
+    add('stpol_' + k, `${n} poliert`, 'Stein & Boden', { pat: 9, colA: a, colB: b, roughA: 0.1, roughB: 0.15, hAmt: 0.02, scale: 2, vari: 0.6 });
+    add('stplat_' + k, `${n} Platten`, 'Stein & Boden', { pat: 43, colA: a, colB: b, roughA: 0.75, roughB: 0.9, hAmt: 0.4, scale: 1.5, vari: 0.6 });
+    add('stmauer_' + k, `${n} Mauer`, 'Stein & Boden', { pat: 37, colA: a, colB: '#3a3835', roughA: 0.85, roughB: 0.95, hAmt: 0.7, scale: 1.5, vari: 0.7 });
+    add('stpfl_' + k, `${n} Pflaster`, 'Stein & Boden', { pat: 22, colA: a, colB: '#2d2a26', roughA: 0.8, roughB: 0.95, hAmt: 0.7, scale: 2, vari: 0.6 });
+    add('stmos_' + k, `${n} Mosaik`, 'Stein & Boden', { pat: 51, colA: a, colB: b, roughA: 0.3, roughB: 0.85, hAmt: 0.3, scale: 1.5, vari: 0.8 });
+  }
+  const MARB = { 'Carrara weiß': ['#efefec', '#8a8c90'], 'Nero schwarz': ['#141416', '#d8d8d8'], 'Verde grün': ['#1f4a3a', '#d6e0d4'], 'Rosa': ['#e8c8c0', '#a87870'], 'Beige': ['#e6dcc6', '#9a8a6a'], 'Blau': ['#2a3a5a', '#d0d8e8'], 'Gold-Ader': ['#f2eee6', '#c9a24a'], 'Rot': ['#7a2a24', '#e0c0b0'] };
+  for (const [n, [a, b]] of Object.entries(MARB)) { const k = slug(n); add('mar_' + k, `Marmor ${n}`, 'Stein & Boden', { pat: 24, colA: a, colB: b, roughA: 0.1, roughB: 0.15, hAmt: 0, scale: 2, vari: 0.5 }); add('marfl_' + k, `Marmorfliesen ${n}`, 'Stein & Boden', { pat: 20, colA: a, colB: '#8a8a86', roughA: 0.1, roughB: 0.8, hAmt: 0.3, scale: 2, vari: 0.5 }); add('marmat_' + k, `Marmor ${n} matt`, 'Stein & Boden', { pat: 24, colA: a, colB: b, roughA: 0.55, roughB: 0.6, hAmt: 0, scale: 2, vari: 0.5 }); }
+  const BRICK = { rot: '#9e4b33', dunkelrot: '#6e2a1e', gelb: '#c9a466', weiß: '#d9d4c8', braun: '#6e4632', grau: '#7a7672', orange: '#b8673a', schwarz: '#2e2a28', klinker: '#5a2e22', alt: '#8a5a48' };
+  for (const [n, c] of Object.entries(BRICK)) { const k = slug(n); add('zg_' + k, `Ziegelwand ${n}`, 'Stein & Boden', { pat: 7, colA: c, colB: '#cdc4b4', roughA: 0.82, roughB: 0.95, hAmt: 0.5, scale: 2, vari: 0.6 }); add('dach_' + k, `Dachziegel ${n}`, 'Stein & Boden', { pat: 42, colA: c, colB: sh(c, 0.5), roughA: 0.7, roughB: 0.85, hAmt: 0.6, scale: 1.5, vari: 0.5 }); add('zgfisch_' + k, `Ziegel Fischgrät ${n}`, 'Stein & Boden', { pat: 31, colA: c, colB: sh(c, 0.6), roughA: 0.85, roughB: 0.95, hAmt: 0.4, scale: 1.5, vari: 0.6 }); }
+  for (const [n, c] of [['hell', '#b3b0aa'], ['mittel', '#8e8b85'], ['dunkel', '#5f5d5a'], ['warm', '#a89c8a'], ['kalt', '#9aa0a6'], ['weiß', '#d2d0cb']]) { add('beton2_' + n, `Sichtbeton ${n}`, 'Stein & Boden', { pat: 45, colA: c, colB: sh(c, 0.75), roughA: 0.85, roughB: 0.95, hAmt: 0.35, scale: 1, vari: 0.5 }); add('rp_' + n, `Rauputz ${n}`, 'Stein & Boden', { pat: 41, colA: c, colB: sh(c, 0.8), roughA: 0.9, roughB: 0.95, hAmt: 0.5, scale: 2, vari: 0.6 }); add('riss_' + n, `Beton gerissen ${n}`, 'Stein & Boden', { pat: 48, colA: c, colB: sh(c, 0.35), roughA: 0.85, roughB: 0.95, hAmt: 0.4, scale: 1.5, vari: 0.5 }); add('gehweg_' + n, `Gehwegplatten ${n}`, 'Stein & Boden', { pat: 43, colA: c, colB: sh(c, 0.5), roughA: 0.85, roughB: 0.95, hAmt: 0.4, scale: 1.2, vari: 0.5 }); }
+  // Natur
+  const NAT = [['Sand fein', '#e2cc9a', '#c4a876', 47], ['Strandsand', '#e8d6aa', '#cbb284', 47], ['Wüstendüne', '#d9a964', '#b07c40', 47], ['Schwarzer Sand', '#3a3634', '#5a5450', 47], ['Rotsand', '#c4703a', '#8a4a24', 47], ['Getrocknete Erde', '#a07a52', '#5a3e24', 48], ['Salzwüste', '#efece4', '#b8b2a4', 48], ['Eis', '#cfe6f2', '#8ab8d4', 48], ['Kork', '#b88a5a', '#7a5432', 46], ['Moosboden', '#3e5a24', '#2a3a18', 27], ['Nadelwaldboden', '#5a3e24', '#3a2a18', 27], ['Wiese', '#4a8a2a', '#7ab43e', 27], ['Golfrasen', '#3a8a32', '#4aa03c', 27], ['Heu', '#c9b062', '#8a7434', 27], ['Matsch', '#3a2e1e', '#2a2014', 27], ['Lehmboden', '#9a6a3e', '#6a4426', 27], ['Vulkangestein', '#2a2624', '#5a4a40', 28], ['Felswand', '#7a746a', '#4a463e', 28], ['Kalkfels', '#d0c8b4', '#9a907a', 28], ['Korallenstein', '#e0cdb0', '#a8906a', 9], ['Kiesel bunt', '#a89a88', '#5a5248', 22], ['Flusskiesel', '#8a8880', '#4a4a46', 22], ['Schotter grob', '#7a7670', '#3e3c38', 22], ['Laub herbstlich', '#b85a22', '#6a3a14', 16], ['Laub grün', '#5a8a2e', '#2e5a1a', 16], ['Blätterdach', '#4a7a2a', '#1e3a12', 16], ['Bambusmatte', '#c9b06a', '#8a7440', 44], ['Rattan', '#c9a46a', '#7a5a34', 44], ['Weidengeflecht', '#a8844e', '#5a4024', 44], ['Schlangenhaut', '#7a7a4a', '#2a2a14', 26], ['Krokodilhaut', '#4a5a34', '#1e2412', 25], ['Fischhaut', '#9ab0b8', '#4a5a64', 26], ['Drachenschuppen rot', '#8a1a14', '#2a0806', 26], ['Drachenschuppen grün', '#2a6a2a', '#0a2410', 26], ['Pilzhaut', '#d8c8aa', '#8a6a4a', 41]];
+  for (const [n, a, b, p] of NAT) add('nat2_' + slug(n), n, 'Natur', { pat: p, colA: a, colB: b, roughA: /Eis|haut|schuppen/i.test(n) ? 0.35 : 0.9, roughB: 0.95, hAmt: 0.4, scale: 2.5, vari: 0.6 });
+  // Muster & Stoffe zweifarbig
+  const PAIRS = [['Rot-Schwarz', '#b8262b', '#1a1a1d'], ['Blau-Weiß', '#2b4f9a', '#e8e8e8'], ['Grün-Schwarz', '#2e6b3a', '#151515'], ['Grau-Weiß', '#6e7072', '#dcdcdc'], ['Gelb-Schwarz', '#f2c418', '#141414'], ['Rot-Weiß', '#c4202b', '#efefed'], ['Lila-Weiß', '#6b3fa0', '#efefed'], ['Pink-Weiß', '#e0508f', '#efefed'], ['Braun-Beige', '#6b4426', '#d8c7a6'], ['Navy-Rot', '#14254f', '#b8262b'], ['Türkis-Weiß', '#1fa3a0', '#efefed'], ['Orange-Schwarz', '#e8701c', '#141414']];
+  for (const [n, a, b] of PAIRS) {
+    const k = slug(n);
+    add('kar2_' + k, `Karo ${n}`, 'Stoff & Leder', { pat: 15, colA: a, colB: b, roughA: 0.9, roughB: 0.92, hAmt: 0.15, scale: 2, vari: 0.4 });
+    add('str2_' + k, `Streifen ${n}`, 'Pixel & Muster', { pat: 10, colA: a, colB: b, roughA: 0.5, roughB: 0.5, hAmt: 0, scale: 2, vari: 0.2 });
+    add('pkt2_' + k, `Punkte ${n}`, 'Pixel & Muster', { pat: 38, colA: b, colB: a, roughA: 0.5, roughB: 0.5, hAmt: 0, scale: 2, vari: 0 });
+    add('sch2_' + k, `Schachbrett ${n}`, 'Pixel & Muster', { pat: 40, colA: a, colB: b, roughA: 0.4, roughB: 0.4, hAmt: 0, scale: 2, vari: 0 });
+    add('warn2_' + k, `Warnstreifen ${n}`, 'Industrie', { pat: 39, colA: a, colB: b, roughA: 0.45, roughB: 0.45, hAmt: 0, scale: 2, vari: 0 });
+    add('tarn2_' + k, `Tarnmuster ${n}`, 'Stoff & Leder', { pat: 16, colA: a, colB: b, roughA: 0.9, roughB: 0.92, hAmt: 0.05, scale: 2, vari: 0.5 });
+    add('karb2_' + k, `Karbon ${n}`, 'Industrie', { pat: 8, colA: sh(a, 0.5), colB: sh(b, 0.35), roughA: 0.25, roughB: 0.3, metalA: 0.2, metalB: 0.2, hAmt: 0.1, scale: 3, vari: 0.3 });
+  }
+  for (const [n, c] of [['Gras', '#5aa83a'], ['Erde', '#8a5a34'], ['Stein', '#8a8a8a'], ['Holz', '#b0844e'], ['Sand', '#e0cc8e'], ['Wasser', '#2f6fd6'], ['Lava', '#ff6a14'], ['Schnee', '#f4f6f8'], ['Laub', '#3e7a2a'], ['Ziegel', '#a8442e'], ['Gold', '#f2c418'], ['Diamant', '#7ae8e8'], ['Obsidian', '#2a1a3a'], ['Eis', '#a8d8f8'], ['Kies', '#8a7e74'], ['Lehm', '#a87a52'], ['Pilz', '#c42a2a'], ['Kürbis', '#e8801c'], ['Melone', '#3a8a2a'], ['Netherrot', '#6a1a1a']]) add('px2_' + slug(n), `Pixelblock ${n}`, 'Pixel & Muster', { pat: 34, colA: c, colB: sh(c, 0.72), roughA: 0.8, roughB: 0.85, hAmt: 0.05, scale: 1.5, vari: 0.6 });
+  // weitere Schmutz-/Effekt-Materialien
+  const FX = [['Ruß', '#141414', '#2a2a2a', 1, 0.95], ['Staub hell', '#c9c0b0', '#a89e8c', 23, 0.95], ['Schlamm trocken', '#7a6248', '#5a4632', 48, 0.95], ['Kalkablagerung', '#e4e0d4', '#c4bca8', 41, 0.9], ['Grünspan', '#4aa088', '#2a6a5a', 4, 0.85], ['Flugrost', '#a8582a', '#6a3418', 23, 0.85], ['Moos dicht', '#3a6a24', '#24461a', 33, 1], ['Algen', '#2a4a2a', '#4a6a34', 1, 0.3], ['Teer', '#0e0d0c', '#1a1816', 1, 0.15], ['Wachs', '#f0e4c4', '#d8c89e', 1, 0.3], ['Honig', '#d8901a', '#a85a0a', 1, 0.05], ['Schleim grün', '#5ab42a', '#2a6a12', 1, 0.08], ['Asche', '#8a8682', '#4a4846', 23, 1], ['Brandspuren', '#1a1412', '#4a3020', 1, 0.9], ['Wasserflecken', '#9aa0a4', '#6a7074', 1, 0.4], ['Graffiti-Farbe', '#e0308f', '#2a6ad6', 16, 0.5], ['Pollen', '#e8c84a', '#c4a02a', 23, 0.95], ['Raureif', '#eef4f8', '#c8d8e4', 33, 0.7], ['Schneematsch', '#c4c8cc', '#7a7e80', 27, 0.4], ['Ölfilm', '#1a1814', '#3a2a4a', 11, 0.05]];
+  for (const [n, a, b, p, r] of FX) add('fx2_' + slug(n), n, 'Schmutz & Effekte', { pat: p, colA: a, colB: b, roughA: r, roughB: Math.min(1, r + 0.05), hAmt: 0.05, scale: 3, vari: 0.5 });
+
+  // ---------- noch mehr fertige Looks ----------
+  const L = (id, ex = {}) => ({ name: MATERIALS[id].name, ...ex, fill: { ...MATERIALS[id].fill, ...(ex.fill || {}) } });
+  const addLook = (key, name, layers) => { if (!SMART[key]) SMART[key] = { name, layers }; };
+  const dirt = (o = 0.75) => ({ ...L('schmutz'), name: 'Dreck in Ecken', opacity: o, mask: { gen: 2, level: 0.5, width: 0.05, rough: 0.6, soft: 0.12, scale: 3 } });
+  const dust = (o = 0.6) => ({ ...L('staub'), name: 'Staub', opacity: o, mask: { gen: 5, level: 0.4, rough: 0.6, soft: 0.12, scale: 2 } });
+  const edge = (m) => ({ ...L(m), name: 'Abgeplatzte Kanten', mask: { gen: 1, level: 0.42, width: 0.05, rough: 0.75, soft: 0.03, scale: 3 } });
+  for (const [n] of COLS.slice(0, 72)) {
+    const k = slug(n);
+    addLook('alack2_' + k, `Abgenutzter Lack ${n}`, [L('m_stahl'), { ...L('satin_' + k), name: 'Lack', mask: { gen: 1, inv: true, level: 0.4, width: 0.04, rough: 0.8, soft: 0.03, scale: 3 } }, dirt(0.6), dust(0.4)]);
+  }
+  for (const n of Object.keys(WOOD)) { const k = slug(n); addLook('mobel_' + k, `Möbel ${n}`, [L('lackholz_' + k), dust(0.25), { ...L('altw_' + k), name: 'Abrieb Kanten', opacity: 0.8, mask: { gen: 1, level: 0.5, width: 0.03, rough: 0.6, soft: 0.05, scale: 4 } }]); }
+  for (const n of Object.keys(MET)) { const k = slug(n); addLook('altmet_' + k, `Gebrauchtes ${n}`, [L('mkratz_' + k), dirt(0.7), { ...L('moxid_' + k), name: 'Angelaufen', opacity: 0.7, mask: { gen: 4, level: 0.5, rough: 0.6, soft: 0.15, scale: 2 } }]); }
+  for (const n of Object.keys(STONE)) { const k = slug(n); addLook('ruine_' + k, `Ruine ${n}`, [L('stmauer_' + k), dirt(0.8), { ...L('moos'), name: 'Moos', mask: { gen: 5, level: 0.45, rough: 0.8, soft: 0.06, scale: 2.5 } }]); }
+  for (const [n] of COLS.slice(0, 40)) { const k = slug(n); addLook('auto_' + k, `Autolack ${n} gebraucht`, [L('mlack_' + k), { ...L('mlack_' + k), name: 'Kratzer', fill: { ...MATERIALS['mlack_' + k].fill, roughA: 0.6, roughB: 0.7 }, mask: { gen: 7, level: 0.55, soft: 0.05, scale: 2 } }, { ...L('schlamm_nass'), name: 'Dreck unten', opacity: 0.6, mask: { gen: 6, level: 0.3, rough: 0.7, soft: 0.12, scale: 2 } }, dust(0.3)]); }
+  for (const [n] of PAIRS) { const k = slug(n); addLook('warnalt_' + k, `Alte Warnmarkierung ${n}`, [L('beton2_mittel'), { ...L('warn2_' + k), name: 'Markierung', mask: { gen: 11, inv: true, level: 0.3, rough: 0.6, soft: 0.04, scale: 2 } }, dirt(0.6)]); }
 })();
 
 /* Ebenen aus einer Vorlage bauen */
@@ -3887,8 +4167,14 @@ function ctlColor(label, obj, key, o = {}) {
   inp.addEventListener('change', () => { if (o.undo) endEdit(); });
   return el('div', { class: 'row two' }, el('label', {}, label), inp);
 }
+/* Materialien nach Kategorie gruppiert (für lange Listen) */
+function matGroups(cur) {
+  const g = new Map();
+  for (const [k, m] of Object.entries(MATERIALS)) { const c = m.cat || 'Sonstiges'; if (!g.has(c)) g.set(c, []); g.get(c).push(el('option', { value: k, selected: cur === k }, m.name)); }
+  return [...g].map(([c, opts]) => el('optgroup', { label: c }, opts));
+}
 function ctlSelect(label, obj, key, options, o = {}) {
-  const s = el('select', {}, options.map(([v, t]) => el('option', { value: v, selected: String(obj[key]) === String(v) }, t)));
+  const s = el('select', {}, options.map((op) => (op instanceof Node ? op : el('option', { value: op[0], selected: String(obj[key]) === String(op[0]) }, op[1]))));
   s.addEventListener('change', () => {
     if (o.undo) beginEdit();
     const v = typeof obj[key] === 'number' ? +s.value : s.value; obj[key] = v; if (o.onchange) o.onchange(v);
@@ -4228,6 +4514,7 @@ const UI = {
       const th = el('div', { class: 'th' + (sel && S.target === 'layer' && l.mask ? ' act' : ''), title: 'Ebene' });
       if (l.kind === 'folder') { th.classList.add('fold'); th.append(ico('folder', 16)); }
       else if (l.kind === 'filter') { th.classList.add('filt'); th.append(ico('sun', 15)); }
+      else if (l.kind === 'fill' && l.fill.photo) { const it = ACG.list && ACG.list.find((x) => x.id === l.fill.photo); th.style.background = it ? `center/cover url("${it.thumb}")` : '#555'; }
       else if (l.kind === 'fill') th.style.background = PAT_USES_B[l.fill.pat] ? `linear-gradient(135deg,${l.fill.colA} 50%,${l.fill.colB} 50%)` : l.fill.colA;
       else { th.classList.add('paint'); th.append(ico('brush', 15)); }
       let mk = null;
@@ -4327,7 +4614,7 @@ const UI = {
           el('button', { class: b.maskVal >= 0.5 ? 'on' : '', onclick: () => { b.maskVal = 1; this.renderProps(); } }, 'Weiß'),
           el('button', { class: b.maskVal < 0.5 ? 'on' : '', onclick: () => { b.maskVal = 0; this.renderProps(); } }, 'Schwarz')));
       } else {
-        const opts = [['', 'Nur Farbe'], ...Object.entries(MATERIALS).map(([k, m]) => [k, m.name])];
+        const opts = [['', 'Nur Farbe'], ...matGroups(b.mat)];
         if (S.tool !== 'decal') kids.push(ctlSelect('Malt mit', b, 'mat', opts, { onchange: () => this.renderProps() }));
         if (S.tool === 'decal') kids.push(el('div', { class: 'note' }, 'Der Aufkleber nimmt die Farben aus dem Bild.'), ctlSlider('Rauheit', b, 'rough', 0, 1, 0.01), ctlSlider('Metall', b, 'metal', 0, 1, 0.01));
         if (S.tool !== 'decal') kids.push(el('div', { class: 'chk', 'data-tip': 'Welche Kanäle der Pinsel malt', 'data-desc': 'Ausgeschaltete Kanäle bleiben beim Malen und Radieren unverändert – z. B. nur Höhe malen für Dellen, nur Rauheit für Fettflecken.' },
@@ -4372,9 +4659,26 @@ const UI = {
       P.append(sec('Filter', ...k));
     }
     if (l.kind === 'folder') P.append(sec('Ordner', el('div', { class: 'note' }, 'Deckkraft, Sichtbarkeit und Maske des Ordners gelten für alle Ebenen darin. Ebenen per Ziehen auf den Ordner hineinlegen, per Ziehen auf eine Ebene außerhalb wieder heraus.')));
-    if (l.kind === 'fill') {
+    if (l.kind === 'fill' && l.fill.photo) {
+      const f = l.fill;
+      P.append(sec('Foto-Material',
+        el('div', { class: 'note' }, (ACG.sets.has(f.photo) ? '' : 'Wird geladen … ') + 'Quelle: ambientCG.com – ' + f.photo + ' (CC0)'),
+        ctlSlider('Größe', f, 'scale', 0.2, 20, 0.05, { undo: true, onchange: recomp, tip: 'Größere Zahl = feineres Muster' }),
+        ctlSlider('Drehung', f, 'rot', 0, 360, 1, { undo: true, onchange: recomp }),
+        ctlSelect('Projektion', f, 'proj', [['tri', 'Ohne Nähte (von 3 Seiten)'], ['uv', 'Nach UV-Karte']], { undo: true, onchange: recomp }),
+        ctlSlider('Farbton', f, 'hue', -0.5, 0.5, 0.01, { undo: true, onchange: recomp }),
+        ctlSlider('Helligkeit', f, 'bright', -1, 1, 0.01, { undo: true, onchange: recomp }),
+        ctlColor('Einfärben', f, 'colA', { undo: true, onchange: recompL }),
+        ctlSlider('Einfärben Stärke', f, 'tint', 0, 1, 0.01, { undo: true, onchange: recomp }),
+        ctlSlider('Rauheit +/-', f, 'rOff', -1, 1, 0.01, { undo: true, onchange: recomp }),
+        ctlSlider('Metall', f, 'metalA', 0, 1, 0.01, { undo: true, onchange: recomp, tip: 'Mindestwert, falls das Material kein Metall-Bild hat' }),
+        ctlSlider('Höhe', f, 'hAmt', 0, 2, 0.01, { undo: true, onchange: recomp }),
+        ctlSlider('Schatten in Ritzen', f, 'aoAmt', 0, 1, 0.01, { undo: true, onchange: recomp }),
+        ctlSelect('Auflösung', f, 'res', [['1K', '1K (schnell)'], ['2K', '2K'], ['4K', '4K (sehr scharf, groß)']], { undo: true, onchange: () => { ACG.sets.delete(f.photo); recomp(); } })));
+    }
+    if (l.kind === 'fill' && !l.fill.photo) {
       const f = l.fill; const k = [];
-      const matSel = el('select', {}, el('option', { value: '' }, 'Material wählen …'), Object.entries(MATERIALS).map(([id, m]) => el('option', { value: id }, m.name)));
+      const matSel = el('select', {}, el('option', { value: '' }, 'Material wählen …'), matGroups(null));
       matSel.onchange = () => { if (!matSel.value) return; pushUndo(); Object.assign(f, MATERIALS[matSel.value].fill); l.name = MATERIALS[matSel.value].name; E.needComp = true; this.refreshAll(); };
       k.push(el('div', { class: 'row two' }, el('label', {}, 'Vorlage'), matSel));
       k.push(ctlSelect('Muster', f, 'pat', PATTERNS.map((p, i) => [i, p]), { undo: true, onchange: () => { recompL(); this.renderProps(); } }));
@@ -4434,16 +4738,21 @@ const UI = {
     const cats = $('#shelf .cats'), tabs = $('#shelf .tabs'); cats.innerHTML = ''; tabs.innerHTML = '';
     const T = [['smart', 'Fertige Looks', Object.keys(SMART).length], ['mat', 'Materialien', Object.keys(MATERIALS).length], ['mask', 'Masken', GENS.length - 1], ['brushp', 'Pinsel', BRUSH_PRESETS.length], ['shape', 'Pinselspitzen', SHAPES.length]];
     for (const [k, t, n] of T) {
-      cats.append(el('button', { class: this.shelfTab === k && !(k === 'mat' && this.matCat && this.matCat !== 'Alle') ? 'on' : '', onclick: () => { this.shelfTab = k; if (k === 'mat') this.matCat = 'Alle'; this.renderShelf(); } }, t, el('span', { class: 'cnt' }, n)));
+      cats.append(el('button', { class: this.shelfTab === k && !(k === 'mat' && this.matCat && this.matCat !== 'Alle') && !(k === 'online' && ACG.cat !== 'Alle') ? 'on' : '', onclick: () => { this.shelfTab = k; if (k === 'mat') this.matCat = 'Alle'; if (k === 'online') ACG.cat = 'Alle'; this.renderShelf(); } }, t, el('span', { class: 'cnt' }, n)));
+      if (k === 'online' && this.shelfTab === 'online' && ACG.list) {
+        const cnt = {}; for (const it of ACG.list) cnt[it.cat] = (cnt[it.cat] || 0) + 1;
+        const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
+        for (const [c, n2] of top) cats.append(el('button', { class: 'sub' + (ACG.cat === c ? ' on' : ''), onclick: () => { ACG.cat = c; this.renderShelf(); } }, c, el('span', { class: 'cnt' }, n2)));
+      }
       if (k === 'mat' && this.shelfTab === 'mat') {
         const cnt = {}; for (const m of Object.values(MATERIALS)) { const c = m.cat || 'Sonstiges'; cnt[c] = (cnt[c] || 0) + 1; }
         for (const [c, n2] of Object.entries(cnt)) cats.append(el('button', { class: 'sub' + (this.matCat === c ? ' on' : ''), onclick: () => { this.matCat = c; this.renderShelf(); } }, c, el('span', { class: 'cnt' }, n2)));
       }
     }
-    const hints = { smart: 'Klick fügt den Look als Ebenen ein', mat: 'Klick: neue Ebene   ·   Rechtsklick: damit malen', mask: 'Klick: Maske für die ausgewählte Ebene', brushp: 'Klick: Pinsel übernehmen', shape: '' };
-    const title = (T.find((x) => x[0] === this.shelfTab) || [])[1] + (this.shelfTab === 'mat' && this.matCat && this.matCat !== 'Alle' ? ' · ' + this.matCat : '');
+    const hints = { online: 'Echte Foto-Texturen von ambientCG.com (CC0, frei nutzbar) · Klick: als Füll-Ebene', smart: 'Klick fügt den Look als Ebenen ein', mat: 'Klick: neue Ebene   ·   Rechtsklick: damit malen', mask: 'Klick: Maske für die ausgewählte Ebene', brushp: 'Klick: Pinsel übernehmen', shape: '' };
+    const title = (T.find((x) => x[0] === this.shelfTab) || [])[1] + (this.shelfTab === 'mat' && this.matCat && this.matCat !== 'Alle' ? ' · ' + this.matCat : '') + (this.shelfTab === 'online' && ACG.cat !== 'Alle' ? ' · ' + ACG.cat : '');
     tabs.append(el('span', { class: 'ttl' }, title));
-    if (this.shelfTab === 'mat' || this.shelfTab === 'smart') {
+    if (this.shelfTab === 'mat' || this.shelfTab === 'smart' || this.shelfTab === 'online') {
       const q = el('input', { type: 'search', class: 'shelfq', placeholder: 'Suchen …', value: this.q || '' });
       q.addEventListener('input', () => { this.q = q.value; const pos = q.selectionStart; this.renderShelf(); const n = $('.shelfq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } });
       q.addEventListener('keydown', (e) => e.stopPropagation());
@@ -4464,6 +4773,24 @@ const UI = {
       if (oncontext) t.addEventListener('contextmenu', (e) => { e.preventDefault(); oncontext(); });
       return t;
     };
+    if (this.shelfTab === 'online') {
+      if (!ACG.list) {
+        it.append(el('div', { class: 'note', id: 'onlineSt', style: 'padding:14px' }, 'Lade die Liste der Foto-Materialien …'));
+        acgList().then(() => { if (this.shelfTab === 'online') this.renderShelf(); }).catch((e) => { console.error(e); this.onlineStatus('Keine Verbindung zu ambientCG.com (' + e.message + '). Bist du online?'); });
+      } else {
+        const ql = (this.q || '').toLowerCase().split(/\s+/).filter(Boolean);
+        let n = 0;
+        for (const x of ACG.list) {
+          if (ACG.cat !== 'Alle' && x.cat !== ACG.cat) continue;
+          if (ql.length && !ql.every((w) => (x.name + ' ' + x.cat + ' ' + x.id).toLowerCase().includes(w))) continue;
+          if (++n > 600) break;
+          const t = el('button', { class: 'tile', title: x.name + ' (' + x.cat + ')', onclick: () => addPhotoLayer(x) }, el('img', { src: x.thumb, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }), el('span', {}, x.name));
+          it.append(t);
+        }
+        if (n > 600) it.append(el('div', { class: 'note', style: 'padding:14px' }, 'Es gibt noch mehr – such oder wähl links eine Kategorie.'));
+        if (!n) it.append(el('div', { class: 'note', style: 'padding:14px' }, 'Nichts gefunden.'));
+      }
+    }
     if (this.shelfTab === 'smart') for (const [k, s] of Object.entries(SMART)) if (match(s.name)) it.append(tile('s:' + k, s.name, () => this.applySmart(k)));
     if (this.shelfTab === 'mat') for (const [k, m] of Object.entries(MATERIALS)) if (match(m.name) && (!this.matCat || this.matCat === 'Alle' || (m.cat || 'Sonstiges') === this.matCat)) it.append(tile('m:' + k, m.name, () => this.applyMat(k), () => { S.brush.mat = k; if (S.tool !== 'paint' && S.tool !== 'fill') setTool('paint'); this.renderProps(); this.renderShelf(); toast('Pinsel malt jetzt mit ' + m.name); }, S.brush.mat === k));
     if (this.shelfTab === 'mask') GENS.forEach((g, i) => { if (i) it.append(tile('g:' + i, g, () => this.addMask(1, i))); });
@@ -4539,6 +4866,7 @@ const UI = {
     drag('#splitShelf', (st, dx, dy) => { saved.shelf = clamp(st.shelf - dy, 90, innerHeight * 0.5); });
     drag('#splitLayers', (st, dx, dy) => { saved.layers = clamp(st.layers + dy, 80, innerHeight * 0.6); });
   },
+  onlineStatus(t) { const n = $('#onlineSt'); if (n) n.textContent = t; },
   modHint(t) { const h = $('#modHint'); if (!h) return; h.textContent = t || ''; h.classList.toggle('on', !!t); },
   busy(msg) { $('#busy').classList.toggle('on', !!msg); $('#busyMsg').textContent = msg || ''; },
   openFile(accept) {
@@ -5585,7 +5913,7 @@ function loop() {
   try {
     if (ST.on && S.brush.air && drag && drag.mode === 'paint' && ST.last && ST.op !== 3) ST.pending.push({ x: ST.last[0], y: ST.last[1], r: brushRadiusPx(ST.r, ST.last[0], ST.last[1]), a: S.brush.angle * Math.PI / 180, s: S.brush.flow * 0.12, seed: Math.random() * 100 });
     if (ST.on && ST.pending.length) strokeFlush();
-    if (E.needComp || E.needDraw) renderAll();
+    if (E.needComp || E.needDraw) { const cam = E.gbDirty; renderAll(); if (cam && !(drag && drag.mode === 'paint')) drawOverlay(); }
   } catch (e) { console.error('Zeichenfehler', e); E.needComp = false; E.needDraw = false; }
 }
 
